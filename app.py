@@ -215,14 +215,15 @@ with st.form("notes_form"):
         key="strategy_tag"
     )
 
-    current_strategy_type = "Not Defined"
-    if strategy_data:
+ # Get strategy type from existing data or default to "Not Defined"
+current_strategy_type = "Not Defined"
+if strategy_data:
     for ind_data in strategy_data.values():
         if "momentum" in ind_data:
             current_strategy_type = ind_data["momentum"]
             break
 
-    strategy_type = st.selectbox(
+strategy_type = st.selectbox(
     f"Strategy '{selected_strategy}' type:", 
     options=["Momentum", "Extreme", "Not Defined"],  # added new option
     index=["Momentum", "Extreme", "Not Defined"].index(
@@ -230,6 +231,7 @@ with st.form("notes_form"):
     ),
     key="strategy_type"
 )
+
     st.markdown("---")
 
     indicators = STRATEGIES[selected_strategy]
