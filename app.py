@@ -44,7 +44,7 @@ def get_daily_strategies(analysis_date):
     return daily_strategies, cycle_day + 1
 
 # -------------------------
-# Estratégias
+# Strategies
 # -------------------------
 STRATEGIES = {
  "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
@@ -69,7 +69,7 @@ STRATEGIES = {
 # -------------------------
 data = load_data()
 
-# Initialize strategy tags to Neutral if missing
+# Initialize missing strategy tags
 for strategy_name in data:
     for indicator_name in data[strategy_name]:
         if "strategy_tag" not in data[strategy_name][indicator_name]:
@@ -81,7 +81,6 @@ save_data(data)
 # Sidebar
 # -------------------------
 st.sidebar.title("Controls")
-
 st.sidebar.subheader("📅 Analysis Date")
 start_date = date(2025, 8, 9)
 analysis_date = st.sidebar.date_input(
@@ -136,7 +135,7 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Form with 3-column grid for indicators
+# Form with grid layout
 # -------------------------
 with st.form("notes_form"):
 
@@ -153,7 +152,7 @@ with st.form("notes_form"):
         index=["Neutral","Buy","Sell"].index(current_strategy_tag if current_strategy_tag in ["Neutral","Buy","Sell"] else "Neutral")
     )
 
-    # Strategy Type
+    # Strategy Type with "Not Defined" default
     current_strategy_type = "Not Defined"
     for ind_data in strategy_data.values():
         current_strategy_type = ind_data.get("momentum", "Not Defined")
@@ -205,4 +204,39 @@ with st.form("notes_form"):
                 "last_modified": datetime.utcnow().isoformat() + "Z"
             }
         save_data(data)
-        st.success(f"Analyses saved for strategy '{selected_strategy}' with tag '{strategy
+        st.success(f"Analyses saved for strategy '{selected_strategy}' with tag '{strategy_tag}'.")
+
+# -------------------------
+# Display saved analyses
+# -------------------------
+st.markdown("---")
+st.subheader("📜 View saved analyses")
+view_options = ["Today's Focus", "All Strategies"] + daily_strategies
+filter_strategy = st.selectbox("Filter by strategy:", view_options)
+
+if filter_strategy == "Today's Focus":
+    strategies_to_show = daily_strategies
+elif filter_strategy == "All Strategies":
+    strategies_to_show = list(data.keys())
+elif filter_strategy in daily_strategies:
+    strategies_to_show = [filter_strategy]
+else:
+    strategies_to_show = list(data.keys())
+
+for strat in strategies_to_show:
+    st.markdown(f"### {strat}")
+    inds = data.get(strat, {})
+    if not inds:
+        st.info("No saved notes for this strategy.")
+        continue
+    strategy_tag = next(iter(inds.values())).get('strategy_tag', 'Neutral')
+    st.markdown(f"**Strategy Tag: {strategy_tag}**")
+    st.markdown("---")
+    for ind_name, meta in inds.items():
+        momentum_type = meta.get("momentum", "Not Defined")
+        st.markdown(f"**{ind_name}** ({momentum_type})")
+        note = meta.get("note","")
+        st.write(note if note else "_No notes_")
+        st.markdown("---")
+
+st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Use the 'Export Analyses' button in the sidebar to download a backup.")
