@@ -215,8 +215,8 @@ with st.form("notes_form"):
         key="strategy_tag"
     )
 
-  current_strategy_type = "Not Defined"
-if strategy_data:
+    current_strategy_type = "Not Defined"
+    if strategy_data:
     for ind_data in strategy_data.values():
         if "momentum" in ind_data:
             current_strategy_type = ind_data["momentum"]
