@@ -223,11 +223,13 @@ with st.form("notes_form"):
                 break
 
     strategy_type = st.selectbox(
-        f"Strategy '{selected_strategy}' type:", 
-        options=["Momentum", "Extreme"], 
-        index=0 if current_strategy_type=="Momentum" else 1,
-        key="strategy_type"
-    )
+    f"Strategy '{selected_strategy}' type:", 
+    options=["Momentum", "Extreme", "Not Defined"],  # added new option
+    index=["Momentum", "Extreme", "Not Defined"].index(
+        current_strategy_type if current_strategy_type in ["Momentum", "Extreme", "Not Defined"] else "Not Defined"
+    ),
+    key="strategy_type"
+)
     st.markdown("---")
 
     indicators = STRATEGIES[selected_strategy]
