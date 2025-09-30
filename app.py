@@ -3,11 +3,7 @@ import streamlit as st
 import json
 import os
 from datetime import datetime, date
-from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.lib import colors
+import pandas as pd
 import io
 
 st.set_page_config(page_title="Chart Reminder & Notes (15 Strategies)", layout="wide")
@@ -60,79 +56,64 @@ def get_daily_strategies(analysis_date):
     
     return daily_strategies, cycle_day + 1
 
-def generate_pdf_report(data, analysis_date):
-    """Generate PDF report of all analyses"""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+def generate_excel_report(data, analysis_date):
+    """Generate Excel report of all analyses"""
+    # Create a list to hold all the data
+    report_data = []
     
-    # Get styles
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, spaceAfter=30)
-    heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, spaceAfter=12)
-    
-    # Build story
-    story = []
-    
-    # Title
-    story.append(Paragraph("📊 Trading Strategies Analysis Report", title_style))
-    story.append(Paragraph(f"Analysis Date: {analysis_date.strftime('%m/%d/%Y')}", styles['Normal']))
-    story.append(Spacer(1, 12))
-    
-    # Summary
-    total_strategies = len(data)
-    total_indicators = sum(len(indicators) for indicators in data.values())
-    story.append(Paragraph(f"Total Strategies: {total_strategies}", styles['Normal']))
-    story.append(Paragraph(f"Total Analyzed Indicators: {total_indicators}", styles['Normal']))
-    story.append(Spacer(1, 20))
-    
-    # Strategy details
     for strategy_name, indicators in data.items():
-        story.append(Paragraph(f"Strategy: {strategy_name}", heading_style))
-        
-        # Add strategy tag
+        # Get strategy tag and type
         strategy_tag = "Neutral"
+        strategy_type = "Momentum"
         if indicators:
             first_indicator = next(iter(indicators.values()))
             strategy_tag = first_indicator.get('strategy_tag', 'Neutral')
-        
-        story.append(Paragraph(f"Strategy Tag: {strategy_tag}", styles['Normal']))
-        story.append(Spacer(1, 8))
-        
-        # Create table for indicators
-        table_data = [['Indicator', 'Type', 'Status', 'Analysis']]
+            strategy_type = first_indicator.get('momentum', 'Momentum')
         
         for ind_name, meta in indicators.items():
-            note = meta.get('note', '')
-            # Limit note length for table display
-            if len(note) > 100:
-                note = note[:97] + "..."
-            
-            table_data.append([
-                ind_name,
-                meta.get('momentum', 'Momentum'),
-                meta.get('status', ''),
-                note
-            ])
-        
-        table = Table(table_data, colWidths=[2*inch, 0.8*inch, 0.8*inch, 3*inch])
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP')
-        ]))
-        
-        story.append(table)
-        story.append(Spacer(1, 20))
+            report_data.append({
+                'Strategy': strategy_name,
+                'Strategy_Tag': strategy_tag,
+                'Strategy_Type': strategy_type,
+                'Indicator': ind_name,
+                'Status': meta.get('status', ''),
+                'Analysis': meta.get('note', ''),
+                'Analysis_Date': meta.get('analysis_date', analysis_date.strftime('%Y-%m-%d')),
+                'Last_Modified': meta.get('last_modified', '')
+            })
     
-    # Build PDF
-    doc.build(story)
+    # Create DataFrame
+    df = pd.DataFrame(report_data)
+    
+    # Create Excel file in memory
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        # Write main data
+        df.to_excel(writer, sheet_name='Trading Analysis', index=False)
+        
+        # Create summary sheet
+        summary_data = {
+            'Metric': ['Total Strategies', 'Total Indicators', 'Analysis Date'],
+            'Value': [len(data), sum(len(indicators) for indicators in data.values()), analysis_date.strftime('%m/%d/%Y')]
+        }
+        summary_df = pd.DataFrame(summary_data)
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+        
+        # Auto-adjust column widths
+        for sheet_name in writer.sheets:
+            worksheet = writer.sheets[sheet_name]
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+    
     buffer.seek(0)
     return buffer
 
@@ -256,14 +237,14 @@ with col1:
         )
 
 with col2:
-    if st.button("📄 PDF"):
+    if st.button("📊 Excel"):
         if data:
-            pdf_buffer = generate_pdf_report(data, analysis_date)
+            excel_buffer = generate_excel_report(data, analysis_date)
             st.download_button(
-                label="Download PDF",
-                data=pdf_buffer.getvalue(),
-                file_name=f"trading_report_{analysis_date.strftime('%Y%m%d')}.pdf",
-                mime="application/pdf"
+                label="Download Excel",
+                data=excel_buffer.getvalue(),
+                file_name=f"trading_report_{analysis_date.strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
         else:
             st.warning("No saved analyses to export.")
