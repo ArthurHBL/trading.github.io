@@ -198,6 +198,7 @@ st.markdown("---")
 # -------------------------
 # Notes form
 # -------------------------
+# Notes form
 with st.form("notes_form"):
     strategy_data = data.get(selected_strategy, {})
     current_strategy_tag = "Neutral"
@@ -230,20 +231,22 @@ with st.form("notes_form"):
     st.markdown("---")
 
     indicators = STRATEGIES[selected_strategy]
-    # Show indicators in 2 columns
     n_cols = 2
-    for i, ind in enumerate(indicators):
-        col = st.columns(n_cols)[i % n_cols]
-        key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
-        key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
-        existing = data.get(selected_strategy, {}).get(ind, {})
-        default_note = existing.get("note", "")
-        default_status = existing.get("status", "Open")
+    # Iterate indicators in chunks of n_cols
+    for i in range(0, len(indicators), n_cols):
+        cols = st.columns(n_cols)
+        for j, ind in enumerate(indicators[i:i+n_cols]):
+            col = cols[j]
+            key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
+            key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
+            existing = data.get(selected_strategy, {}).get(ind, {})
+            default_note = existing.get("note", "")
+            default_status = existing.get("status", "Open")
+            with col.expander(ind, expanded=False):
+                st.text_area(f"Analysis — {ind}", value=default_note, key=key_note, height=140)
+                st.selectbox("Status", options=["Open", "Done"], index=0 if default_status=="Open" else 1, key=key_status)
 
-        with col[0 if i % n_cols == 0 else 1].expander(ind, expanded=False):
-            st.text_area(f"Analysis — {ind}", value=default_note, key=key_note, height=140)
-            st.selectbox("Status", options=["Open", "Done"], index=0 if default_status=="Open" else 1, key=key_status)
-
+    # Submit button
     submitted = st.form_submit_button("💾 Save all notes for this strategy")
     if submitted:
         if selected_strategy not in data:
@@ -265,6 +268,7 @@ with st.form("notes_form"):
             }
         save_data(data)
         st.success(f"Analyses saved for strategy '{selected_strategy}' with tag '{strategy_tag_val}'.")
+
 
 st.markdown("---")
 
