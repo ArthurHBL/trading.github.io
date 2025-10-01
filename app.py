@@ -507,14 +507,9 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Enhanced Notes Form - FIXED VERSION
+# Enhanced Notes Form - SIMPLIFIED AND WORKING VERSION
 # -------------------------
 
-# Initialize session state for template buttons
-if 'template_buttons' not in st.session_state:
-    st.session_state.template_buttons = {}
-
-# Strategy-level settings outside the form
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
 strategy_data = data.get(selected_strategy, {})
@@ -575,9 +570,12 @@ indicators = STRATEGIES[selected_strategy]
 # Create responsive columns (2 columns for better mobile experience)
 col_objs = st.columns(2)
 
-# Use a form for the main analysis input
-with st.form("enhanced_notes_form", clear_on_submit=False):
-    # Store all form data in a dictionary to process on submission
+# Initialize session state for template management
+if 'template_actions' not in st.session_state:
+    st.session_state.template_actions = {}
+
+# Use a single form for all inputs
+with st.form("analysis_form", clear_on_submit=False):
     form_data = {}
     
     for i, ind in enumerate(indicators):
@@ -595,34 +593,32 @@ with st.form("enhanced_notes_form", clear_on_submit=False):
                 key=f"status_{key_base}"
             )
             
-            # Template buttons that work outside the form
-            template_col1, template_col2, template_col3 = st.columns(3)
-            with template_col1:
-                if st.form_submit_button("📈 Bullish", key=f"bull_{key_base}", use_container_width=True):
-                    # This will trigger form submission with the bullish template
-                    st.session_state[f'template_{key_base}'] = "bullish"
-            with template_col2:
-                if st.form_submit_button("📉 Bearish", key=f"bear_{key_base}", use_container_width=True):
-                    st.session_state[f'template_{key_base}'] = "bearish"
-            with template_col3:
-                if st.form_submit_button("⚪ Neutral", key=f"neut_{key_base}", use_container_width=True):
-                    st.session_state[f'template_{key_base}'] = "neutral"
+            # Template buttons as regular text with emojis (not interactive in form)
+            st.markdown("**Quick Templates:** 📈 Bullish | 📉 Bearish | ⚪ Neutral")
+            st.markdown("*Apply templates before typing your analysis*")
             
-            # Main note area - apply template if set
+            # Check if template was applied from previous submission
+            template_applied = st.session_state.template_actions.get(key_base, "")
             default_note = existing.get("note", "")
-            template_note = st.session_state.get(f'template_{key_base}', '')
             
-            if template_note:
-                if template_note == "bullish":
-                    note_text = f"{default_note}\n\n📈 BULLISH SIGNAL: " if default_note else "📈 BULLISH SIGNAL: "
-                elif template_note == "bearish":
-                    note_text = f"{default_note}\n\n📉 BEARISH SIGNAL: " if default_note else "📉 BEARISH SIGNAL: "
-                elif template_note == "neutral":
-                    note_text = f"{default_note}\n\n⚪ NEUTRAL: " if default_note else "⚪ NEUTRAL: "
+            if template_applied:
+                if template_applied == "bullish":
+                    template_text = "📈 BULLISH SIGNAL: "
+                elif template_applied == "bearish":
+                    template_text = "📉 BEARISH SIGNAL: "
+                elif template_applied == "neutral":
+                    template_text = "⚪ NEUTRAL: "
                 else:
-                    note_text = default_note
+                    template_text = ""
+                
+                # Combine existing note with template
+                if default_note and template_text not in default_note:
+                    note_text = f"{default_note}\n\n{template_text}"
+                else:
+                    note_text = template_text if template_text else default_note
+                
                 # Clear the template after applying
-                st.session_state[f'template_{key_base}'] = ''
+                st.session_state.template_actions[key_base] = ""
             else:
                 note_text = default_note
             
@@ -653,34 +649,62 @@ with st.form("enhanced_notes_form", clear_on_submit=False):
             # Last modified info
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
-
-    # Form submission button - CORRECTED
-    submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    if submitted:
-        if selected_strategy not in data:
-            data[selected_strategy] = {}
-        
-        for ind in indicators:
-            key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-            
-            data[selected_strategy][ind] = {
-                "note": form_data[ind]['note'],
-                "status": form_data[ind]['status'],
-                "momentum": strategy_type,
-                "strategy_tag": strategy_tag,
-                "priority": strategy_priority,
-                "confidence": form_data[ind]['confidence'],
-                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
-                "last_modified": datetime.utcnow().isoformat() + "Z",
-                "id": str(uuid.uuid4())[:8]
-            }
-        
-        if save_data(data):
-            st.success("✅ Analysis saved successfully!")
-            st.balloons()
+    # Form submission buttons in a single row
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
+    with col2:
+        bull_submitted = st.form_submit_button("📈 Apply Bullish Template", use_container_width=True)
+    with col3:
+        bear_submitted = st.form_submit_button("📉 Apply Bearish Template", use_container_width=True)
+    with col4:
+        neut_submitted = st.form_submit_button("⚪ Apply Neutral Template", use_container_width=True)
+    
+    # Handle form submissions
+    if submitted or bull_submitted or bear_submitted or neut_submitted:
+        if bull_submitted:
+            template_type = "bullish"
+        elif bear_submitted:
+            template_type = "bearish"
+        elif neut_submitted:
+            template_type = "neutral"
         else:
-            st.error("❌ Failed to save analysis!")
+            template_type = None
+        
+        if template_type:
+            # Apply template to all indicators
+            for ind in indicators:
+                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+                st.session_state.template_actions[key_base] = template_type
+            st.info(f"✅ {template_type.capitalize()} template applied to all indicators!")
+        
+        if submitted or template_type:
+            # Save the data
+            if selected_strategy not in data:
+                data[selected_strategy] = {}
+            
+            for ind in indicators:
+                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+                
+                data[selected_strategy][ind] = {
+                    "note": form_data[ind]['note'],
+                    "status": form_data[ind]['status'],
+                    "momentum": strategy_type,
+                    "strategy_tag": strategy_tag,
+                    "priority": strategy_priority,
+                    "confidence": form_data[ind]['confidence'],
+                    "analysis_date": analysis_date.strftime("%Y-%m-%d"),
+                    "last_modified": datetime.utcnow().isoformat() + "Z",
+                    "id": str(uuid.uuid4())[:8]
+                }
+            
+            if save_data(data):
+                st.success("✅ Analysis saved successfully!")
+                st.balloons()
+            else:
+                st.error("❌ Failed to save analysis!")
 
 # -------------------------
 # Enhanced Analysis Display
@@ -823,15 +847,4 @@ with st.expander("🔧 Installation & Setup", expanded=False):
     pip install plotly
     ```
     
-    ### Required dependencies:
-    ```bash
-    pip install streamlit pandas numpy
-    ```
-    
-    ### Run the app:
-    ```bash
-    streamlit run app.py
-    ```
-    
-    The app will work without Plotly, but with enhanced visualizations if installed.
-    """)
+   
