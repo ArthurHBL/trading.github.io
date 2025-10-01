@@ -112,7 +112,7 @@ st.sidebar.markdown("---")
 st.title("📊 Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day} of 5-day cycle** | Selected strategy: **{selected_strategy}** | Analysis date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
-# Progress indicators
+# Progress indicators for strategies only
 cols = st.columns(3)
 for i, strat in enumerate(daily_strategies):
     with cols[i]:
@@ -170,9 +170,7 @@ with st.form("notes_form"):
         default_note = existing.get("note", "")
         default_status = existing.get("status", "Open")
 
-        status_icon = "✅" if default_status == "Done" else "🕓"
-
-        with col.expander(f"{status_icon} {ind}", expanded=False):
+        with col.expander(f"{ind}", expanded=False):  # <-- Clean, no icons here
             st.text_area(f"{ind}", value=default_note, key=key_note, height=140)
             st.selectbox("Status", options=["Open", "Done"], index=0 if default_status=="Open" else 1, key=key_status)
 
@@ -226,8 +224,8 @@ for strat in strategies_to_show:
     st.markdown("---")
     for ind_name, meta in inds.items():
         momentum_type = meta.get("momentum", "Not Defined")
-        status_icon = "✅" if meta.get("status","Open") == "Done" else "🕓"
-        st.markdown(f"{status_icon} **{ind_name}** ({momentum_type})")
+        status = meta.get("status","Open")
+        st.markdown(f"**{ind_name}** ({momentum_type}) - *{status}*")
         note = meta.get("note","")
         st.write(note if note else "_No notes_")
         st.markdown("---")
