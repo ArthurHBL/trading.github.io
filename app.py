@@ -2,6 +2,7 @@
 import streamlit as st
 import json
 import os
+import pandas as pd
 from datetime import datetime, date
 
 st.set_page_config(page_title="Chart Reminder & Notes (15 Strategies)", layout="wide")
@@ -97,23 +98,38 @@ st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**\nToday's strategies:\n• {
 
 selected_strategy = st.sidebar.selectbox("Choose a strategy:", daily_strategies)
 
-st.sidebar.subheader("📋 All 15 Strategies")
-strategy_list = list(STRATEGIES.keys())
-for i, strategy in enumerate(strategy_list, 1):
-    if strategy in daily_strategies:
-        st.sidebar.markdown(f"**{i}. {strategy}** ⭐")
-    else:
-        st.sidebar.markdown(f"{i}. {strategy}")
+with st.sidebar.expander("📋 All 15 Strategies", expanded=False):
+    strategy_list = list(STRATEGIES.keys())
+    for i, strategy in enumerate(strategy_list, 1):
+        if strategy in daily_strategies:
+            st.markdown(f"**{i}. {strategy}** ⭐")
+        else:
+            st.markdown(f"{i}. {strategy}")
 st.sidebar.markdown("---")
 
-# Export JSON
-st.sidebar.subheader("📄 Export Analyses")
-if st.sidebar.button("📁 JSON"):
-    st.download_button(
-        label="Download JSON",
-        data=json.dumps(data, ensure_ascii=False, indent=2),
-        file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.json",
-        mime="application/json"
+# Export CSV
+st.sidebar.subheader("📄 Export Analyses (Excel/CSV)")
+if st.sidebar.button("📁 Download CSV"):
+    rows = []
+    for strat, inds in data.items():
+        for ind_name, meta in inds.items():
+            rows.append({
+                "Strategy": strat,
+                "Indicator": ind_name,
+                "Note": meta.get("note", ""),
+                "Status": meta.get("status", "Open"),
+                "Momentum": meta.get("momentum", "Not Defined"),
+                "Tag": meta.get("strategy_tag", "Neutral"),
+                "Analysis Date": meta.get("analysis_date", ""),
+                "Last Modified": meta.get("last_modified", "")
+            })
+    df = pd.DataFrame(rows)
+    csv_data = df.to_csv(index=False).encode("utf-8")
+    st.sidebar.download_button(
+        label="⬇️ Export CSV",
+        data=csv_data,
+        file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
+        mime="text/csv"
     )
 
 # -------------------------
@@ -204,7 +220,7 @@ with st.form("notes_form"):
                 "last_modified": datetime.utcnow().isoformat() + "Z"
             }
         save_data(data)
-        st.success(f"Analyses saved for strategy '{selected_strategy}' with tag '{strategy_tag}'.")
+        st.toast("✅ Notes saved successfully!")
 
 # -------------------------
 # Display saved analyses
@@ -223,6 +239,8 @@ elif filter_strategy in daily_strategies:
 else:
     strategies_to_show = list(data.keys())
 
+color_map = {"Buy": "🟢 Buy", "Sell": "🔴 Sell", "Neutral": "⚪ Neutral"}
+
 for strat in strategies_to_show:
     st.markdown(f"### {strat}")
     inds = data.get(strat, {})
@@ -230,13 +248,16 @@ for strat in strategies_to_show:
         st.info("No saved notes for this strategy.")
         continue
     strategy_tag = next(iter(inds.values())).get('strategy_tag', 'Neutral')
-    st.markdown(f"**Strategy Tag: {strategy_tag}**")
+    st.markdown(f"**Strategy Tag: {color_map.get(strategy_tag, strategy_tag)}**")
     st.markdown("---")
     for ind_name, meta in inds.items():
         momentum_type = meta.get("momentum", "Not Defined")
-        st.markdown(f"**{ind_name}** ({momentum_type})")
-        note = meta.get("note","")
-        st.write(note if note else "_No notes_")
-        st.markdown("---")
+        status = meta.get("status", "Open")
+        status_icon = "✅ Done" if status == "Done" else "🕓 Open"
+        with st.expander(f"📌 {ind_name} ({momentum_type}) — {status_icon}", expanded=False):
+            note = meta.get("note","")
+            st.write(note if note else "_No notes yet_")
+            st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
+    st.markdown("---")
 
 st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Use the 'Export Analyses' button in the sidebar to download a backup.")
