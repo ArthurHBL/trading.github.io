@@ -171,6 +171,8 @@ def get_analysis_dates(data: Dict) -> List[str]:
                 dates.add(indicator['analysis_date'])
     return sorted(dates, reverse=True)
 
+# FIX: Add caching to improve performance
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: date) -> Dict:
     """Calculate progress statistics"""
     target_date_str = analysis_date.strftime("%Y-%m-%d")
@@ -309,25 +311,32 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# Date Selection
-st.sidebar.subheader("📅 Analysis Date")
+# FIX: Use session state for date navigation to prevent conflicts
+if 'analysis_date_offset' not in st.session_state:
+    st.session_state.analysis_date_offset = 0
+
+# Calculate analysis date using session state
 start_date = date(2025, 8, 9)
-analysis_date = st.sidebar.date_input(
+analysis_date = start_date + timedelta(days=st.session_state.analysis_date_offset)
+
+# Date Selection - Now controlled by session state
+st.sidebar.subheader("📅 Analysis Date")
+current_display_date = st.sidebar.date_input(
     "Select analysis date:",
-    value=date.today() if date.today() >= start_date else start_date,
+    value=analysis_date,
     min_value=start_date,
-    key="analysis_date"
+    key="analysis_date_display"
 )
 
-# Quick date navigation
+# FIX: Date navigation using session state
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("◀️ Prev Day"):
-        analysis_date = analysis_date - timedelta(days=1)
+        st.session_state.analysis_date_offset -= 1
         st.rerun()
 with col2:
     if st.button("Next Day ▶️"):
-        analysis_date = analysis_date + timedelta(days=1)
+        st.session_state.analysis_date_offset += 1
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -383,14 +392,19 @@ st.sidebar.download_button(
     key="download_csv"
 )
 
-# Historical Data Access
+# FIX: Implement historical view functionality
 available_dates = get_analysis_dates(data)
 if available_dates:
     with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
         selected_historical_date = st.selectbox("View past analyses:", available_dates)
         if st.button("📅 Load Historical View"):
-            st.session_state.historical_view = selected_historical_date
-            st.rerun()
+            try:
+                historical_date = datetime.strptime(selected_historical_date, '%Y-%m-%d').date()
+                days_offset = (historical_date - start_date).days
+                st.session_state.analysis_date_offset = days_offset
+                st.rerun()
+            except ValueError:
+                st.error("Invalid date format")
 
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
@@ -403,6 +417,15 @@ with st.sidebar.expander("⚙️ Data Management", expanded=False):
             st.success("Backup created!")
     
     st.warning("⚠️ Data is automatically saved on changes")
+
+# FIX: Add debug mode
+with st.sidebar.expander("🐛 Debug", expanded=False):
+    if st.button("Show Session State"):
+        st.write("Session State:", dict(st.session_state))
+    if st.button("Show Data Stats"):
+        st.write("Total Strategies:", len(data))
+        st.write("Total Indicators:", sum(len(inds) for inds in data.values()))
+        st.write("Current Date:", analysis_date)
 
 # Help Section
 with st.sidebar.expander("ℹ️ How to Use", expanded=False):
@@ -478,7 +501,7 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Notes Form - CLEANED UP VERSION
+# Notes Form - FIXED VERSION
 # -------------------------
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
@@ -539,7 +562,8 @@ with st.form("analysis_form", clear_on_submit=False):
     
     for i, ind in enumerate(indicators):
         col = col_objs[i % 2]
-        key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+        # FIX: Make keys more unique by including date
+        key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}_{analysis_date.strftime('%Y%m%d')}"
         existing = strategy_data.get(ind, {})
         
         with col.expander(f"**{ind}**", expanded=False):
@@ -583,29 +607,48 @@ with st.form("analysis_form", clear_on_submit=False):
     # Single save button - clean and simple
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # Handle form submission
+    # FIX: Add form validation before saving
     if submitted:
-        if selected_strategy not in data:
-            data[selected_strategy] = {}
-        
+        # Validate form data
+        errors = []
         for ind in indicators:
-            key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-            
-            data[selected_strategy][ind] = {
-                "note": form_data[ind]['note'],
-                "status": form_data[ind]['status'],
-                "momentum": strategy_type,
-                "strategy_tag": strategy_tag,
-                "priority": strategy_priority,
-                "confidence": form_data[ind]['confidence'],
-                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
-                "last_modified": datetime.utcnow().isoformat() + "Z",
-                "id": str(uuid.uuid4())[:8]
-            }
+            if form_data[ind]['status'] == 'Done' and not form_data[ind]['note'].strip():
+                errors.append(f"❌ {ind} is marked 'Done' but has no notes")
         
-        if save_data(data):
-            st.success("✅ Analysis saved successfully!")
-            st.balloons()
+        if errors:
+            for error in errors:
+                st.error(error)
+        else:
+            # Save the data
+            if selected_strategy not in data:
+                data[selected_strategy] = {}
+            
+            for ind in indicators:
+                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+                
+                # FIX: Check if we're overwriting data from a different date
+                existing_data = data[selected_strategy].get(ind, {})
+                existing_date = existing_data.get("analysis_date")
+                current_date_str = analysis_date.strftime("%Y-%m-%d")
+                
+                if existing_date and existing_date != current_date_str:
+                    st.warning(f"⚠️ Overwriting {ind} analysis from {existing_date}")
+                
+                data[selected_strategy][ind] = {
+                    "note": form_data[ind]['note'],
+                    "status": form_data[ind]['status'],
+                    "momentum": strategy_type,
+                    "strategy_tag": strategy_tag,
+                    "priority": strategy_priority,
+                    "confidence": form_data[ind]['confidence'],
+                    "analysis_date": current_date_str,
+                    "last_modified": datetime.utcnow().isoformat() + "Z",
+                    "id": str(uuid.uuid4())[:8]
+                }
+            
+            if save_data(data):
+                st.success("✅ Analysis saved successfully!")
+                st.balloons()
 
 # -------------------------
 # Analysis Display
