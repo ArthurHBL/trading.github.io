@@ -4,12 +4,20 @@ import json
 import os
 from datetime import datetime, date, timedelta
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 import uuid
+
+# -------------------------
+# Optional Dependencies with Fallbacks
+# -------------------------
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    st.warning("📊 Plotly not available - using Streamlit native charts")
 
 # -------------------------
 # Configuration
@@ -201,11 +209,19 @@ def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: d
     }
 
 def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
-    """Create a progress visualization"""
+    """Create a progress visualization with fallback"""
+    if not PLOTLY_AVAILABLE:
+        # Fallback to Streamlit native display
+        st.subheader("📊 Progress Overview")
+        for strategy in daily_strategies:
+            progress = progress_data['strategies'][strategy]['progress']
+            st.write(f"**{strategy}**: {progress_data['strategies'][strategy]['completed']}/{progress_data['strategies'][strategy]['total']}")
+            st.progress(progress)
+        return None
+    
     strategies = daily_strategies
     completed = [progress_data['strategies'][s]['completed'] for s in strategies]
     total = [progress_data['strategies'][s]['total'] for s in strategies]
-    percentages = [progress_data['strategies'][s]['progress'] * 100 for s in strategies]
     
     fig = go.Figure()
     
@@ -239,7 +255,7 @@ def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
     return fig
 
 def create_tag_distribution_chart(data: Dict, analysis_date: date):
-    """Create tag distribution visualization"""
+    """Create tag distribution visualization with fallback"""
     target_date_str = analysis_date.strftime("%Y-%m-%d")
     tag_counts = {'Buy': 0, 'Sell': 0, 'Neutral': 0}
     
@@ -248,6 +264,14 @@ def create_tag_distribution_chart(data: Dict, analysis_date: date):
             if indicator.get('analysis_date') == target_date_str:
                 tag = indicator.get('strategy_tag', 'Neutral')
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
+    
+    if not PLOTLY_AVAILABLE:
+        # Fallback display
+        st.subheader("🎯 Tag Distribution")
+        for tag, count in tag_counts.items():
+            color = "🟢" if tag == "Buy" else "🔴" if tag == "Sell" else "⚪"
+            st.write(f"{color} {tag}: {count}")
+        return None
     
     colors = {'Buy': '#00FF7F', 'Sell': '#FF6B6B', 'Neutral': '#87CEEB'}
     
@@ -293,6 +317,16 @@ data = load_data()
 # -------------------------
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
+
+# Dependency warning
+if not PLOTLY_AVAILABLE:
+    st.sidebar.warning("""
+    ⚠️ **Enhanced charts disabled**
+    Install plotly for better visualizations:
+    ```bash
+    pip install plotly
+    ```
+    """)
 
 # Date Selection
 st.sidebar.subheader("📅 Analysis Date")
@@ -417,20 +451,41 @@ st.title("📊 Advanced Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day}** | Strategy: **{selected_strategy}** | Date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
 # Progress Visualization
-col1, col2, col3 = st.columns([2, 1, 1])
-with col1:
-    st.plotly_chart(create_progress_chart(progress_data, daily_strategies), use_container_width=True)
-with col2:
-    st.plotly_chart(create_tag_distribution_chart(data, analysis_date), use_container_width=True)
-with col3:
-    # Quick stats
-    total_analyses = sum(len(inds) for inds in data.values())
-    today_analyses = sum(1 for strat in data.values() for ind in strat.values() 
-                        if ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d'))
+if PLOTLY_AVAILABLE:
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        progress_chart = create_progress_chart(progress_data, daily_strategies)
+        if progress_chart:
+            st.plotly_chart(progress_chart, use_container_width=True)
+    with col2:
+        tag_chart = create_tag_distribution_chart(data, analysis_date)
+        if tag_chart:
+            st.plotly_chart(tag_chart, use_container_width=True)
+    with col3:
+        # Quick stats
+        total_analyses = sum(len(inds) for inds in data.values())
+        today_analyses = sum(1 for strat in data.values() for ind in strat.values() 
+                            if ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d'))
+        
+        st.metric("Total Analyses", total_analyses)
+        st.metric("Today's Analyses", today_analyses)
+        st.metric("Completion Rate", f"{progress_data['overall']*100:.1f}%")
+else:
+    # Fallback layout without Plotly
+    col1, col2 = st.columns(2)
+    with col1:
+        create_progress_chart(progress_data, daily_strategies)
+    with col2:
+        create_tag_distribution_chart(data, analysis_date)
     
-    st.metric("Total Analyses", total_analyses)
-    st.metric("Today's Analyses", today_analyses)
-    st.metric("Completion Rate", f"{progress_data['overall']*100:.1f}%")
+    col3, col4 = st.columns(2)
+    with col3:
+        total_analyses = sum(len(inds) for inds in data.values())
+        st.metric("Total Analyses", total_analyses)
+    with col4:
+        today_analyses = sum(1 for strat in data.values() for ind in strat.values() 
+                            if ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d'))
+        st.metric("Today's Analyses", today_analyses)
 
 # Strategy Progress Indicators
 st.subheader("🎯 Today's Strategy Progress")
@@ -665,9 +720,6 @@ for strat in strategies_to_show:
         confidence = meta.get("confidence", 50)
         priority = meta.get("priority", "Medium")
         
-        # Priority colors
-        priority_colors = {"Critical": "#FF4444", "High": "#FFAA44", "Medium": "#44AAFF", "Low": "#44FF44"}
-        
         with st.expander(
             f"{color_map.get(tag, '⚪')} {ind_name} | "
             f"{status_icons.get(status, '🕓')} {status} | "
@@ -733,3 +785,25 @@ with footer_col3:
 
 st.markdown("---")
 st.caption("Advanced Chart Reminder & Notes v2.0 | Built with Streamlit | 15 Strategy Rotation System")
+
+# Installation instructions in expander
+with st.expander("🔧 Installation & Setup", expanded=False):
+    st.markdown("""
+    ### To enable enhanced charts, install Plotly:
+    
+    ```bash
+    pip install plotly
+    ```
+    
+    ### Required dependencies:
+    ```bash
+    pip install streamlit pandas numpy
+    ```
+    
+    ### Run the app:
+    ```bash
+    streamlit run app.py
+    ```
+    
+    The app will work without Plotly, but with enhanced visualizations if installed.
+    """)
