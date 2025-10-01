@@ -311,40 +311,50 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX: Use session state for date navigation - SIMPLIFIED APPROACH
-if 'analysis_date_offset' not in st.session_state:
-    st.session_state.analysis_date_offset = 0
-
-# Calculate analysis date using session state
+# FIX: SIMPLE DATE MANAGEMENT - Use query parameters for navigation
 start_date = date(2025, 8, 9)
-analysis_date = start_date + timedelta(days=st.session_state.analysis_date_offset)
 
-# FIX: SIMPLIFIED Date Selection - Use the calculated date directly
+# Get current date from URL parameters or use today
+query_params = st.query_params
+if "date" in query_params:
+    try:
+        analysis_date = datetime.strptime(query_params["date"], "%Y-%m-%d").date()
+    except ValueError:
+        analysis_date = date.today()
+else:
+    analysis_date = date.today()
+
+# Ensure analysis_date is not before start_date
+if analysis_date < start_date:
+    analysis_date = start_date
+
+# Date Selection
 st.sidebar.subheader("📅 Analysis Date")
 selected_date = st.sidebar.date_input(
     "Select analysis date:",
-    value=analysis_date,  # This will show the current calculated date
+    value=analysis_date,
     min_value=start_date,
     key="date_selector"
 )
 
-# FIX: Handle date input changes - update session state when user picks a new date
-if selected_date != analysis_date:
-    # User changed the date via the date picker
-    days_offset = (selected_date - start_date).days
-    st.session_state.analysis_date_offset = days_offset
-    st.rerun()
-
-# FIX: Simplified date navigation - just update the offset
+# FIX: SIMPLE Date navigation - update URL parameters
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("◀️ Prev Day"):
-        st.session_state.analysis_date_offset -= 1
-        st.rerun()
+        new_date = selected_date - timedelta(days=1)
+        if new_date >= start_date:
+            st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+            st.rerun()
+        else:
+            st.sidebar.warning("Cannot go before start date")
 with col2:
     if st.button("Next Day ▶️"):
-        st.session_state.analysis_date_offset += 1
+        new_date = selected_date + timedelta(days=1)
+        st.query_params["date"] = new_date.strftime("%Y-%m-%d")
         st.rerun()
+
+# Update analysis_date to match selected_date
+analysis_date = selected_date
 
 st.sidebar.markdown("---")
 
@@ -407,8 +417,7 @@ if available_dates:
         if st.button("📅 Load Historical View"):
             try:
                 historical_date = datetime.strptime(selected_historical_date, '%Y-%m-%d').date()
-                days_offset = (historical_date - start_date).days
-                st.session_state.analysis_date_offset = days_offset
+                st.query_params["date"] = selected_historical_date
                 st.rerun()
             except ValueError:
                 st.error("Invalid date format")
@@ -424,17 +433,6 @@ with st.sidebar.expander("⚙️ Data Management", expanded=False):
             st.success("Backup created!")
     
     st.warning("⚠️ Data is automatically saved on changes")
-
-# FIX: Add debug mode
-with st.sidebar.expander("🐛 Debug", expanded=False):
-    if st.button("Show Session State"):
-        st.write("Session State:", {k: v for k, v in st.session_state.items() if k != '_'})
-        st.write("Analysis Date:", analysis_date)
-        st.write("Date Offset:", st.session_state.analysis_date_offset)
-    if st.button("Show Data Stats"):
-        st.write("Total Strategies:", len(data))
-        st.write("Total Indicators:", sum(len(inds) for inds in data.values()))
-        st.write("Current Date:", analysis_date)
 
 # Help Section
 with st.sidebar.expander("ℹ️ How to Use", expanded=False):
