@@ -319,24 +319,42 @@ if 'analysis_date_offset' not in st.session_state:
 start_date = date(2025, 8, 9)
 analysis_date = start_date + timedelta(days=st.session_state.analysis_date_offset)
 
-# Date Selection - Now controlled by session state
+# FIX: Date Selection - Single source of truth with callback
+def update_date_offset():
+    """Update session state when date input changes"""
+    if 'selected_date' in st.session_state:
+        selected_date = st.session_state.selected_date
+        days_offset = (selected_date - start_date).days
+        st.session_state.analysis_date_offset = days_offset
+
+# Date Selection - Now properly synchronized
 st.sidebar.subheader("📅 Analysis Date")
-current_display_date = st.sidebar.date_input(
+selected_date = st.sidebar.date_input(
     "Select analysis date:",
     value=analysis_date,
     min_value=start_date,
-    key="analysis_date_display"
+    key="selected_date",
+    on_change=update_date_offset
 )
 
-# FIX: Date navigation using session state
+# FIX: Ensure the analysis_date is always in sync with the selected_date
+analysis_date = st.session_state.selected_date if 'selected_date' in st.session_state else analysis_date
+
+# FIX: Date navigation using session state - now updates the date input properly
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("◀️ Prev Day"):
         st.session_state.analysis_date_offset -= 1
+        # Update the selected_date in session state to sync with date input
+        new_date = start_date + timedelta(days=st.session_state.analysis_date_offset)
+        st.session_state.selected_date = new_date
         st.rerun()
 with col2:
     if st.button("Next Day ▶️"):
         st.session_state.analysis_date_offset += 1
+        # Update the selected_date in session state to sync with date input
+        new_date = start_date + timedelta(days=st.session_state.analysis_date_offset)
+        st.session_state.selected_date = new_date
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -402,6 +420,7 @@ if available_dates:
                 historical_date = datetime.strptime(selected_historical_date, '%Y-%m-%d').date()
                 days_offset = (historical_date - start_date).days
                 st.session_state.analysis_date_offset = days_offset
+                st.session_state.selected_date = historical_date
                 st.rerun()
             except ValueError:
                 st.error("Invalid date format")
@@ -422,6 +441,8 @@ with st.sidebar.expander("⚙️ Data Management", expanded=False):
 with st.sidebar.expander("🐛 Debug", expanded=False):
     if st.button("Show Session State"):
         st.write("Session State:", dict(st.session_state))
+        st.write("Analysis Date:", analysis_date)
+        st.write("Date Offset:", st.session_state.analysis_date_offset)
     if st.button("Show Data Stats"):
         st.write("Total Strategies:", len(data))
         st.write("Total Indicators:", sum(len(inds) for inds in data.values()))
