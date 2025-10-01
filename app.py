@@ -2,6 +2,7 @@
 import streamlit as st
 import json
 import os
+import pandas as pd
 from datetime import datetime, date
 
 st.set_page_config(page_title="Chart Reminder & Notes (15 Strategies)", layout="wide")
@@ -97,14 +98,39 @@ st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**\nToday's strategies:\n• {
 
 selected_strategy = st.sidebar.selectbox("Choose a strategy:", daily_strategies)
 
-st.sidebar.subheader("📋 All 15 Strategies")
-strategy_list = list(STRATEGIES.keys())
-for i, strategy in enumerate(strategy_list, 1):
-    if strategy in daily_strategies:
-        st.sidebar.markdown(f"**{i}. {strategy}** ⭐")
-    else:
-        st.sidebar.markdown(f"{i}. {strategy}")
+with st.sidebar.expander("📋 All 15 Strategies", expanded=False):
+    strategy_list = list(STRATEGIES.keys())
+    for i, strategy in enumerate(strategy_list, 1):
+        if strategy in daily_strategies:
+            st.markdown(f"**{i}. {strategy}** ⭐")
+        else:
+            st.markdown(f"{i}. {strategy}")
 st.sidebar.markdown("---")
+
+# Export CSV
+st.sidebar.subheader("📄 Export Analyses (Excel/CSV)")
+if st.sidebar.button("📁 Download CSV"):
+    rows = []
+    for strat, inds in data.items():
+        for ind_name, meta in inds.items():
+            rows.append({
+                "Strategy": strat,
+                "Indicator": ind_name,
+                "Note": meta.get("note", ""),
+                "Status": meta.get("status", "Open"),
+                "Momentum": meta.get("momentum", "Not Defined"),
+                "Tag": meta.get("strategy_tag", "Neutral"),
+                "Analysis Date": meta.get("analysis_date", ""),
+                "Last Modified": meta.get("last_modified", "")
+            })
+    df = pd.DataFrame(rows)
+    csv_data = df.to_csv(index=False).encode("utf-8")
+    st.sidebar.download_button(
+        label="⬇️ Export CSV",
+        data=csv_data,
+        file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
 
 # -------------------------
 # Main layout
@@ -112,12 +138,12 @@ st.sidebar.markdown("---")
 st.title("📊 Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day} of 5-day cycle** | Selected strategy: **{selected_strategy}** | Analysis date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
-# Progress indicators for strategies only
+# Progress indicators
 cols = st.columns(3)
 for i, strat in enumerate(daily_strategies):
     with cols[i]:
         if strat in data and any(ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d') for ind in data[strat].values()):
-            st.success(f"✅ {strat}")
+            st.success(f"✓ {strat}")
         elif strat == selected_strategy:
             st.info(f"📝 {strat} (current)")
         else:
@@ -170,8 +196,8 @@ with st.form("notes_form"):
         default_note = existing.get("note", "")
         default_status = existing.get("status", "Open")
 
-        with col.expander(f"{ind}", expanded=False):  # <-- Clean, no icons here
-            st.text_area(f"{ind}", value=default_note, key=key_note, height=140)
+        with col.expander(ind, expanded=False):
+            st.text_area(f"Analysis — {ind}", value=default_note, key=key_note, height=140)
             st.selectbox("Status", options=["Open", "Done"], index=0 if default_status=="Open" else 1, key=key_status)
 
     submitted = st.form_submit_button("💾 Save all notes for this strategy")
@@ -194,7 +220,7 @@ with st.form("notes_form"):
                 "last_modified": datetime.utcnow().isoformat() + "Z"
             }
         save_data(data)
-        st.success(f"Analyses saved for strategy '{selected_strategy}' with tag '{strategy_tag}'.")
+        st.toast("✅ Notes saved successfully!")
 
 # -------------------------
 # Display saved analyses
@@ -213,21 +239,25 @@ elif filter_strategy in daily_strategies:
 else:
     strategies_to_show = list(data.keys())
 
+color_map = {"Buy": "🟢 Buy", "Sell": "🔴 Sell", "Neutral": "⚪ Neutral"}
+
 for strat in strategies_to_show:
-    st.markdown(f"### 📊 {strat}")
+    st.markdown(f"### {strat}")
     inds = data.get(strat, {})
     if not inds:
         st.info("No saved notes for this strategy.")
         continue
     strategy_tag = next(iter(inds.values())).get('strategy_tag', 'Neutral')
-    st.markdown(f"🔖 **Strategy Tag:** {strategy_tag}")
+    st.markdown(f"**Strategy Tag: {color_map.get(strategy_tag, strategy_tag)}**")
     st.markdown("---")
     for ind_name, meta in inds.items():
         momentum_type = meta.get("momentum", "Not Defined")
-        status = meta.get("status","Open")
-        st.markdown(f"**{ind_name}** ({momentum_type}) - *{status}*")
-        note = meta.get("note","")
-        st.write(note if note else "_No notes_")
-        st.markdown("---")
+        status = meta.get("status", "Open")
+        status_icon = "✅ Done" if status == "Done" else "🕓 Open"
+        with st.expander(f"📌 {ind_name} ({momentum_type}) — {status_icon}", expanded=False):
+            note = meta.get("note","")
+            st.write(note if note else "_No notes yet_")
+            st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
+    st.markdown("---")
 
-st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Data is saved locally in `strategy_analyses.json`.")
+st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Use the 'Export Analyses' button in the sidebar to download a backup.")
