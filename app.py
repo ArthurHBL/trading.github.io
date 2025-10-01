@@ -309,9 +309,6 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-if not PLOTLY_AVAILABLE:
-    st.sidebar.warning("⚠️ Install plotly for enhanced charts")
-
 # Date Selection
 st.sidebar.subheader("📅 Analysis Date")
 start_date = date(2025, 8, 9)
@@ -523,10 +520,10 @@ with col3:
     )
 
 with col4:
-    current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 50)
+    current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 75)  # Changed default to 75
     strategy_confidence = st.slider(
         "💪 Confidence:", 
-        min_value=0, 
+        min_value=50,  # Changed from 0 to 50
         max_value=100, 
         value=current_confidence,
         key="strategy_confidence_global"
@@ -601,7 +598,7 @@ with st.form("analysis_form", clear_on_submit=False):
             # Individual indicator confidence
             ind_confidence = st.slider(
                 "Indicator Confidence",
-                min_value=0,
+                min_value=50,
                 max_value=100,
                 value=existing.get("confidence", strategy_confidence),
                 key=f"conf_{key_base}"
