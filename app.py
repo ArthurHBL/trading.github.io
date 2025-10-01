@@ -2,17 +2,23 @@
 import streamlit as st
 import json
 import os
-import pandas as pd
 from datetime import datetime, date
+import pandas as pd
 
 st.set_page_config(page_title="Chart Reminder & Notes (15 Strategies)", layout="wide")
 
 SAVE_FILE = "strategy_analyses.json"
 
+# -------------------------
+# Utility functions
+# -------------------------
 def load_data():
     if os.path.exists(SAVE_FILE):
         with open(SAVE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            try:
+                return json.load(f)
+            except Exception:
+                return {}
     return {}
 
 def save_data(data):
@@ -44,8 +50,35 @@ def get_daily_strategies(analysis_date):
     daily_strategies = strategy_list[start_index:end_index]
     return daily_strategies, cycle_day + 1
 
+def generate_filtered_csv_bytes(data, target_date):
+    """
+    Build CSV bytes containing only rows whose analysis_date == target_date (YYYY-MM-DD).
+    Returns bytes.
+    """
+    rows = []
+    target_str = target_date.strftime("%Y-%m-%d")
+    for strat, inds in data.items():
+        for ind_name, meta in inds.items():
+            if meta.get("analysis_date") == target_str:
+                rows.append({
+                    "Strategy": strat,
+                    "Indicator": ind_name,
+                    "Note": meta.get("note", ""),
+                    "Status": meta.get("status", ""),
+                    "Momentum": meta.get("momentum", "Not Defined"),
+                    "Tag": meta.get("strategy_tag", "Neutral"),
+                    "Analysis_Date": meta.get("analysis_date", ""),
+                    "Last_Modified": meta.get("last_modified", "")
+                })
+    if not rows:
+        # create an empty dataframe with headers to keep CSV valid
+        df = pd.DataFrame(columns=["Strategy","Indicator","Note","Status","Momentum","Tag","Analysis_Date","Last_Modified"])
+    else:
+        df = pd.DataFrame(rows)
+    return df.to_csv(index=False).encode("utf-8")
+
 # -------------------------
-# Strategies
+# STRATEGIES (your list)
 # -------------------------
 STRATEGIES = {
  "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
@@ -66,20 +99,24 @@ STRATEGIES = {
 }
 
 # -------------------------
-# Load existing data
+# Load data and ensure defaults
 # -------------------------
 data = load_data()
 
-# Initialize missing strategy tags
-for strategy_name in data:
-    for indicator_name in data[strategy_name]:
-        if "strategy_tag" not in data[strategy_name][indicator_name]:
-            data[strategy_name][indicator_name]['strategy_tag'] = 'Neutral'
+# Ensure existing entries have required keys
+for strat_name, inds in data.items():
+    for ind_name, meta in inds.items():
+        meta.setdefault("strategy_tag", "Neutral")
+        meta.setdefault("momentum", "Not Defined")
+        meta.setdefault("status", "Open")
+        meta.setdefault("analysis_date", "")  # might be empty if saved earlier
+        meta.setdefault("last_modified", "")
 
+# Save back normalized structure (safe)
 save_data(data)
 
 # -------------------------
-# Sidebar
+# Sidebar controls
 # -------------------------
 st.sidebar.title("Controls")
 st.sidebar.subheader("📅 Analysis Date")
@@ -88,57 +125,41 @@ analysis_date = st.sidebar.date_input(
     "Select analysis date:",
     value=date.today() if date.today() >= start_date else start_date,
     min_value=start_date,
+    help="Aug 9, 2025 is Day 1"
 )
 st.sidebar.markdown("---")
 
 daily_strategies, cycle_day = get_daily_strategies(analysis_date)
 
 st.sidebar.subheader("📋 Today's Focus")
-st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**\nToday's strategies:\n• {daily_strategies[0]}\n• {daily_strategies[1]}\n• {daily_strategies[2]}")
+st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**\n• {daily_strategies[0]}\n• {daily_strategies[1]}\n• {daily_strategies[2]}")
 
 selected_strategy = st.sidebar.selectbox("Choose a strategy:", daily_strategies)
 
 with st.sidebar.expander("📋 All 15 Strategies", expanded=False):
     strategy_list = list(STRATEGIES.keys())
     for i, strategy in enumerate(strategy_list, 1):
-        if strategy in daily_strategies:
-            st.markdown(f"**{i}. {strategy}** ⭐")
-        else:
-            st.markdown(f"{i}. {strategy}")
+        star = " ⭐" if strategy in daily_strategies else ""
+        st.markdown(f"{i}. {strategy}{star}")
 st.sidebar.markdown("---")
 
-# Export CSV
-st.sidebar.subheader("📄 Export Analyses (Excel/CSV)")
-if st.sidebar.button("📁 Download CSV"):
-    rows = []
-    for strat, inds in data.items():
-        for ind_name, meta in inds.items():
-            rows.append({
-                "Strategy": strat,
-                "Indicator": ind_name,
-                "Note": meta.get("note", ""),
-                "Status": meta.get("status", "Open"),
-                "Momentum": meta.get("momentum", "Not Defined"),
-                "Tag": meta.get("strategy_tag", "Neutral"),
-                "Analysis Date": meta.get("analysis_date", ""),
-                "Last Modified": meta.get("last_modified", "")
-            })
-    df = pd.DataFrame(rows)
-    csv_data = df.to_csv(index=False).encode("utf-8")
-    st.sidebar.download_button(
-        label="⬇️ Export CSV",
-        data=csv_data,
-        file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
-        mime="text/csv"
-    )
+# CSV export (filtered by selected analysis_date)
+csv_bytes = generate_filtered_csv_bytes(data, analysis_date)
+st.sidebar.subheader("📄 Export (CSV filtered by date)")
+st.sidebar.download_button(
+    label="⬇️ Download CSV (filtered by selected date)",
+    data=csv_bytes,
+    file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
+    mime="text/csv"
+)
 
 # -------------------------
 # Main layout
 # -------------------------
 st.title("📊 Chart Reminder & Indicator Notes")
-st.markdown(f"**Day {cycle_day} of 5-day cycle** | Selected strategy: **{selected_strategy}** | Analysis date: **{analysis_date.strftime('%m/%d/%Y')}**")
+st.markdown(f"**Day {cycle_day} of 5-day cycle** | Selected: **{selected_strategy}** | Analysis date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
-# Progress indicators
+# Progress indicator cards
 cols = st.columns(3)
 for i, strat in enumerate(daily_strategies):
     with cols[i]:
@@ -151,33 +172,35 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Form with grid layout
+# Notes Form (3-column grid)
 # -------------------------
 with st.form("notes_form"):
+    st.subheader(f"Edit notes — {selected_strategy}")
 
-    # Strategy Tag
     strategy_data = data.get(selected_strategy, {})
+    # determine current tag / type defaults from existing entries (if any)
     current_strategy_tag = "Neutral"
-    for ind_data in strategy_data.values():
-        current_strategy_tag = ind_data.get("strategy_tag", "Neutral")
+    current_strategy_type = "Not Defined"
+    for meta in strategy_data.values():
+        if meta.get("strategy_tag"):
+            current_strategy_tag = meta.get("strategy_tag")
+        if meta.get("momentum"):
+            current_strategy_type = meta.get("momentum")
         break
 
+    # display with simple labels (no CSS)
     strategy_tag = st.selectbox(
         f"Strategy '{selected_strategy}' tag:",
         options=["Neutral", "Buy", "Sell"],
-        index=["Neutral","Buy","Sell"].index(current_strategy_tag if current_strategy_tag in ["Neutral","Buy","Sell"] else "Neutral")
+        index=["Neutral", "Buy", "Sell"].index(current_strategy_tag if current_strategy_tag in ["Neutral","Buy","Sell"] else "Neutral"),
+        key=f"tag_{sanitize_key(selected_strategy)}"
     )
-
-    # Strategy Type with "Not Defined" default
-    current_strategy_type = "Not Defined"
-    for ind_data in strategy_data.values():
-        current_strategy_type = ind_data.get("momentum", "Not Defined")
-        break
 
     strategy_type = st.selectbox(
         f"Strategy '{selected_strategy}' type:",
         options=["Momentum", "Extreme", "Not Defined"],
-        index=["Momentum","Extreme","Not Defined"].index(current_strategy_type)
+        index=["Momentum", "Extreme", "Not Defined"].index(current_strategy_type if current_strategy_type in ["Momentum","Extreme","Not Defined"] else "Not Defined"),
+        key=f"type_{sanitize_key(selected_strategy)}"
     )
 
     st.markdown("---")
@@ -186,13 +209,14 @@ with st.form("notes_form"):
     n_cols = 3
     col_objs = st.columns(n_cols)
 
+    # Create grid: put each indicator in one of the n_cols columns (i % n_cols)
     for i, ind in enumerate(indicators):
         col = col_objs[i % n_cols]
 
         key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
         key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
 
-        existing = data.get(selected_strategy, {}).get(ind, {})
+        existing = strategy_data.get(ind, {})
         default_note = existing.get("note", "")
         default_status = existing.get("status", "Open")
 
@@ -216,19 +240,20 @@ with st.form("notes_form"):
                 "status": status_val,
                 "momentum": strategy_type,
                 "strategy_tag": strategy_tag,
-                "analysis_date": analysis_date.strftime('%Y-%m-%d'),
+                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                 "last_modified": datetime.utcnow().isoformat() + "Z"
             }
         save_data(data)
-        st.toast("✅ Notes saved successfully!")
+        st.success("✅ Notes saved successfully.")
 
 # -------------------------
 # Display saved analyses
 # -------------------------
 st.markdown("---")
 st.subheader("📜 View saved analyses")
+
 view_options = ["Today's Focus", "All Strategies"] + daily_strategies
-filter_strategy = st.selectbox("Filter by strategy:", view_options)
+filter_strategy = st.selectbox("Filter by strategy:", view_options, index=0)
 
 if filter_strategy == "Today's Focus":
     strategies_to_show = daily_strategies
@@ -247,17 +272,20 @@ for strat in strategies_to_show:
     if not inds:
         st.info("No saved notes for this strategy.")
         continue
-    strategy_tag = next(iter(inds.values())).get('strategy_tag', 'Neutral')
-    st.markdown(f"**Strategy Tag: {color_map.get(strategy_tag, strategy_tag)}**")
+
+    # show strategy tag (from first indicator)
+    strategy_tag = next(iter(inds.values())).get("strategy_tag", "Neutral") if inds else "Neutral"
+    st.markdown(f"**Strategy Tag:** {color_map.get(strategy_tag, strategy_tag)}")
     st.markdown("---")
+
     for ind_name, meta in inds.items():
         momentum_type = meta.get("momentum", "Not Defined")
         status = meta.get("status", "Open")
         status_icon = "✅ Done" if status == "Done" else "🕓 Open"
         with st.expander(f"📌 {ind_name} ({momentum_type}) — {status_icon}", expanded=False):
-            note = meta.get("note","")
+            note = meta.get("note", "")
             st.write(note if note else "_No notes yet_")
             st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
     st.markdown("---")
 
-st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Use the 'Export Analyses' button in the sidebar to download a backup.")
+st.info("**5-Day Cycle System**: Each day focuses on 3 strategies. Change the analysis date to see different strategy assignments. Use the CSV Export in the sidebar to download the filtered report for the selected date.")
