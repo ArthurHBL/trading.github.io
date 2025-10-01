@@ -507,64 +507,78 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Enhanced Notes Form
+# Enhanced Notes Form - FIXED VERSION
 # -------------------------
-with st.form("enhanced_notes_form", clear_on_submit=False):
-    st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
-    
-    strategy_data = data.get(selected_strategy, {})
-    
-    # Strategy-level settings in columns
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        # Get current strategy tag from first indicator or default
-        current_tag = next(iter(strategy_data.values()), {}).get("strategy_tag", "Neutral")
-        strategy_tag = st.selectbox(
-            "🏷️ Strategy Tag:", 
-            ["Neutral", "Buy", "Sell"], 
-            index=["Neutral", "Buy", "Sell"].index(current_tag),
-            help="Overall bias for this strategy"
-        )
-    
-    with col2:
-        current_type = next(iter(strategy_data.values()), {}).get("momentum", "Not Defined")
-        strategy_type = st.selectbox(
-            "📈 Strategy Type:", 
-            ["Momentum", "Extreme", "Not Defined"], 
-            index=["Momentum", "Extreme", "Not Defined"].index(current_type),
-            help="Type of market condition this strategy excels in"
-        )
-    
-    with col3:
-        current_priority = next(iter(strategy_data.values()), {}).get("priority", "Medium")
-        strategy_priority = st.selectbox(
-            "🎯 Priority:", 
-            ["Low", "Medium", "High", "Critical"], 
-            index=["Low", "Medium", "High", "Critical"].index(current_priority),
-            help="Importance level for this analysis"
-        )
-    
-    with col4:
-        current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 50)
-        strategy_confidence = st.slider(
-            "💪 Confidence:", 
-            min_value=0, 
-            max_value=100, 
-            value=current_confidence,
-            help="Confidence level in this analysis"
-        )
-        st.caption(f"Confidence: {strategy_confidence}%")
 
-    st.markdown("---")
-    
-    # Enhanced Indicator Analysis Section
-    st.markdown("### 📊 Indicator Analysis")
-    
-    indicators = STRATEGIES[selected_strategy]
-    
-    # Create responsive columns (2 columns for better mobile experience)
-    col_objs = st.columns(2)
+# Initialize session state for template buttons
+if 'template_buttons' not in st.session_state:
+    st.session_state.template_buttons = {}
+
+# Strategy-level settings outside the form
+st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
+
+strategy_data = data.get(selected_strategy, {})
+
+# Strategy-level settings in columns
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    # Get current strategy tag from first indicator or default
+    current_tag = next(iter(strategy_data.values()), {}).get("strategy_tag", "Neutral")
+    strategy_tag = st.selectbox(
+        "🏷️ Strategy Tag:", 
+        ["Neutral", "Buy", "Sell"], 
+        index=["Neutral", "Buy", "Sell"].index(current_tag),
+        help="Overall bias for this strategy",
+        key="strategy_tag_global"
+    )
+
+with col2:
+    current_type = next(iter(strategy_data.values()), {}).get("momentum", "Not Defined")
+    strategy_type = st.selectbox(
+        "📈 Strategy Type:", 
+        ["Momentum", "Extreme", "Not Defined"], 
+        index=["Momentum", "Extreme", "Not Defined"].index(current_type),
+        help="Type of market condition this strategy excels in",
+        key="strategy_type_global"
+    )
+
+with col3:
+    current_priority = next(iter(strategy_data.values()), {}).get("priority", "Medium")
+    strategy_priority = st.selectbox(
+        "🎯 Priority:", 
+        ["Low", "Medium", "High", "Critical"], 
+        index=["Low", "Medium", "High", "Critical"].index(current_priority),
+        help="Importance level for this analysis",
+        key="strategy_priority_global"
+    )
+
+with col4:
+    current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 50)
+    strategy_confidence = st.slider(
+        "💪 Confidence:", 
+        min_value=0, 
+        max_value=100, 
+        value=current_confidence,
+        help="Confidence level in this analysis",
+        key="strategy_confidence_global"
+    )
+    st.caption(f"Confidence: {strategy_confidence}%")
+
+st.markdown("---")
+
+# Enhanced Indicator Analysis Section
+st.markdown("### 📊 Indicator Analysis")
+
+indicators = STRATEGIES[selected_strategy]
+
+# Create responsive columns (2 columns for better mobile experience)
+col_objs = st.columns(2)
+
+# Use a form for the main analysis input
+with st.form("enhanced_notes_form", clear_on_submit=False):
+    # Store all form data in a dictionary to process on submission
+    form_data = {}
     
     for i, ind in enumerate(indicators):
         col = col_objs[i % 2]
@@ -572,40 +586,49 @@ with st.form("enhanced_notes_form", clear_on_submit=False):
         existing = strategy_data.get(ind, {})
         
         with col.expander(f"**{ind}**", expanded=False):
-            # Status and quick actions
-            col_status, col_actions = st.columns([2, 1])
-            with col_status:
-                current_status = existing.get("status", "Open")
-                status = st.selectbox(
-                    "Status", 
-                    ["Open", "In Progress", "Done", "Skipped"], 
-                    index=["Open", "In Progress", "Done", "Skipped"].index(current_status) if current_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
-                    key=f"status_{key_base}"
-                )
+            # Status
+            current_status = existing.get("status", "Open")
+            status = st.selectbox(
+                "Status", 
+                ["Open", "In Progress", "Done", "Skipped"], 
+                index=["Open", "In Progress", "Done", "Skipped"].index(current_status) if current_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
+                key=f"status_{key_base}"
+            )
             
-            with col_actions:
-                if st.button("📝 Quick Note", key=f"quick_{key_base}", use_container_width=True):
-                    st.session_state[f'focus_{key_base}'] = True
-            
-            # Enhanced note taking with templates
-            default_note = existing.get("note", "")
-            
-            # Quick template buttons
+            # Template buttons that work outside the form
             template_col1, template_col2, template_col3 = st.columns(3)
             with template_col1:
-                if st.button("📈 Bullish", key=f"bull_{key_base}", use_container_width=True):
-                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n📈 BULLISH SIGNAL: "
+                if st.form_submit_button("📈 Bullish", key=f"bull_{key_base}", use_container_width=True):
+                    # This will trigger form submission with the bullish template
+                    st.session_state[f'template_{key_base}'] = "bullish"
             with template_col2:
-                if st.button("📉 Bearish", key=f"bear_{key_base}", use_container_width=True):
-                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n📉 BEARISH SIGNAL: "
+                if st.form_submit_button("📉 Bearish", key=f"bear_{key_base}", use_container_width=True):
+                    st.session_state[f'template_{key_base}'] = "bearish"
             with template_col3:
-                if st.button("⚪ Neutral", key=f"neut_{key_base}", use_container_width=True):
-                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n⚪ NEUTRAL: "
+                if st.form_submit_button("⚪ Neutral", key=f"neut_{key_base}", use_container_width=True):
+                    st.session_state[f'template_{key_base}'] = "neutral"
             
-            # Main note area
+            # Main note area - apply template if set
+            default_note = existing.get("note", "")
+            template_note = st.session_state.get(f'template_{key_base}', '')
+            
+            if template_note:
+                if template_note == "bullish":
+                    note_text = f"{default_note}\n\n📈 BULLISH SIGNAL: " if default_note else "📈 BULLISH SIGNAL: "
+                elif template_note == "bearish":
+                    note_text = f"{default_note}\n\n📉 BEARISH SIGNAL: " if default_note else "📉 BEARISH SIGNAL: "
+                elif template_note == "neutral":
+                    note_text = f"{default_note}\n\n⚪ NEUTRAL: " if default_note else "⚪ NEUTRAL: "
+                else:
+                    note_text = default_note
+                # Clear the template after applying
+                st.session_state[f'template_{key_base}'] = ''
+            else:
+                note_text = default_note
+            
             note = st.text_area(
                 f"Analysis notes for {ind}",
-                value=st.session_state.get(f'note_{key_base}', default_note),
+                value=note_text,
                 height=160,
                 key=f"note_{key_base}",
                 placeholder=f"Enter your analysis for {ind}...\n\n💡 Tip: Include key levels, signals, and observations"
@@ -620,29 +643,34 @@ with st.form("enhanced_notes_form", clear_on_submit=False):
                 key=f"conf_{key_base}"
             )
             
+            # Store form data
+            form_data[ind] = {
+                'note': note,
+                'status': status,
+                'confidence': ind_confidence
+            }
+            
             # Last modified info
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
 
-    # Form submission
+    # Form submission button - CORRECTED
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
+    
     if submitted:
         if selected_strategy not in data:
             data[selected_strategy] = {}
         
         for ind in indicators:
             key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-            note_key = f"note_{key_base}"
-            status_key = f"status_{key_base}"
-            conf_key = f"conf_{key_base}"
             
             data[selected_strategy][ind] = {
-                "note": st.session_state.get(note_key, ""),
-                "status": st.session_state.get(status_key, "Open"),
+                "note": form_data[ind]['note'],
+                "status": form_data[ind]['status'],
                 "momentum": strategy_type,
                 "strategy_tag": strategy_tag,
                 "priority": strategy_priority,
-                "confidence": st.session_state.get(conf_key, strategy_confidence),
+                "confidence": form_data[ind]['confidence'],
                 "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                 "last_modified": datetime.utcnow().isoformat() + "Z",
                 "id": str(uuid.uuid4())[:8]
@@ -738,7 +766,7 @@ for strat in strategies_to_show:
                 st.write(f"**Type:** {meta.get('momentum', 'Not Defined')}")
                 st.write(f"**Last Updated:** {meta.get('last_modified', 'N/A')[:16]}")
                 
-                # Quick actions
+                # Quick actions - these are outside any form so regular buttons work
                 if st.button("📋 Copy Notes", key=f"copy_{meta.get('id', ind_name)}"):
                     st.code(meta.get("note", ""))
                 
