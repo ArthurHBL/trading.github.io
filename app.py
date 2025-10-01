@@ -311,54 +311,46 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX: ULTRA SIMPLE DATE MANAGEMENT
+# FIX: ULTRA SIMPLE DATE MANAGEMENT WITH URL PARAMS
 start_date = date(2025, 8, 9)
 
-# Initialize current_date in session state
-if 'current_date' not in st.session_state:
-    st.session_state.current_date = date.today()
+# Get date from URL parameters
+query_params = st.query_params
+current_date_str = query_params.get("date", "")
 
-# Ensure current_date is not before start_date
-if st.session_state.current_date < start_date:
-    st.session_state.current_date = start_date
+if current_date_str:
+    try:
+        analysis_date = datetime.strptime(current_date_str, "%Y-%m-%d").date()
+    except ValueError:
+        analysis_date = date.today()
+else:
+    analysis_date = date.today()
 
-# Use the session state date
-analysis_date = st.session_state.current_date
+# Ensure analysis_date is not before start_date
+if analysis_date < start_date:
+    analysis_date = start_date
 
-# Date Selection - Display only (read-only style)
+# Display current date
 st.sidebar.subheader("📅 Analysis Date")
-
-# Show current date in a nice display
 st.sidebar.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
-st.sidebar.markdown(f"**Day {(analysis_date - start_date).days % 5 + 1}** of 5-day cycle")
 
-# FIX: SIMPLE Date navigation - just update session state
+# FIX: SIMPLE Date navigation using URL parameters
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("◀️ Prev Day", use_container_width=True):
         new_date = analysis_date - timedelta(days=1)
         if new_date >= start_date:
-            st.session_state.current_date = new_date
-            st.rerun()
+            st.query_params["date"] = new_date.strftime("%Y-%m-%d")
         else:
             st.sidebar.warning("Cannot go before start date")
 with col2:
     if st.button("Next Day ▶️", use_container_width=True):
         new_date = analysis_date + timedelta(days=1)
-        st.session_state.current_date = new_date
-        st.rerun()
+        st.query_params["date"] = new_date.strftime("%Y-%m-%d")
 
-# Optional: Add a date picker for jumping to specific dates
-with st.sidebar.expander("📅 Jump to Date", expanded=False):
-    jump_date = st.date_input(
-        "Select date to jump to:",
-        value=analysis_date,
-        min_value=start_date,
-        key="jump_date_selector"
-    )
-    if jump_date != analysis_date:
-        st.session_state.current_date = jump_date
-        st.rerun()
+# Quick date reset button
+if st.sidebar.button("🔄 Today", use_container_width=True):
+    st.query_params["date"] = date.today().strftime("%Y-%m-%d")
 
 st.sidebar.markdown("---")
 
@@ -419,12 +411,7 @@ if available_dates:
     with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
         selected_historical_date = st.selectbox("View past analyses:", available_dates)
         if st.button("📅 Load Historical View"):
-            try:
-                historical_date = datetime.strptime(selected_historical_date, '%Y-%m-%d').date()
-                st.session_state.current_date = historical_date
-                st.rerun()
-            except ValueError:
-                st.error("Invalid date format")
+            st.query_params["date"] = selected_historical_date
 
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
