@@ -1,31 +1,110 @@
-# app.py
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies)
 import streamlit as st
 import json
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+from typing import Dict, List, Optional, Tuple
+import uuid
 
-st.set_page_config(page_title="Chart Reminder & Notes (15 Strategies)", layout="wide")
+# -------------------------
+# Configuration
+# -------------------------
+st.set_page_config(
+    page_title="Chart Reminder & Notes (15 Strategies)", 
+    layout="wide",
+    page_icon="📊",
+    initial_sidebar_state="expanded"
+)
 
 SAVE_FILE = "strategy_analyses.json"
+BACKUP_DIR = "backups"
 
 # -------------------------
-# Utility functions
+# Enhanced Utility Functions
 # -------------------------
-def load_data():
+def ensure_backup_dir():
+    """Ensure backup directory exists"""
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+
+def load_data() -> Dict:
+    """Load data with robust error handling"""
     if os.path.exists(SAVE_FILE):
-        with open(SAVE_FILE, "r", encoding="utf-8") as f:
-            try:
-                return json.load(f)
-            except Exception:
-                return {}
+        try:
+            with open(SAVE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Validate and normalize data structure
+                return normalize_data_structure(data)
+        except (json.JSONDecodeError, Exception) as e:
+            st.error(f"⚠️ Error loading data: {e}")
+            st.info("Attempting to load from backup...")
+            return load_latest_backup()
     return {}
 
-def save_data(data):
-    with open(SAVE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+def normalize_data_structure(data: Dict) -> Dict:
+    """Ensure data has proper structure"""
+    normalized = {}
+    for strat_name, indicators in data.items():
+        if isinstance(indicators, dict):
+            normalized[strat_name] = {}
+            for ind_name, meta in indicators.items():
+                if isinstance(meta, dict):
+                    normalized[strat_name][ind_name] = {
+                        "note": meta.get("note", ""),
+                        "status": meta.get("status", "Open"),
+                        "strategy_tag": meta.get("strategy_tag", "Neutral"),
+                        "momentum": meta.get("momentum", "Not Defined"),
+                        "analysis_date": meta.get("analysis_date", ""),
+                        "last_modified": meta.get("last_modified", ""),
+                        "priority": meta.get("priority", "Medium"),
+                        "confidence": meta.get("confidence", 50),
+                        "id": meta.get("id", str(uuid.uuid4())[:8])
+                    }
+    return normalized
 
-def sanitize_key(s: str):
+def save_data(data: Dict) -> bool:
+    """Save data with backup creation"""
+    try:
+        # Create backup before saving
+        create_backup(data)
+        
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"❌ Error saving data: {e}")
+        return False
+
+def create_backup(data: Dict):
+    """Create timestamped backup"""
+    ensure_backup_dir()
+    backup_file = os.path.join(BACKUP_DIR, f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    try:
+        with open(backup_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        st.error(f"Backup failed: {e}")
+
+def load_latest_backup() -> Dict:
+    """Load most recent backup"""
+    ensure_backup_dir()
+    try:
+        backup_files = [f for f in os.listdir(BACKUP_DIR) if f.endswith('.json')]
+        if backup_files:
+            latest_backup = sorted(backup_files)[-1]
+            with open(os.path.join(BACKUP_DIR, latest_backup), "r", encoding="utf-8") as f:
+                st.success(f"✅ Loaded from backup: {latest_backup}")
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def sanitize_key(s: str) -> str:
+    """Create safe key names"""
     return (
         s.replace(" ", "_")
          .replace("/", "_")
@@ -38,9 +117,11 @@ def sanitize_key(s: str):
          .replace("(", "")
          .replace(")", "")
          .replace(",", "_")
+         .lower()
     )
 
-def get_daily_strategies(analysis_date):
+def get_daily_strategies(analysis_date: date) -> Tuple[List[str], int]:
+    """Get strategies for the given date in 5-day cycle"""
     strategy_list = list(STRATEGIES.keys())
     start_date = date(2025, 8, 9)
     days_since_start = (analysis_date - start_date).days
@@ -50,12 +131,16 @@ def get_daily_strategies(analysis_date):
     daily_strategies = strategy_list[start_index:end_index]
     return daily_strategies, cycle_day + 1
 
-def generate_filtered_csv_bytes(data, target_date):
+def generate_filtered_csv_bytes(data: Dict, target_date: date, export_type: str = "current") -> bytes:
+    """Generate CSV data for export"""
     rows = []
     target_str = target_date.strftime("%Y-%m-%d")
+    
     for strat, inds in data.items():
         for ind_name, meta in inds.items():
-            if meta.get("analysis_date") == target_str:
+            if export_type == "current" and meta.get("analysis_date") != target_str:
+                continue
+            if export_type == "all" or (export_type == "current" and meta.get("analysis_date") == target_str):
                 rows.append({
                     "Strategy": strat,
                     "Indicator": ind_name,
@@ -63,14 +148,122 @@ def generate_filtered_csv_bytes(data, target_date):
                     "Status": meta.get("status", ""),
                     "Momentum": meta.get("momentum", "Not Defined"),
                     "Tag": meta.get("strategy_tag", "Neutral"),
+                    "Priority": meta.get("priority", "Medium"),
+                    "Confidence": meta.get("confidence", 50),
                     "Analysis_Date": meta.get("analysis_date", ""),
                     "Last_Modified": meta.get("last_modified", "")
                 })
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Strategy","Indicator","Note","Status","Momentum","Tag","Analysis_Date","Last_Modified"])
+    
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=[
+        "Strategy", "Indicator", "Note", "Status", "Momentum", "Tag", 
+        "Priority", "Confidence", "Analysis_Date", "Last_Modified"
+    ])
     return df.to_csv(index=False).encode("utf-8")
 
+def get_analysis_dates(data: Dict) -> List[str]:
+    """Get all dates with analysis data"""
+    dates = set()
+    for strategy in data.values():
+        for indicator in strategy.values():
+            if indicator.get('analysis_date'):
+                dates.add(indicator['analysis_date'])
+    return sorted(dates, reverse=True)
+
+def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: date) -> Dict:
+    """Calculate progress statistics"""
+    target_date_str = analysis_date.strftime("%Y-%m-%d")
+    
+    total_indicators = sum(len(STRATEGIES.get(s, [])) for s in daily_strategies)
+    completed_indicators = 0
+    strategy_progress = {}
+    
+    for strategy in daily_strategies:
+        strategy_inds = STRATEGIES.get(strategy, [])
+        completed = 0
+        for ind in strategy_inds:
+            if (data.get(strategy, {}).get(ind, {}).get('analysis_date') == target_date_str and
+                data.get(strategy, {}).get(ind, {}).get('status') == 'Done'):
+                completed += 1
+                completed_indicators += 1
+        strategy_progress[strategy] = {
+            'completed': completed,
+            'total': len(strategy_inds),
+            'progress': completed / len(strategy_inds) if strategy_inds else 0
+        }
+    
+    overall_progress = completed_indicators / total_indicators if total_indicators else 0
+    
+    return {
+        'overall': overall_progress,
+        'strategies': strategy_progress,
+        'completed_indicators': completed_indicators,
+        'total_indicators': total_indicators
+    }
+
+def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
+    """Create a progress visualization"""
+    strategies = daily_strategies
+    completed = [progress_data['strategies'][s]['completed'] for s in strategies]
+    total = [progress_data['strategies'][s]['total'] for s in strategies]
+    percentages = [progress_data['strategies'][s]['progress'] * 100 for s in strategies]
+    
+    fig = go.Figure()
+    
+    # Add progress bars
+    fig.add_trace(go.Bar(
+        name='Completed',
+        x=strategies,
+        y=completed,
+        marker_color='#2E8B57',
+        text=completed,
+        textposition='auto',
+    ))
+    
+    fig.add_trace(go.Bar(
+        name='Remaining',
+        x=strategies,
+        y=[t - c for t, c in zip(total, completed)],
+        marker_color='#FF6B6B',
+        text=total,
+        textposition='auto',
+    ))
+    
+    fig.update_layout(
+        title="📊 Today's Progress by Strategy",
+        barmode='stack',
+        showlegend=True,
+        height=300,
+        xaxis_tickangle=-45
+    )
+    
+    return fig
+
+def create_tag_distribution_chart(data: Dict, analysis_date: date):
+    """Create tag distribution visualization"""
+    target_date_str = analysis_date.strftime("%Y-%m-%d")
+    tag_counts = {'Buy': 0, 'Sell': 0, 'Neutral': 0}
+    
+    for strategy in data.values():
+        for indicator in strategy.values():
+            if indicator.get('analysis_date') == target_date_str:
+                tag = indicator.get('strategy_tag', 'Neutral')
+                tag_counts[tag] = tag_counts.get(tag, 0) + 1
+    
+    colors = {'Buy': '#00FF7F', 'Sell': '#FF6B6B', 'Neutral': '#87CEEB'}
+    
+    fig = px.pie(
+        values=list(tag_counts.values()),
+        names=list(tag_counts.keys()),
+        title="🎯 Strategy Tag Distribution (Today)",
+        color=list(tag_counts.keys()),
+        color_discrete_map=colors
+    )
+    
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
 # -------------------------
-# STRATEGIES (list of 15)
+# STRATEGIES Definition
 # -------------------------
 STRATEGIES = {
     "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
@@ -91,150 +284,452 @@ STRATEGIES = {
 }
 
 # -------------------------
-# Load and normalize data
+# Initialize Data
 # -------------------------
 data = load_data()
-for strat_name, inds in data.items():
-    for ind_name, meta in inds.items():
-        meta.setdefault("strategy_tag", "Neutral")
-        meta.setdefault("momentum", "Not Defined")
-        meta.setdefault("status", "Open")
-        meta.setdefault("analysis_date", "")
-        meta.setdefault("last_modified", "")
-save_data(data)
 
 # -------------------------
-# Sidebar
+# Enhanced Sidebar
 # -------------------------
-st.sidebar.title("Controls")
+st.sidebar.title("🎛️ Control Panel")
+st.sidebar.markdown("---")
+
+# Date Selection
 st.sidebar.subheader("📅 Analysis Date")
 start_date = date(2025, 8, 9)
 analysis_date = st.sidebar.date_input(
     "Select analysis date:",
     value=date.today() if date.today() >= start_date else start_date,
-    min_value=start_date
+    min_value=start_date,
+    key="analysis_date"
 )
+
+# Quick date navigation
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    if st.button("◀️ Prev Day"):
+        analysis_date = analysis_date - timedelta(days=1)
+        st.rerun()
+with col2:
+    if st.button("Next Day ▶️"):
+        analysis_date = analysis_date + timedelta(days=1)
+        st.rerun()
+
 st.sidebar.markdown("---")
 
+# Daily Strategies
 daily_strategies, cycle_day = get_daily_strategies(analysis_date)
+progress_data = calculate_progress(data, daily_strategies, analysis_date)
+
 st.sidebar.subheader("📋 Today's Focus")
-st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**\n• {daily_strategies[0]}\n• {daily_strategies[1]}\n• {daily_strategies[2]}")
+st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**")
 
-selected_strategy = st.sidebar.selectbox("Choose a strategy:", daily_strategies)
+# Progress overview
+st.sidebar.metric(
+    "Overall Progress", 
+    f"{progress_data['completed_indicators']}/{progress_data['total_indicators']}",
+    f"{progress_data['overall']*100:.1f}%"
+)
 
-with st.sidebar.expander("📋 All 15 Strategies", expanded=False):
+for strategy in daily_strategies:
+    strat_progress = progress_data['strategies'][strategy]
+    st.sidebar.progress(strat_progress['progress'], text=f"{strategy}: {strat_progress['completed']}/{strat_progress['total']}")
+
+st.sidebar.markdown("---")
+
+# Strategy Selection
+selected_strategy = st.sidebar.selectbox(
+    "🎯 Choose a strategy:", 
+    daily_strategies,
+    index=0,
+    key="strategy_selector"
+)
+
+# All Strategies List
+with st.sidebar.expander("📚 All 15 Strategies", expanded=False):
     for i, strategy in enumerate(STRATEGIES.keys(), 1):
         star = " ⭐" if strategy in daily_strategies else ""
-        st.markdown(f"{i}. {strategy}{star}")
+        status_icon = "✅" if progress_data['strategies'].get(strategy, {}).get('progress', 0) == 1 else "🕓"
+        st.write(f"{status_icon} {i}. {strategy}{star}")
+
 st.sidebar.markdown("---")
 
-# CSV export
-csv_bytes = generate_filtered_csv_bytes(data, analysis_date)
-st.sidebar.subheader("📄 Export (CSV filtered by date)")
+# Enhanced Export Options
+st.sidebar.subheader("📤 Export Data")
+export_type = st.sidebar.radio("Export Type:", ["Current Date", "All Data"], key="export_type")
+
+csv_bytes = generate_filtered_csv_bytes(data, analysis_date, "current" if export_type == "Current Date" else "all")
+export_filename = f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv" if export_type == "Current Date" else "strategy_analyses_complete.csv"
+
 st.sidebar.download_button(
-    label="⬇️ Download CSV (filtered by selected date)",
+    label=f"⬇️ Download {export_type} CSV",
     data=csv_bytes,
-    file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
-    mime="text/csv"
+    file_name=export_filename,
+    mime="text/csv",
+    key="download_csv"
 )
 
+# Historical Data Access
+available_dates = get_analysis_dates(data)
+if available_dates:
+    with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
+        selected_historical_date = st.selectbox("View past analyses:", available_dates)
+        if st.button("📅 Load Historical View"):
+            st.session_state.historical_view = selected_historical_date
+            st.rerun()
+
+# Data Management
+with st.sidebar.expander("⚙️ Data Management", expanded=False):
+    if st.button("🔄 Refresh Data"):
+        data = load_data()
+        st.rerun()
+    
+    if st.button("💾 Create Backup"):
+        if save_data(data):
+            st.success("Backup created!")
+        else:
+            st.error("Backup failed!")
+    
+    st.warning("⚠️ Data is automatically saved on changes")
+
+# Help Section
+with st.sidebar.expander("ℹ️ How to Use", expanded=False):
+    st.markdown("""
+    **Daily Workflow:**
+    1. Check today's 3 focus strategies
+    2. Analyze each indicator systematically  
+    3. Set appropriate tags and confidence levels
+    4. Mark completed indicators as "Done"
+    5. Save your analysis
+    
+    **Tag Meanings:**
+    - 🟢 **Buy**: Bullish signals dominant
+    - 🔴 **Sell**: Bearish signals dominant
+    - ⚪ **Neutral**: Mixed or unclear signals
+    
+    **5-Day Cycle:** Systematically rotates through all 15 strategies
+    """)
+
 # -------------------------
-# Main Layout
+# Main Layout - Enhanced
 # -------------------------
-st.title("📊 Chart Reminder & Indicator Notes")
+st.title("📊 Advanced Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day}** | Strategy: **{selected_strategy}** | Date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
-# Progress indicators
-cols = st.columns(3)
+# Progress Visualization
+col1, col2, col3 = st.columns([2, 1, 1])
+with col1:
+    st.plotly_chart(create_progress_chart(progress_data, daily_strategies), use_container_width=True)
+with col2:
+    st.plotly_chart(create_tag_distribution_chart(data, analysis_date), use_container_width=True)
+with col3:
+    # Quick stats
+    total_analyses = sum(len(inds) for inds in data.values())
+    today_analyses = sum(1 for strat in data.values() for ind in strat.values() 
+                        if ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d'))
+    
+    st.metric("Total Analyses", total_analyses)
+    st.metric("Today's Analyses", today_analyses)
+    st.metric("Completion Rate", f"{progress_data['overall']*100:.1f}%")
+
+# Strategy Progress Indicators
+st.subheader("🎯 Today's Strategy Progress")
+progress_cols = st.columns(3)
 for i, strat in enumerate(daily_strategies):
-    with cols[i]:
-        if strat in data and any(ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d') for ind in data[strat].values()):
-            st.success(f"✅ {strat}")
-        elif strat == selected_strategy:
-            st.info(f"📝 {strat} (current)")
+    with progress_cols[i]:
+        strat_data = progress_data['strategies'][strat]
+        progress_pct = strat_data['progress']
+        
+        if progress_pct == 1:
+            st.success(f"✅ **{strat}** (Complete)")
+        elif progress_pct > 0:
+            st.info(f"🔄 **{strat}** ({strat_data['completed']}/{strat_data['total']})")
         else:
-            st.warning(f"🕓 {strat}")
+            st.warning(f"🕓 **{strat}** (Not Started)")
+        
+        st.progress(progress_pct)
+
 st.markdown("---")
 
 # -------------------------
-# Notes Form
+# Enhanced Notes Form
 # -------------------------
-with st.form("notes_form"):
-    st.subheader(selected_strategy)  # <-- removed "Edit notes —"
-
+with st.form("enhanced_notes_form", clear_on_submit=False):
+    st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
+    
     strategy_data = data.get(selected_strategy, {})
-    current_strategy_tag = next(iter(strategy_data.values()), {}).get("strategy_tag", "Neutral")
-    current_strategy_type = next(iter(strategy_data.values()), {}).get("momentum", "Not Defined")
-
-    strategy_tag = st.selectbox("Strategy Tag:", ["Neutral", "Buy", "Sell"], index=["Neutral","Buy","Sell"].index(current_strategy_tag))
-    strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], index=["Momentum","Extreme","Not Defined"].index(current_strategy_type))
+    
+    # Strategy-level settings in columns
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        # Get current strategy tag from first indicator or default
+        current_tag = next(iter(strategy_data.values()), {}).get("strategy_tag", "Neutral")
+        strategy_tag = st.selectbox(
+            "🏷️ Strategy Tag:", 
+            ["Neutral", "Buy", "Sell"], 
+            index=["Neutral", "Buy", "Sell"].index(current_tag),
+            help="Overall bias for this strategy"
+        )
+    
+    with col2:
+        current_type = next(iter(strategy_data.values()), {}).get("momentum", "Not Defined")
+        strategy_type = st.selectbox(
+            "📈 Strategy Type:", 
+            ["Momentum", "Extreme", "Not Defined"], 
+            index=["Momentum", "Extreme", "Not Defined"].index(current_type),
+            help="Type of market condition this strategy excels in"
+        )
+    
+    with col3:
+        current_priority = next(iter(strategy_data.values()), {}).get("priority", "Medium")
+        strategy_priority = st.selectbox(
+            "🎯 Priority:", 
+            ["Low", "Medium", "High", "Critical"], 
+            index=["Low", "Medium", "High", "Critical"].index(current_priority),
+            help="Importance level for this analysis"
+        )
+    
+    with col4:
+        current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 50)
+        strategy_confidence = st.slider(
+            "💪 Confidence:", 
+            min_value=0, 
+            max_value=100, 
+            value=current_confidence,
+            help="Confidence level in this analysis"
+        )
+        st.caption(f"Confidence: {strategy_confidence}%")
 
     st.markdown("---")
+    
+    # Enhanced Indicator Analysis Section
+    st.markdown("### 📊 Indicator Analysis")
+    
     indicators = STRATEGIES[selected_strategy]
-    col_objs = st.columns(3)
-
+    
+    # Create responsive columns (2 columns for better mobile experience)
+    col_objs = st.columns(2)
+    
     for i, ind in enumerate(indicators):
-        col = col_objs[i % 3]
-        key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
-        key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
+        col = col_objs[i % 2]
+        key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
         existing = strategy_data.get(ind, {})
-        default_note, default_status = existing.get("note", ""), existing.get("status", "Open")
+        
+        with col.expander(f"**{ind}**", expanded=False):
+            # Status and quick actions
+            col_status, col_actions = st.columns([2, 1])
+            with col_status:
+                current_status = existing.get("status", "Open")
+                status = st.selectbox(
+                    "Status", 
+                    ["Open", "In Progress", "Done", "Skipped"], 
+                    index=["Open", "In Progress", "Done", "Skipped"].index(current_status) if current_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
+                    key=f"status_{key_base}"
+                )
+            
+            with col_actions:
+                if st.button("📝 Quick Note", key=f"quick_{key_base}", use_container_width=True):
+                    st.session_state[f'focus_{key_base}'] = True
+            
+            # Enhanced note taking with templates
+            default_note = existing.get("note", "")
+            
+            # Quick template buttons
+            template_col1, template_col2, template_col3 = st.columns(3)
+            with template_col1:
+                if st.button("📈 Bullish", key=f"bull_{key_base}", use_container_width=True):
+                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n📈 BULLISH SIGNAL: "
+            with template_col2:
+                if st.button("📉 Bearish", key=f"bear_{key_base}", use_container_width=True):
+                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n📉 BEARISH SIGNAL: "
+            with template_col3:
+                if st.button("⚪ Neutral", key=f"neut_{key_base}", use_container_width=True):
+                    st.session_state[f'note_{key_base}'] = f"{default_note}\n\n⚪ NEUTRAL: "
+            
+            # Main note area
+            note = st.text_area(
+                f"Analysis notes for {ind}",
+                value=st.session_state.get(f'note_{key_base}', default_note),
+                height=160,
+                key=f"note_{key_base}",
+                placeholder=f"Enter your analysis for {ind}...\n\n💡 Tip: Include key levels, signals, and observations"
+            )
+            
+            # Individual indicator confidence
+            ind_confidence = st.slider(
+                "Indicator Confidence",
+                min_value=0,
+                max_value=100,
+                value=existing.get("confidence", strategy_confidence),
+                key=f"conf_{key_base}"
+            )
+            
+            # Last modified info
+            if existing.get("last_modified"):
+                st.caption(f"Last updated: {existing['last_modified'][:16]}")
 
-        with col.expander(ind, expanded=False):
-            st.text_area(f"Analysis — {ind}", value=default_note, key=key_note, height=140)
-            st.selectbox("Status", ["Open", "Done"], index=0 if default_status=="Open" else 1, key=key_status)
-
-    submitted = st.form_submit_button("💾 Save all notes")
+    # Form submission
+    submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     if submitted:
         if selected_strategy not in data:
             data[selected_strategy] = {}
+        
         for ind in indicators:
-            key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
-            key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(ind)}"
+            key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+            note_key = f"note_{key_base}"
+            status_key = f"status_{key_base}"
+            conf_key = f"conf_{key_base}"
+            
             data[selected_strategy][ind] = {
-                "note": st.session_state.get(key_note, ""),
-                "status": st.session_state.get(key_status, "Open"),
+                "note": st.session_state.get(note_key, ""),
+                "status": st.session_state.get(status_key, "Open"),
                 "momentum": strategy_type,
                 "strategy_tag": strategy_tag,
+                "priority": strategy_priority,
+                "confidence": st.session_state.get(conf_key, strategy_confidence),
                 "analysis_date": analysis_date.strftime("%Y-%m-%d"),
-                "last_modified": datetime.utcnow().isoformat() + "Z"
+                "last_modified": datetime.utcnow().isoformat() + "Z",
+                "id": str(uuid.uuid4())[:8]
             }
-        save_data(data)
-        st.success("✅ Notes saved successfully.")
+        
+        if save_data(data):
+            st.success("✅ Analysis saved successfully!")
+            st.balloons()
+        else:
+            st.error("❌ Failed to save analysis!")
 
 # -------------------------
-# Display Saved Analyses
+# Enhanced Analysis Display
 # -------------------------
 st.markdown("---")
-st.subheader("📜 Saved analyses")
+st.subheader("📜 Saved Analyses & Historical View")
 
-view_options = ["Today's Focus", "All Strategies"] + daily_strategies
-filter_strategy = st.selectbox("Filter by strategy:", view_options, index=0)
+# View options with enhanced filtering
+view_col1, view_col2, view_col3 = st.columns([2, 1, 1])
+with view_col1:
+    view_options = ["Today's Focus", "All Strategies", "By Tag", "By Status"] + daily_strategies
+    filter_type = st.selectbox("View:", view_options, key="view_filter")
+    
+with view_col2:
+    if filter_type == "By Tag":
+        tag_filter = st.selectbox("Filter by tag:", ["All", "Buy", "Sell", "Neutral"])
+    elif filter_type == "By Status":
+        status_filter = st.selectbox("Filter by status:", ["All", "Open", "In Progress", "Done", "Skipped"])
+    else:
+        tag_filter = "All"
+        status_filter = "All"
 
-if filter_strategy == "Today's Focus":
+with view_col3:
+    sort_order = st.selectbox("Sort by:", ["Recent", "Strategy", "Status", "Confidence"])
+
+# Determine strategies to show
+if filter_type == "Today's Focus":
     strategies_to_show = daily_strategies
-elif filter_strategy == "All Strategies":
-    strategies_to_show = list(data.keys())
+elif filter_type == "All Strategies":
+    strategies_to_show = list(STRATEGIES.keys())
+elif filter_type in ["By Tag", "By Status"]:
+    strategies_to_show = list(STRATEGIES.keys())
 else:
-    strategies_to_show = [filter_strategy]
+    strategies_to_show = [filter_type]
 
-color_map = {"Buy": "🟢 Buy", "Sell": "🔴 Sell", "Neutral": "⚪ Neutral"}
+# Color and icon mappings
+color_map = {"Buy": "🟢", "Sell": "🔴", "Neutral": "⚪"}
+status_icons = {"Open": "🕓", "In Progress": "🔄", "Done": "✅", "Skipped": "⏭️"}
 
+# Display analyses
 for strat in strategies_to_show:
-    st.markdown(f"### {strat}")
-    inds = data.get(strat, {})
-    if not inds:
-        st.info("No saved notes for this strategy.")
+    if strat not in data or not data[strat]:
         continue
-    strategy_tag = next(iter(inds.values())).get("strategy_tag", "Neutral")
-    st.markdown(f"**Strategy Tag:** {color_map.get(strategy_tag, strategy_tag)}")
-    st.markdown("---")
+        
+    st.markdown(f"### {strat}")
+    inds = data[strat]
+    
+    # Strategy summary
+    strategy_tags = [meta.get("strategy_tag", "Neutral") for meta in inds.values()]
+    tag_counts = {tag: strategy_tags.count(tag) for tag in set(strategy_tags)}
+    tag_summary = " | ".join([f"{color_map.get(tag, '⚪')} {tag}: {count}" for tag, count in tag_counts.items()])
+    
+    st.markdown(f"**Strategy Summary:** {tag_summary}")
+    
+    # Create analysis cards
     for ind_name, meta in inds.items():
-        momentum_type = meta.get("momentum", "Not Defined")
-        status_icon = "✅ Done" if meta.get("status", "Open") == "Done" else "🕓 Open"
-        with st.expander(f"{ind_name} ({momentum_type}) — {status_icon}", expanded=False):
-            st.write(meta.get("note", "") or "_No notes yet_")
-            st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
+        # Apply filters
+        if tag_filter != "All" and meta.get("strategy_tag") != tag_filter:
+            continue
+        if status_filter != "All" and meta.get("status") != status_filter:
+            continue
+            
+        tag = meta.get("strategy_tag", "Neutral")
+        status = meta.get("status", "Open")
+        confidence = meta.get("confidence", 50)
+        priority = meta.get("priority", "Medium")
+        
+        # Priority colors
+        priority_colors = {"Critical": "#FF4444", "High": "#FFAA44", "Medium": "#44AAFF", "Low": "#44FF44"}
+        
+        with st.expander(
+            f"{color_map.get(tag, '⚪')} {ind_name} | "
+            f"{status_icons.get(status, '🕓')} {status} | "
+            f"💪 {confidence}% | "
+            f"🎯 {priority}", 
+            expanded=False
+        ):
+            col_left, col_right = st.columns([3, 1])
+            
+            with col_left:
+                st.write(meta.get("note", "") or "_No analysis notes yet_")
+                
+            with col_right:
+                st.metric("Confidence", f"{confidence}%")
+                st.write(f"**Priority:** {priority}")
+                st.write(f"**Type:** {meta.get('momentum', 'Not Defined')}")
+                st.write(f"**Last Updated:** {meta.get('last_modified', 'N/A')[:16]}")
+                
+                # Quick actions
+                if st.button("📋 Copy Notes", key=f"copy_{meta.get('id', ind_name)}"):
+                    st.code(meta.get("note", ""))
+                
+                if st.button("🔄 Update", key=f"update_{meta.get('id', ind_name)}"):
+                    st.session_state[f'edit_{ind_name}'] = True
+
     st.markdown("---")
 
-st.info("**5-Day Cycle**: Rotate through 3 strategies/day. Export CSV in sidebar for selected date.")
+# Empty state handling
+if not any(strat in data and data[strat] for strat in strategies_to_show):
+    st.info("📝 No analyses found for the selected filters. Start by analyzing today's strategies above!")
+
+# -------------------------
+# Footer & Additional Features
+# -------------------------
+st.markdown("---")
+footer_col1, footer_col2, footer_col3 = st.columns(3)
+
+with footer_col1:
+    st.markdown("**📈 Analysis Statistics**")
+    total_notes = sum(len(inds) for inds in data.values())
+    completed_notes = sum(1 for strat in data.values() for ind in strat.values() if ind.get('status') == 'Done')
+    st.write(f"Total Analyses: {total_notes}")
+    st.write(f"Completed: {completed_notes}")
+    st.write(f"Completion Rate: {completed_notes/total_notes*100:.1f}%" if total_notes else "0%")
+
+with footer_col2:
+    st.markdown("**🎯 Quick Actions**")
+    if st.button("🔄 Check Today's Progress"):
+        progress_data = calculate_progress(data, daily_strategies, analysis_date)
+        st.rerun()
+    
+    if st.button("📊 Generate Report"):
+        st.info("Report generation feature coming soon!")
+
+with footer_col3:
+    st.markdown("**🔮 Insights**")
+    if progress_data['overall'] > 0.8:
+        st.success("Excellent progress today! 🎉")
+    elif progress_data['overall'] > 0.5:
+        st.info("Good progress! Keep going! 💪")
+    else:
+        st.warning("Time to focus on today's strategies! ⏰")
+
+st.markdown("---")
+st.caption("Advanced Chart Reminder & Notes v2.0 | Built with Streamlit | 15 Strategy Rotation System")
