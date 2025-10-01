@@ -66,7 +66,7 @@ def normalize_data_structure(data: Dict) -> Dict:
                         "analysis_date": meta.get("analysis_date", ""),
                         "last_modified": meta.get("last_modified", ""),
                         "priority": meta.get("priority", "Medium"),
-                        "confidence": meta.get("confidence", 50),
+                        "confidence": meta.get("confidence", 75),
                         "id": meta.get("id", str(uuid.uuid4())[:8])
                     }
     return normalized
@@ -151,7 +151,7 @@ def generate_filtered_csv_bytes(data: Dict, target_date: date, export_type: str 
                     "Momentum": meta.get("momentum", "Not Defined"),
                     "Tag": meta.get("strategy_tag", "Neutral"),
                     "Priority": meta.get("priority", "Medium"),
-                    "Confidence": meta.get("confidence", 50),
+                    "Confidence": meta.get("confidence", 75),
                     "Analysis_Date": meta.get("analysis_date", ""),
                     "Last_Modified": meta.get("last_modified", "")
                 })
@@ -414,11 +414,6 @@ with st.sidebar.expander("ℹ️ How to Use", expanded=False):
     4. Mark completed indicators as "Done"
     5. Save your analysis
     
-    **Tag Meanings:**
-    - 🟢 **Buy**: Bullish signals dominant
-    - 🔴 **Sell**: Bearish signals dominant
-    - ⚪ **Neutral**: Mixed or unclear signals
-    
     **5-Day Cycle:** Systematically rotates through all 15 strategies
     """)
 
@@ -483,7 +478,7 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Notes Form - SIMPLIFIED AND WORKING
+# Notes Form - CLEANED UP VERSION
 # -------------------------
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
@@ -520,10 +515,10 @@ with col3:
     )
 
 with col4:
-    current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 75)  # Changed default to 75
+    current_confidence = next(iter(strategy_data.values()), {}).get("confidence", 75)
     strategy_confidence = st.slider(
         "💪 Confidence:", 
-        min_value=50,  # Changed from 0 to 50
+        min_value=50,
         max_value=100, 
         value=current_confidence,
         key="strategy_confidence_global"
@@ -537,10 +532,6 @@ st.markdown("### 📊 Indicator Analysis")
 
 indicators = STRATEGIES[selected_strategy]
 col_objs = st.columns(2)
-
-# Initialize session state
-if 'template_actions' not in st.session_state:
-    st.session_state.template_actions = {}
 
 # Main form
 with st.form("analysis_form", clear_on_submit=False):
@@ -561,35 +552,11 @@ with st.form("analysis_form", clear_on_submit=False):
                 key=f"status_{key_base}"
             )
             
-            # Template info
-            st.markdown("**Quick Templates:** Apply using buttons below")
-            
-            # Check for template application
-            template_applied = st.session_state.template_actions.get(key_base, "")
+            # Note area
             default_note = existing.get("note", "")
-            
-            if template_applied:
-                if template_applied == "bullish":
-                    template_text = "📈 BULLISH SIGNAL: "
-                elif template_applied == "bearish":
-                    template_text = "📉 BEARISH SIGNAL: "
-                elif template_applied == "neutral":
-                    template_text = "⚪ NEUTRAL: "
-                else:
-                    template_text = ""
-                
-                if default_note and template_text not in default_note:
-                    note_text = f"{default_note}\n\n{template_text}"
-                else:
-                    note_text = template_text if template_text else default_note
-                
-                st.session_state.template_actions[key_base] = ""
-            else:
-                note_text = default_note
-            
             note = st.text_area(
                 f"Analysis notes for {ind}",
-                value=note_text,
+                value=default_note,
                 height=160,
                 key=f"note_{key_base}",
                 placeholder=f"Enter your analysis for {ind}..."
@@ -613,57 +580,32 @@ with st.form("analysis_form", clear_on_submit=False):
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
     
-    # Form submission buttons
-    col1, col2, col3, col4 = st.columns(4)
+    # Single save button - clean and simple
+    submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    with col1:
-        submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
-    with col2:
-        bull_submitted = st.form_submit_button("📈 Apply Bullish Template", use_container_width=True)
-    with col3:
-        bear_submitted = st.form_submit_button("📉 Apply Bearish Template", use_container_width=True)
-    with col4:
-        neut_submitted = st.form_submit_button("⚪ Apply Neutral Template", use_container_width=True)
-    
-    # Handle form submissions
-    if submitted or bull_submitted or bear_submitted or neut_submitted:
-        if bull_submitted:
-            template_type = "bullish"
-        elif bear_submitted:
-            template_type = "bearish"
-        elif neut_submitted:
-            template_type = "neutral"
-        else:
-            template_type = None
+    # Handle form submission
+    if submitted:
+        if selected_strategy not in data:
+            data[selected_strategy] = {}
         
-        if template_type:
-            for ind in indicators:
-                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-                st.session_state.template_actions[key_base] = template_type
-            st.info(f"✅ {template_type.capitalize()} template applied to all indicators!")
+        for ind in indicators:
+            key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
+            
+            data[selected_strategy][ind] = {
+                "note": form_data[ind]['note'],
+                "status": form_data[ind]['status'],
+                "momentum": strategy_type,
+                "strategy_tag": strategy_tag,
+                "priority": strategy_priority,
+                "confidence": form_data[ind]['confidence'],
+                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
+                "last_modified": datetime.utcnow().isoformat() + "Z",
+                "id": str(uuid.uuid4())[:8]
+            }
         
-        if submitted or template_type:
-            if selected_strategy not in data:
-                data[selected_strategy] = {}
-            
-            for ind in indicators:
-                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-                
-                data[selected_strategy][ind] = {
-                    "note": form_data[ind]['note'],
-                    "status": form_data[ind]['status'],
-                    "momentum": strategy_type,
-                    "strategy_tag": strategy_tag,
-                    "priority": strategy_priority,
-                    "confidence": form_data[ind]['confidence'],
-                    "analysis_date": analysis_date.strftime("%Y-%m-%d"),
-                    "last_modified": datetime.utcnow().isoformat() + "Z",
-                    "id": str(uuid.uuid4())[:8]
-                }
-            
-            if save_data(data):
-                st.success("✅ Analysis saved successfully!")
-                st.balloons()
+        if save_data(data):
+            st.success("✅ Analysis saved successfully!")
+            st.balloons()
 
 # -------------------------
 # Analysis Display
@@ -671,30 +613,14 @@ with st.form("analysis_form", clear_on_submit=False):
 st.markdown("---")
 st.subheader("📜 Saved Analyses & Historical View")
 
-# View options
-view_col1, view_col2, view_col3 = st.columns([2, 1, 1])
-with view_col1:
-    view_options = ["Today's Focus", "All Strategies", "By Tag", "By Status"] + daily_strategies
-    filter_type = st.selectbox("View:", view_options, key="view_filter")
-    
-with view_col2:
-    if filter_type == "By Tag":
-        tag_filter = st.selectbox("Filter by tag:", ["All", "Buy", "Sell", "Neutral"])
-    elif filter_type == "By Status":
-        status_filter = st.selectbox("Filter by status:", ["All", "Open", "In Progress", "Done", "Skipped"])
-    else:
-        tag_filter = "All"
-        status_filter = "All"
-
-with view_col3:
-    sort_order = st.selectbox("Sort by:", ["Recent", "Strategy", "Status", "Confidence"])
+# View options - SIMPLIFIED
+view_options = ["Today's Focus", "All Strategies"] + daily_strategies
+filter_type = st.selectbox("View:", view_options, key="view_filter")
 
 # Determine strategies to show
 if filter_type == "Today's Focus":
     strategies_to_show = daily_strategies
 elif filter_type == "All Strategies":
-    strategies_to_show = list(STRATEGIES.keys())
-elif filter_type in ["By Tag", "By Status"]:
     strategies_to_show = list(STRATEGIES.keys())
 else:
     strategies_to_show = [filter_type]
@@ -720,14 +646,9 @@ for strat in strategies_to_show:
     
     # Create analysis cards
     for ind_name, meta in inds.items():
-        if tag_filter != "All" and meta.get("strategy_tag") != tag_filter:
-            continue
-        if status_filter != "All" and meta.get("status") != status_filter:
-            continue
-            
         tag = meta.get("strategy_tag", "Neutral")
         status = meta.get("status", "Open")
-        confidence = meta.get("confidence", 50)
+        confidence = meta.get("confidence", 75)
         priority = meta.get("priority", "Medium")
         
         with st.expander(
@@ -764,7 +685,7 @@ st.markdown("---")
 footer_col1, footer_col2, footer_col3 = st.columns(3)
 
 with footer_col1:
-    st.markdown("**📈 Analysis Statistics**")
+    st.markdown("📈 Analysis Statistics")
     total_notes = sum(len(inds) for inds in data.values())
     completed_notes = sum(1 for strat in data.values() for ind in strat.values() if ind.get('status') == 'Done')
     st.write(f"Total Analyses: {total_notes}")
@@ -772,13 +693,13 @@ with footer_col1:
     st.write(f"Completion Rate: {completed_notes/total_notes*100:.1f}%" if total_notes else "0%")
 
 with footer_col2:
-    st.markdown("**🎯 Quick Actions**")
+    st.markdown("🎯 Quick Actions")
     if st.button("🔄 Check Today's Progress"):
         progress_data = calculate_progress(data, daily_strategies, analysis_date)
         st.rerun()
 
 with footer_col3:
-    st.markdown("**🔮 Insights**")
+    st.markdown("🔮 Insights")
     if progress_data['overall'] > 0.8:
         st.success("Excellent progress today! 🎉")
     elif progress_data['overall'] > 0.5:
