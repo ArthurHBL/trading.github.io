@@ -847,4 +847,8 @@ with st.expander("🔧 Installation & Setup", expanded=False):
     pip install plotly
     ```
     
-   
+    ### Required dependencies:
+    ```bash
+    pip install streamlit pandas numpy
+    ```
+    
