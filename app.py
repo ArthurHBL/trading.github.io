@@ -17,7 +17,6 @@ try:
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
-    st.warning("📊 Plotly not available - using Streamlit native charts")
 
 # -------------------------
 # Configuration
@@ -45,11 +44,9 @@ def load_data() -> Dict:
         try:
             with open(SAVE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Validate and normalize data structure
                 return normalize_data_structure(data)
         except (json.JSONDecodeError, Exception) as e:
             st.error(f"⚠️ Error loading data: {e}")
-            st.info("Attempting to load from backup...")
             return load_latest_backup()
     return {}
 
@@ -77,9 +74,7 @@ def normalize_data_structure(data: Dict) -> Dict:
 def save_data(data: Dict) -> bool:
     """Save data with backup creation"""
     try:
-        # Create backup before saving
         create_backup(data)
-        
         with open(SAVE_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
@@ -105,7 +100,6 @@ def load_latest_backup() -> Dict:
         if backup_files:
             latest_backup = sorted(backup_files)[-1]
             with open(os.path.join(BACKUP_DIR, latest_backup), "r", encoding="utf-8") as f:
-                st.success(f"✅ Loaded from backup: {latest_backup}")
                 return json.load(f)
     except Exception:
         pass
@@ -211,7 +205,6 @@ def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: d
 def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
     """Create a progress visualization with fallback"""
     if not PLOTLY_AVAILABLE:
-        # Fallback to Streamlit native display
         st.subheader("📊 Progress Overview")
         for strategy in daily_strategies:
             progress = progress_data['strategies'][strategy]['progress']
@@ -225,7 +218,6 @@ def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
     
     fig = go.Figure()
     
-    # Add progress bars
     fig.add_trace(go.Bar(
         name='Completed',
         x=strategies,
@@ -266,7 +258,6 @@ def create_tag_distribution_chart(data: Dict, analysis_date: date):
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
     
     if not PLOTLY_AVAILABLE:
-        # Fallback display
         st.subheader("🎯 Tag Distribution")
         for tag, count in tag_counts.items():
             color = "🟢" if tag == "Buy" else "🔴" if tag == "Sell" else "⚪"
@@ -318,15 +309,8 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# Dependency warning
 if not PLOTLY_AVAILABLE:
-    st.sidebar.warning("""
-    ⚠️ **Enhanced charts disabled**
-    Install plotly for better visualizations:
-    ```bash
-    pip install plotly
-    ```
-    """)
+    st.sidebar.warning("⚠️ Install plotly for enhanced charts")
 
 # Date Selection
 st.sidebar.subheader("📅 Analysis Date")
@@ -358,7 +342,6 @@ progress_data = calculate_progress(data, daily_strategies, analysis_date)
 st.sidebar.subheader("📋 Today's Focus")
 st.sidebar.info(f"**Day {cycle_day} of 5-day cycle**")
 
-# Progress overview
 st.sidebar.metric(
     "Overall Progress", 
     f"{progress_data['completed_indicators']}/{progress_data['total_indicators']}",
@@ -421,8 +404,6 @@ with st.sidebar.expander("⚙️ Data Management", expanded=False):
     if st.button("💾 Create Backup"):
         if save_data(data):
             st.success("Backup created!")
-        else:
-            st.error("Backup failed!")
     
     st.warning("⚠️ Data is automatically saved on changes")
 
@@ -445,7 +426,7 @@ with st.sidebar.expander("ℹ️ How to Use", expanded=False):
     """)
 
 # -------------------------
-# Main Layout - Enhanced
+# Main Layout
 # -------------------------
 st.title("📊 Advanced Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day}** | Strategy: **{selected_strategy}** | Date: **{analysis_date.strftime('%m/%d/%Y')}**")
@@ -462,7 +443,6 @@ if PLOTLY_AVAILABLE:
         if tag_chart:
             st.plotly_chart(tag_chart, use_container_width=True)
     with col3:
-        # Quick stats
         total_analyses = sum(len(inds) for inds in data.values())
         today_analyses = sum(1 for strat in data.values() for ind in strat.values() 
                             if ind.get('analysis_date') == analysis_date.strftime('%Y-%m-%d'))
@@ -471,7 +451,6 @@ if PLOTLY_AVAILABLE:
         st.metric("Today's Analyses", today_analyses)
         st.metric("Completion Rate", f"{progress_data['overall']*100:.1f}%")
 else:
-    # Fallback layout without Plotly
     col1, col2 = st.columns(2)
     with col1:
         create_progress_chart(progress_data, daily_strategies)
@@ -507,24 +486,21 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Enhanced Notes Form - SIMPLIFIED AND WORKING VERSION
+# Notes Form - SIMPLIFIED AND WORKING
 # -------------------------
-
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
 strategy_data = data.get(selected_strategy, {})
 
-# Strategy-level settings in columns
+# Strategy-level settings
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    # Get current strategy tag from first indicator or default
     current_tag = next(iter(strategy_data.values()), {}).get("strategy_tag", "Neutral")
     strategy_tag = st.selectbox(
         "🏷️ Strategy Tag:", 
         ["Neutral", "Buy", "Sell"], 
         index=["Neutral", "Buy", "Sell"].index(current_tag),
-        help="Overall bias for this strategy",
         key="strategy_tag_global"
     )
 
@@ -534,7 +510,6 @@ with col2:
         "📈 Strategy Type:", 
         ["Momentum", "Extreme", "Not Defined"], 
         index=["Momentum", "Extreme", "Not Defined"].index(current_type),
-        help="Type of market condition this strategy excels in",
         key="strategy_type_global"
     )
 
@@ -544,7 +519,6 @@ with col3:
         "🎯 Priority:", 
         ["Low", "Medium", "High", "Critical"], 
         index=["Low", "Medium", "High", "Critical"].index(current_priority),
-        help="Importance level for this analysis",
         key="strategy_priority_global"
     )
 
@@ -555,26 +529,23 @@ with col4:
         min_value=0, 
         max_value=100, 
         value=current_confidence,
-        help="Confidence level in this analysis",
         key="strategy_confidence_global"
     )
     st.caption(f"Confidence: {strategy_confidence}%")
 
 st.markdown("---")
 
-# Enhanced Indicator Analysis Section
+# Indicator Analysis Section
 st.markdown("### 📊 Indicator Analysis")
 
 indicators = STRATEGIES[selected_strategy]
-
-# Create responsive columns (2 columns for better mobile experience)
 col_objs = st.columns(2)
 
-# Initialize session state for template management
+# Initialize session state
 if 'template_actions' not in st.session_state:
     st.session_state.template_actions = {}
 
-# Use a single form for all inputs
+# Main form
 with st.form("analysis_form", clear_on_submit=False):
     form_data = {}
     
@@ -593,11 +564,10 @@ with st.form("analysis_form", clear_on_submit=False):
                 key=f"status_{key_base}"
             )
             
-            # Template buttons as regular text with emojis (not interactive in form)
-            st.markdown("**Quick Templates:** 📈 Bullish | 📉 Bearish | ⚪ Neutral")
-            st.markdown("*Apply templates before typing your analysis*")
+            # Template info
+            st.markdown("**Quick Templates:** Apply using buttons below")
             
-            # Check if template was applied from previous submission
+            # Check for template application
             template_applied = st.session_state.template_actions.get(key_base, "")
             default_note = existing.get("note", "")
             
@@ -611,13 +581,11 @@ with st.form("analysis_form", clear_on_submit=False):
                 else:
                     template_text = ""
                 
-                # Combine existing note with template
                 if default_note and template_text not in default_note:
                     note_text = f"{default_note}\n\n{template_text}"
                 else:
                     note_text = template_text if template_text else default_note
                 
-                # Clear the template after applying
                 st.session_state.template_actions[key_base] = ""
             else:
                 note_text = default_note
@@ -627,7 +595,7 @@ with st.form("analysis_form", clear_on_submit=False):
                 value=note_text,
                 height=160,
                 key=f"note_{key_base}",
-                placeholder=f"Enter your analysis for {ind}...\n\n💡 Tip: Include key levels, signals, and observations"
+                placeholder=f"Enter your analysis for {ind}..."
             )
             
             # Individual indicator confidence
@@ -639,18 +607,16 @@ with st.form("analysis_form", clear_on_submit=False):
                 key=f"conf_{key_base}"
             )
             
-            # Store form data
             form_data[ind] = {
                 'note': note,
                 'status': status,
                 'confidence': ind_confidence
             }
             
-            # Last modified info
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
     
-    # Form submission buttons in a single row
+    # Form submission buttons
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -674,14 +640,12 @@ with st.form("analysis_form", clear_on_submit=False):
             template_type = None
         
         if template_type:
-            # Apply template to all indicators
             for ind in indicators:
                 key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
                 st.session_state.template_actions[key_base] = template_type
             st.info(f"✅ {template_type.capitalize()} template applied to all indicators!")
         
         if submitted or template_type:
-            # Save the data
             if selected_strategy not in data:
                 data[selected_strategy] = {}
             
@@ -703,16 +667,14 @@ with st.form("analysis_form", clear_on_submit=False):
             if save_data(data):
                 st.success("✅ Analysis saved successfully!")
                 st.balloons()
-            else:
-                st.error("❌ Failed to save analysis!")
 
 # -------------------------
-# Enhanced Analysis Display
+# Analysis Display
 # -------------------------
 st.markdown("---")
 st.subheader("📜 Saved Analyses & Historical View")
 
-# View options with enhanced filtering
+# View options
 view_col1, view_col2, view_col3 = st.columns([2, 1, 1])
 with view_col1:
     view_options = ["Today's Focus", "All Strategies", "By Tag", "By Status"] + daily_strategies
@@ -761,7 +723,6 @@ for strat in strategies_to_show:
     
     # Create analysis cards
     for ind_name, meta in inds.items():
-        # Apply filters
         if tag_filter != "All" and meta.get("strategy_tag") != tag_filter:
             continue
         if status_filter != "All" and meta.get("status") != status_filter:
@@ -790,21 +751,17 @@ for strat in strategies_to_show:
                 st.write(f"**Type:** {meta.get('momentum', 'Not Defined')}")
                 st.write(f"**Last Updated:** {meta.get('last_modified', 'N/A')[:16]}")
                 
-                # Quick actions - these are outside any form so regular buttons work
                 if st.button("📋 Copy Notes", key=f"copy_{meta.get('id', ind_name)}"):
                     st.code(meta.get("note", ""))
-                
-                if st.button("🔄 Update", key=f"update_{meta.get('id', ind_name)}"):
-                    st.session_state[f'edit_{ind_name}'] = True
 
     st.markdown("---")
 
 # Empty state handling
 if not any(strat in data and data[strat] for strat in strategies_to_show):
-    st.info("📝 No analyses found for the selected filters. Start by analyzing today's strategies above!")
+    st.info("📝 No analyses found for the selected filters.")
 
 # -------------------------
-# Footer & Additional Features
+# Footer
 # -------------------------
 st.markdown("---")
 footer_col1, footer_col2, footer_col3 = st.columns(3)
@@ -822,9 +779,6 @@ with footer_col2:
     if st.button("🔄 Check Today's Progress"):
         progress_data = calculate_progress(data, daily_strategies, analysis_date)
         st.rerun()
-    
-    if st.button("📊 Generate Report"):
-        st.info("Report generation feature coming soon!")
 
 with footer_col3:
     st.markdown("**🔮 Insights**")
@@ -837,18 +791,3 @@ with footer_col3:
 
 st.markdown("---")
 st.caption("Advanced Chart Reminder & Notes v2.0 | Built with Streamlit | 15 Strategy Rotation System")
-
-# Installation instructions in expander
-with st.expander("🔧 Installation & Setup", expanded=False):
-    st.markdown("""
-    ### To enable enhanced charts, install Plotly:
-    
-    ```bash
-    pip install plotly
-    ```
-    
-    ### Required dependencies:
-    ```bash
-    pip install streamlit pandas numpy
-    ```
-    
