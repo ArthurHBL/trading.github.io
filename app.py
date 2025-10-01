@@ -171,7 +171,7 @@ def get_analysis_dates(data: Dict) -> List[str]:
                 dates.add(indicator['analysis_date'])
     return sorted(dates, reverse=True)
 
-# FIX 1: REMOVED CACHE DECORATOR - dictionaries are not hashable
+# FIX: REMOVED CACHE DECORATOR - dictionaries are not hashable
 def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: date) -> Dict:
     """Calculate progress statistics"""
     target_date_str = analysis_date.strftime("%Y-%m-%d")
@@ -310,7 +310,7 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# YOUR ORIGINAL WORKING DATE NAVIGATION - KEPT EXACTLY AS IS
+# FIX: SIMPLIFIED Date navigation - removed session state complexity
 start_date = date(2025, 8, 9)
 
 # Get date from URL parameters
@@ -333,38 +333,25 @@ if analysis_date < start_date:
 st.sidebar.subheader("📅 Analysis Date")
 st.sidebar.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-# YOUR ORIGINAL WORKING DATE NAVIGATION - KEPT EXACTLY AS IS
-if 'date_navigation' not in st.session_state:
-    st.session_state.date_navigation = 'none'
-
+# FIX: SIMPLIFIED Date navigation with direct button actions
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
-        st.session_state.date_navigation = 'prev'
-with col2:
-    if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
-        st.session_state.date_navigation = 'next'
-
-# Quick date reset button
-if st.sidebar.button("🔄 Today", use_container_width=True, key="today_btn"):
-    st.session_state.date_navigation = 'today'
-
-# Process date navigation AFTER all buttons are rendered
-if st.session_state.date_navigation != 'none':
-    if st.session_state.date_navigation == 'prev':
+    if st.button("◀️ Prev Day", use_container_width=True, key="prev_day_unique"):
         new_date = analysis_date - timedelta(days=1)
         if new_date >= start_date:
             st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+            st.rerun()
         else:
             st.sidebar.warning("Cannot go before start date")
-    elif st.session_state.date_navigation == 'next':
+with col2:
+    if st.button("Next Day ▶️", use_container_width=True, key="next_day_unique"):
         new_date = analysis_date + timedelta(days=1)
         st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-    elif st.session_state.date_navigation == 'today':
-        st.query_params["date"] = date.today().strftime("%Y-%m-%d")
-    
-    # Reset navigation state and force immediate rerun
-    st.session_state.date_navigation = 'none'
+        st.rerun()
+
+# Quick date reset button
+if st.sidebar.button("🔄 Today", use_container_width=True, key="today_btn_unique"):
+    st.query_params["date"] = date.today().strftime("%Y-%m-%d")
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -420,7 +407,7 @@ st.sidebar.download_button(
     key="download_csv"
 )
 
-# FIX: Implement historical view functionality
+# Historical view functionality
 available_dates = get_analysis_dates(data)
 if available_dates:
     with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
