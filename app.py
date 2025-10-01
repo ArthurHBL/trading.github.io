@@ -310,12 +310,12 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX 2: CORRECT QUERY PARAMS USAGE
+# RESTORED: ORIGINAL WORKING DATE NAVIGATION CODE
 start_date = date(2025, 8, 9)
 
-# Get date from URL parameters - FIXED: query_params returns a list
+# Get date from URL parameters
 query_params = st.query_params
-current_date_str = query_params.get("date", [""])[0] if "date" in query_params else ""
+current_date_str = query_params.get("date", "")
 
 if current_date_str:
     try:
@@ -333,38 +333,23 @@ if analysis_date < start_date:
 st.sidebar.subheader("📅 Analysis Date")
 st.sidebar.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-# FIX 3: DEBOUNCE DATE NAVIGATION TO PREVENT DOUBLE CLICKS
-if 'last_navigation_time' not in st.session_state:
-    st.session_state.last_navigation_time = 0
-
+# RESTORED: ORIGINAL DATE NAVIGATION THAT WORKED
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    prev_clicked = st.button("◀️ Prev Day", use_container_width=True, key="prev_day")
-with col2:
-    next_clicked = st.button("Next Day ▶️", use_container_width=True, key="next_day")
-
-today_clicked = st.sidebar.button("🔄 Today", use_container_width=True, key="today_btn")
-
-# Only process if clicked AND not already processed this second
-current_time = datetime.now().timestamp()
-if current_time - st.session_state.last_navigation_time > 0.5:  # 500ms debounce
-    if prev_clicked:
+    if st.button("◀️ Prev Day", use_container_width=True):
         new_date = analysis_date - timedelta(days=1)
         if new_date >= start_date:
             st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-            st.session_state.last_navigation_time = current_time
-            st.rerun()
         else:
             st.sidebar.warning("Cannot go before start date")
-    elif next_clicked:
+with col2:
+    if st.button("Next Day ▶️", use_container_width=True):
         new_date = analysis_date + timedelta(days=1)
         st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-        st.session_state.last_navigation_time = current_time
-        st.rerun()
-    elif today_clicked:
-        st.query_params["date"] = date.today().strftime("%Y-%m-%d")
-        st.session_state.last_navigation_time = current_time
-        st.rerun()
+
+# Quick date reset button
+if st.sidebar.button("🔄 Today", use_container_width=True):
+    st.query_params["date"] = date.today().strftime("%Y-%m-%d")
 
 st.sidebar.markdown("---")
 
@@ -419,22 +404,21 @@ st.sidebar.download_button(
     key="download_csv"
 )
 
-# FIX: Implement historical view functionality
+# Historical view functionality
 available_dates = get_analysis_dates(data)
 if available_dates:
     with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
         selected_historical_date = st.selectbox("View past analyses:", available_dates)
-        if st.button("📅 Load Historical View", key="load_historical"):
+        if st.button("📅 Load Historical View"):
             st.query_params["date"] = selected_historical_date
-            st.rerun()
 
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
-    if st.button("🔄 Refresh Data", key="refresh_data"):
+    if st.button("🔄 Refresh Data"):
         data = load_data()
         st.rerun()
     
-    if st.button("💾 Create Backup", key="create_backup"):
+    if st.button("💾 Create Backup"):
         if save_data(data):
             st.success("Backup created!")
     
@@ -569,7 +553,7 @@ st.markdown("### 📊 Indicator Analysis")
 indicators = STRATEGIES[selected_strategy]
 col_objs = st.columns(2)
 
-# FIX 4: IMPROVED FORM KEYS WITH STRATEGY VERSIONING
+# FIX 2: IMPROVED FORM KEYS WITH STRATEGY VERSIONING
 if 'current_strategy' not in st.session_state:
     st.session_state.current_strategy = selected_strategy
     st.session_state.form_version = 0
@@ -628,7 +612,7 @@ with st.form("analysis_form", clear_on_submit=False):
     # Single save button - clean and simple
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # FIX 5: ADDED CONFIRMATION FOR OVERWRITING DIFFERENT DATES
+    # FIX 3: ADDED CONFIRMATION FOR OVERWRITING DIFFERENT DATES
     if submitted:
         # Validate form data
         errors = []
