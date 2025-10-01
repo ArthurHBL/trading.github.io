@@ -171,8 +171,7 @@ def get_analysis_dates(data: Dict) -> List[str]:
                 dates.add(indicator['analysis_date'])
     return sorted(dates, reverse=True)
 
-# FIX: Add caching to improve performance
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+# FIX 1: REMOVED CACHE DECORATOR - dictionaries are not hashable
 def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: date) -> Dict:
     """Calculate progress statistics"""
     target_date_str = analysis_date.strftime("%Y-%m-%d")
@@ -311,10 +310,10 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX: IMPROVED Date navigation using session state to prevent double clicks
+# KEEPING WORKING DATE NAVIGATION AS IS
 start_date = date(2025, 8, 9)
 
-# Get date from URL parameters with proper state management
+# Get date from URL parameters
 query_params = st.query_params
 current_date_str = query_params.get("date", "")
 
@@ -334,39 +333,23 @@ if analysis_date < start_date:
 st.sidebar.subheader("📅 Analysis Date")
 st.sidebar.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-# FIX: IMPROVED Date navigation using session state to prevent double clicks
-if 'date_navigation' not in st.session_state:
-    st.session_state.date_navigation = 'none'
-
+# KEEPING WORKING DATE NAVIGATION AS IS
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
-        st.session_state.date_navigation = 'prev'
-with col2:
-    if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
-        st.session_state.date_navigation = 'next'
-
-# Quick date reset button
-if st.sidebar.button("🔄 Today", use_container_width=True, key="today_btn"):
-    st.session_state.date_navigation = 'today'
-
-# Process date navigation AFTER all buttons are rendered
-if st.session_state.date_navigation != 'none':
-    if st.session_state.date_navigation == 'prev':
+    if st.button("◀️ Prev Day", use_container_width=True):
         new_date = analysis_date - timedelta(days=1)
         if new_date >= start_date:
             st.query_params["date"] = new_date.strftime("%Y-%m-%d")
         else:
             st.sidebar.warning("Cannot go before start date")
-    elif st.session_state.date_navigation == 'next':
+with col2:
+    if st.button("Next Day ▶️", use_container_width=True):
         new_date = analysis_date + timedelta(days=1)
         st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-    elif st.session_state.date_navigation == 'today':
-        st.query_params["date"] = date.today().strftime("%Y-%m-%d")
-    
-    # Reset navigation state and force immediate rerun
-    st.session_state.date_navigation = 'none'
-    st.rerun()
+
+# Quick date reset button
+if st.sidebar.button("🔄 Today", use_container_width=True):
+    st.query_params["date"] = date.today().strftime("%Y-%m-%d")
 
 st.sidebar.markdown("---")
 
@@ -421,22 +404,21 @@ st.sidebar.download_button(
     key="download_csv"
 )
 
-# FIX: Implement historical view functionality
+# FIX 2: CORRECTED QUERY PARAMS USAGE FOR HISTORICAL VIEW
 available_dates = get_analysis_dates(data)
 if available_dates:
     with st.sidebar.expander("🕓 Historical Analyses", expanded=False):
         selected_historical_date = st.selectbox("View past analyses:", available_dates)
-        if st.button("📅 Load Historical View", key="load_historical"):
+        if st.button("📅 Load Historical View"):
             st.query_params["date"] = selected_historical_date
-            st.rerun()
 
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
-    if st.button("🔄 Refresh Data", key="refresh_data"):
+    if st.button("🔄 Refresh Data"):
         data = load_data()
         st.rerun()
     
-    if st.button("💾 Create Backup", key="create_backup"):
+    if st.button("💾 Create Backup"):
         if save_data(data):
             st.success("Backup created!")
     
@@ -571,14 +553,22 @@ st.markdown("### 📊 Indicator Analysis")
 indicators = STRATEGIES[selected_strategy]
 col_objs = st.columns(2)
 
+# FIX 3: IMPROVED FORM KEYS WITH STRATEGY VERSIONING
+if 'current_strategy' not in st.session_state:
+    st.session_state.current_strategy = selected_strategy
+    st.session_state.form_version = 0
+elif st.session_state.current_strategy != selected_strategy:
+    st.session_state.current_strategy = selected_strategy
+    st.session_state.form_version += 1
+
 # Main form
 with st.form("analysis_form", clear_on_submit=False):
     form_data = {}
     
     for i, ind in enumerate(indicators):
         col = col_objs[i % 2]
-        # FIX: Make keys more unique by including date
-        key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}_{analysis_date.strftime('%Y%m%d')}"
+        # FIX: Improved keys with versioning to prevent persistence issues
+        key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}_v{st.session_state.form_version}"
         existing = strategy_data.get(ind, {})
         
         with col.expander(f"**{ind}**", expanded=False):
@@ -622,7 +612,7 @@ with st.form("analysis_form", clear_on_submit=False):
     # Single save button - clean and simple
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # FIX: Add form validation before saving
+    # FIX 4: IMPROVED VALIDATION WITH CONFIRMATION FOR OVERWRITING
     if submitted:
         # Validate form data
         errors = []
@@ -634,21 +624,28 @@ with st.form("analysis_form", clear_on_submit=False):
             for error in errors:
                 st.error(error)
         else:
+            # Check for overwriting different dates
+            warnings = []
+            for ind in indicators:
+                existing_data = data.get(selected_strategy, {}).get(ind, {})
+                existing_date = existing_data.get("analysis_date")
+                current_date_str = analysis_date.strftime("%Y-%m-%d")
+                
+                if existing_date and existing_date != current_date_str:
+                    warnings.append(f"{ind}: {existing_date} → {current_date_str}")
+            
+            # Show confirmation if overwriting
+            if warnings:
+                st.warning("⚠️ Will overwrite data from different dates:\n" + "\n".join(warnings))
+                confirm = st.checkbox("I understand and want to proceed", key="confirm_overwrite")
+                if not confirm:
+                    st.stop()  # Don't save
+            
             # Save the data
             if selected_strategy not in data:
                 data[selected_strategy] = {}
             
             for ind in indicators:
-                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-                
-                # FIX: Check if we're overwriting data from a different date
-                existing_data = data[selected_strategy].get(ind, {})
-                existing_date = existing_data.get("analysis_date")
-                current_date_str = analysis_date.strftime("%Y-%m-%d")
-                
-                if existing_date and existing_date != current_date_str:
-                    st.warning(f"⚠️ Overwriting {ind} analysis from {existing_date}")
-                
                 data[selected_strategy][ind] = {
                     "note": form_data[ind]['note'],
                     "status": form_data[ind]['status'],
@@ -656,7 +653,7 @@ with st.form("analysis_form", clear_on_submit=False):
                     "strategy_tag": strategy_tag,
                     "priority": strategy_priority,
                     "confidence": form_data[ind]['confidence'],
-                    "analysis_date": current_date_str,
+                    "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                     "last_modified": datetime.utcnow().isoformat() + "Z",
                     "id": str(uuid.uuid4())[:8]
                 }
