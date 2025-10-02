@@ -1,4 +1,4 @@
-# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL VERSION
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL POLISHED VERSION
 import streamlit as st
 import json
 import os
@@ -593,7 +593,7 @@ with st.form("analysis_form", clear_on_submit=False):
                 placeholder=f"Enter your analysis for {ind}..."
             )
             
-            # Individual indicator confidence - using a different approach
+            # Individual indicator confidence
             ind_confidence = st.slider(
                 "Indicator Confidence",
                 min_value=50,
