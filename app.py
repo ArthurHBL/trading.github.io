@@ -302,7 +302,7 @@ STRATEGIES = {
 # -------------------------
 # Initialize Data with Session State
 # -------------------------
-# FIX 2: Use session state to persist data across reruns
+# FIX: Use session state to persist data across reruns
 if 'data' not in st.session_state:
     st.session_state.data = load_data()
 
@@ -314,7 +314,7 @@ data = st.session_state.data
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX 1: More robust query params handling
+# FIX: More robust query params handling
 start_date = date(2025, 8, 9)
 
 # Get date from URL parameters - more robust approach
@@ -508,7 +508,7 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Notes Form - FIXED VERSION
+# Notes Form - FINAL POLISHED VERSION
 # -------------------------
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
@@ -614,7 +614,7 @@ with st.form("analysis_form", clear_on_submit=False):
     # Single save button - clean and simple
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # FIX 3: Improved overwrite warning with confirmation BEFORE modifying data
+    # FIX: SIMPLIFIED Overwrite Logic - Just warn and proceed
     if submitted:
         # Validate form data
         errors = []
@@ -626,7 +626,7 @@ with st.form("analysis_form", clear_on_submit=False):
             for error in errors:
                 st.error(error)
         else:
-            # Check for overwriting different dates BEFORE modifying data
+            # Check for overwriting different dates - just warn, don't block
             warnings = []
             for ind in indicators:
                 existing_data = data.get(selected_strategy, {}).get(ind, {})
@@ -636,12 +636,9 @@ with st.form("analysis_form", clear_on_submit=False):
                 if existing_date and existing_date != current_date_str:
                     warnings.append(f"{ind} ({existing_date})")
             
-            # Show warnings with confirmation BEFORE any data modification
+            # Show warning but proceed anyway (cleaner UX)
             if warnings:
-                st.warning(f"⚠️ Will overwrite data from different dates: {', '.join(warnings)}")
-                confirm = st.checkbox("I confirm overwriting this data", key="confirm_overwrite")
-                if not confirm:
-                    st.stop()  # Don't proceed with save
+                st.warning(f"⚠️ Overwriting data from: {', '.join(warnings)}")
             
             # Save the data
             if selected_strategy not in data:
@@ -660,7 +657,7 @@ with st.form("analysis_form", clear_on_submit=False):
                     "id": str(uuid.uuid4())[:8]
                 }
             
-            # FIX 2: Update session state when saving data
+            # Update session state when saving data
             if save_data(data):
                 st.session_state.data = data  # Update session state
                 st.success("✅ Analysis saved successfully!")
