@@ -310,8 +310,10 @@ def create_analysis_insights(data: Dict, daily_strategies: List[str], analysis_d
     
     total_signals = buy_signals + sell_signals
     
+    # REMOVED: Annoying "no analysis completed" message
+    # Only show insights when there's actual data
     if total_signals == 0:
-        return "📝 **Insight:** No analysis completed yet - start adding your insights!"
+        return ""  # Return empty string instead of annoying message
     
     if buy_signals > sell_signals * 2:
         insight = "🎯 **Insight:** Strong bullish bias across strategies today"
@@ -686,9 +688,10 @@ with st.sidebar.expander("ℹ️ How to Use", expanded=False):
 st.title("📊 Advanced Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day}** | Strategy: **{selected_strategy}** | Date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
-# Analysis Insights
+# Analysis Insights - Only show when there's actual data
 insight_text = create_analysis_insights(data, daily_strategies, analysis_date)
-st.info(insight_text)
+if insight_text:  # Only display if there's an actual insight
+    st.info(insight_text)
 
 # Progress Visualization
 if PLOTLY_AVAILABLE:
@@ -1015,4 +1018,4 @@ with footer_col3:
         st.warning("Time to focus on today's strategies! ⏰")
 
 st.markdown("---")
-st.caption("Advanced Chart Reminder & Notes v3.2 | Clean Version | Built with Streamlit | 15 Strategy Rotation System")
+st.caption("Advanced Chart Reminder & Notes v3.3 | Clean & Encouraging | Built with Streamlit | 15 Strategy Rotation System")
