@@ -28,19 +28,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for gray confidence slider bars
-st.markdown("""
-<style>
-    /* Make confidence slider bars gray */
-    .stSlider [data-testid="stThumbValue"] {
-        color: #6B7280;
-    }
-    .stSlider [data-baseweb="slider"] > div > div > div > div {
-        background-color: #6B7280 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 SAVE_FILE = "strategy_analyses.json"
 BACKUP_DIR = "backups"
 
@@ -606,7 +593,7 @@ with st.form("analysis_form", clear_on_submit=False):
                 placeholder=f"Enter your analysis for {ind}..."
             )
             
-            # Individual indicator confidence
+            # Individual indicator confidence - using a different approach
             ind_confidence = st.slider(
                 "Indicator Confidence",
                 min_value=50,
