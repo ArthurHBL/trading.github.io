@@ -1,4 +1,4 @@
-# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - ULTIMATE UX VERSION
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FIXED QUICK STATUS
 import streamlit as st
 import json
 import os
@@ -495,6 +495,63 @@ def create_quick_actions(data: Dict, strategy: str, indicators: List[str], analy
                 st.success("Today's analysis reset!")
                 st.rerun()
 
+def handle_quick_status_updates(data: Dict, strategy: str, indicators: List[str], analysis_date: date):
+    """Handle quick status updates with proper state management"""
+    target_date_str = analysis_date.strftime("%Y-%m-%d")
+    status_changed = False
+    
+    # Initialize session state for tracking updates
+    if 'quick_status_updates' not in st.session_state:
+        st.session_state.quick_status_updates = {}
+    
+    st.markdown("#### ⚡ Quick Status Update")
+    quick_status_cols = st.columns(min(6, len(indicators)))
+    
+    for i, ind in enumerate(indicators):
+        with quick_status_cols[i % len(quick_status_cols)]:
+            current_status = data.get(strategy, {}).get(ind, {}).get("status", "Open")
+            status_options = ["Open", "In Progress", "Done", "Skipped"]
+            
+            # Create a unique key for each indicator's status
+            status_key = f"quick_status_{sanitize_key(strategy)}_{sanitize_key(ind)}"
+            
+            new_status = st.selectbox(
+                f"{ind[:12]}...",
+                status_options,
+                index=status_options.index(current_status) if current_status in status_options else 0,
+                key=status_key
+            )
+            
+            # Check if status actually changed
+            if new_status != current_status:
+                st.session_state.quick_status_updates[(strategy, ind)] = new_status
+                status_changed = True
+    
+    # Apply all status updates at once
+    if status_changed:
+        for (strat, indicator), new_status in st.session_state.quick_status_updates.items():
+            if strat not in data:
+                data[strat] = {}
+            if indicator not in data[strat]:
+                data[strat][indicator] = {}
+            
+            data[strat][indicator].update({
+                "status": new_status,
+                "analysis_date": target_date_str,
+                "last_modified": datetime.utcnow().isoformat() + "Z",
+                "strategy_tag": data[strat][indicator].get("strategy_tag", "Neutral"),
+                "momentum": data[strat][indicator].get("momentum", "Not Defined"),
+                "priority": data[strat][indicator].get("priority", "Medium"),
+                "confidence": data[strat][indicator].get("confidence", 75),
+                "id": data[strat][indicator].get("id", str(uuid.uuid4())[:8])
+            })
+        
+        if save_data(data):
+            st.session_state.data = data
+            st.session_state.quick_status_updates = {}  # Clear updates
+            st.success("✅ Status updates saved!")
+            st.rerun()
+
 # -------------------------
 # STRATEGIES Definition
 # -------------------------
@@ -754,7 +811,7 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Notes Form - ULTIMATE UX VERSION
+# Notes Form - FIXED QUICK STATUS VERSION
 # -------------------------
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
@@ -812,43 +869,16 @@ with col4:
 
 st.markdown("---")
 
+# FIXED: Quick Status Updates - Now works properly!
+handle_quick_status_updates(data, selected_strategy, STRATEGIES[selected_strategy], analysis_date)
+
+st.markdown("---")
+
 # Indicator Analysis Section
-st.markdown("### 📊 Indicator Analysis")
+st.markdown("### 📊 Detailed Indicator Analysis")
 
 indicators = STRATEGIES[selected_strategy]
 col_objs = st.columns(2)
-
-# Quick Status Update
-st.markdown("#### ⚡ Quick Status Update")
-quick_status_cols = st.columns(min(6, len(indicators)))
-for i, ind in enumerate(indicators):
-    with quick_status_cols[i % len(quick_status_cols)]:
-        current_status = strategy_data.get(ind, {}).get("status", "Open")
-        status_options = ["Open", "In Progress", "Done", "Skipped"]
-        new_status = st.selectbox(
-            f"{ind[:12]}...",
-            status_options,
-            index=status_options.index(current_status) if current_status in status_options else 0,
-            key=f"quick_status_{sanitize_key(ind)}"
-        )
-        # Immediate status update
-        if new_status != current_status:
-            if selected_strategy not in data:
-                data[selected_strategy] = {}
-            if ind not in data[selected_strategy]:
-                data[selected_strategy][ind] = {}
-            
-            data[selected_strategy][ind].update({
-                "status": new_status,
-                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
-                "last_modified": datetime.utcnow().isoformat() + "Z"
-            })
-            
-            if save_data(data):
-                st.session_state.data = data
-                st.rerun()
-
-st.markdown("---")
 
 # Main form
 with st.form("analysis_form", clear_on_submit=False):
@@ -860,7 +890,7 @@ with st.form("analysis_form", clear_on_submit=False):
         existing = strategy_data.get(ind, {})
         
         with col.expander(f"**{ind}**", expanded=False):
-            # Status
+            # Status - this will reflect the quick status updates
             current_status = existing.get("status", "Open")
             status = st.selectbox(
                 "Status", 
@@ -1051,4 +1081,4 @@ with footer_col3:
         st.warning("Time to focus on today's strategies! ⏰")
 
 st.markdown("---")
-st.caption("Advanced Chart Reminder & Notes v3.0 | Ultimate UX Edition | Built with Streamlit | 15 Strategy Rotation System")
+st.caption("Advanced Chart Reminder & Notes v3.1 | Fixed Quick Status | Built with Streamlit | 15 Strategy Rotation System")
