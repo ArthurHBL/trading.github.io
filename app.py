@@ -1,4 +1,4 @@
-# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL POLISHED VERSION
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - ULTIMATE UX VERSION
 import streamlit as st
 import json
 import os
@@ -171,7 +171,6 @@ def get_analysis_dates(data: Dict) -> List[str]:
                 dates.add(indicator['analysis_date'])
     return sorted(dates, reverse=True)
 
-# FIX: REMOVED CACHE DECORATOR - dictionaries are not hashable
 def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: date) -> Dict:
     """Calculate progress statistics"""
     target_date_str = analysis_date.strftime("%Y-%m-%d")
@@ -203,8 +202,8 @@ def calculate_progress(data: Dict, daily_strategies: List[str], analysis_date: d
         'total_indicators': total_indicators
     }
 
-def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
-    """Create a progress visualization with fallback"""
+def create_enhanced_progress_chart(progress_data: Dict, daily_strategies: List[str]):
+    """More engaging progress visualization"""
     if not PLOTLY_AVAILABLE:
         st.subheader("📊 Progress Overview")
         for strategy in daily_strategies:
@@ -214,33 +213,25 @@ def create_progress_chart(progress_data: Dict, daily_strategies: List[str]):
         return None
     
     strategies = daily_strategies
-    completed = [progress_data['strategies'][s]['completed'] for s in strategies]
-    total = [progress_data['strategies'][s]['total'] for s in strategies]
+    progress_pct = [progress_data['strategies'][s]['progress'] * 100 for s in strategies]
+    
+    # Color based on completion
+    colors = ['#FF6B6B' if p < 30 else '#FFD166' if p < 70 else '#06D6A0' for p in progress_pct]
     
     fig = go.Figure()
     
     fig.add_trace(go.Bar(
-        name='Completed',
         x=strategies,
-        y=completed,
-        marker_color='#2E8B57',
-        text=completed,
-        textposition='auto',
-    ))
-    
-    fig.add_trace(go.Bar(
-        name='Remaining',
-        x=strategies,
-        y=[t - c for t, c in zip(total, completed)],
-        marker_color='#FF6B6B',
-        text=total,
+        y=progress_pct,
+        marker_color=colors,
+        text=[f"{p:.0f}%" for p in progress_pct],
         textposition='auto',
     ))
     
     fig.update_layout(
-        title="📊 Today's Progress by Strategy",
-        barmode='stack',
-        showlegend=True,
+        title="📊 Today's Completion Progress",
+        yaxis_title="Completion %",
+        yaxis_range=[0, 100],
         height=300,
         xaxis_tickangle=-45
     )
@@ -278,6 +269,232 @@ def create_tag_distribution_chart(data: Dict, analysis_date: date):
     fig.update_traces(textposition='inside', textinfo='percent+label')
     return fig
 
+def get_smart_defaults(indicator_name: str, existing_data: Dict) -> Dict:
+    """Provide smart defaults based on indicator patterns"""
+    defaults = {
+        "note": existing_data.get("note", ""),
+        "confidence": existing_data.get("confidence", 75)
+    }
+    
+    # Only suggest if no existing note
+    if not defaults["note"]:
+        if "RSI" in indicator_name:
+            defaults["note"] = "Check overbought/oversold levels and divergences"
+        elif "VWAP" in indicator_name:
+            defaults["note"] = "Analyze price relative to VWAP and volume profile"
+        elif "BB" in indicator_name or "Bollinger" in indicator_name:
+            defaults["note"] = "Check squeeze and band interactions"
+        elif "MACD" in indicator_name:
+            defaults["note"] = "Analyze signal line crossovers and histogram momentum"
+        elif "Stoch" in indicator_name:
+            defaults["note"] = "Check stochastic levels and potential reversals"
+        elif "Volume" in indicator_name:
+            defaults["note"] = "Analyze volume spikes and accumulation/distribution"
+    
+    return defaults
+
+def create_indicator_presets(indicator_name: str, current_note: str) -> str:
+    """Add quick analysis presets"""
+    if current_note.strip():
+        return current_note
+        
+    presets = {
+        "Bullish": "✅ Strong bullish signals with confirmation",
+        "Bearish": "🔻 Bearish momentum with supporting factors", 
+        "Neutral": "➖ Mixed signals, waiting for confirmation",
+        "Breakout": "🚀 Potential breakout setup forming",
+        "Consolidation": "📊 Price consolidating, watching for direction"
+    }
+    
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        selected_preset = st.selectbox(
+            "Quick Presets:",
+            ["Custom"] + list(presets.keys()),
+            key=f"preset_{sanitize_key(indicator_name)}"
+        )
+    
+    if selected_preset != "Custom" and selected_preset in presets:
+        return presets[selected_preset]
+    return current_note
+
+def show_recent_activity(data: Dict, strategy: str):
+    """Show recent changes for collaborative awareness"""
+    recent_changes = []
+    for ind, meta in data.get(strategy, {}).items():
+        if meta.get('last_modified'):
+            recent_changes.append({
+                'indicator': ind,
+                'time': meta['last_modified'],
+                'user': 'You'  # Could be extended for multi-user
+            })
+    
+    if recent_changes:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🕒 Recent Activity")
+        for change in sorted(recent_changes, key=lambda x: x['time'], reverse=True)[:3]:
+            st.sidebar.caption(f"**{change['indicator']}** - {change['time'][:16]}")
+
+def create_analysis_insights(data: Dict, daily_strategies: List[str], analysis_date: date) -> str:
+    """Provide AI-like insights about the analysis"""
+    target_date_str = analysis_date.strftime("%Y-%m-%d")
+    
+    buy_signals = 0
+    sell_signals = 0
+    high_confidence = 0
+    
+    for strategy in daily_strategies:
+        for ind_name, meta in data.get(strategy, {}).items():
+            if meta.get('analysis_date') == target_date_str:
+                tag = meta.get('strategy_tag', 'Neutral')
+                confidence = meta.get('confidence', 75)
+                
+                if tag == 'Buy':
+                    buy_signals += 1
+                elif tag == 'Sell':
+                    sell_signals += 1
+                
+                if confidence >= 80:
+                    high_confidence += 1
+    
+    total_signals = buy_signals + sell_signals
+    
+    if total_signals == 0:
+        return "📝 **Insight:** No analysis completed yet - start adding your insights!"
+    
+    if buy_signals > sell_signals * 2:
+        insight = "🎯 **Insight:** Strong bullish bias across strategies today"
+    elif sell_signals > buy_signals * 2:
+        insight = "⚠️ **Insight:** Bearish signals dominating today"
+    else:
+        insight = "⚖️ **Insight:** Mixed signals - proceed with caution"
+    
+    if high_confidence >= total_signals * 0.7:
+        insight += " | High confidence levels 📈"
+    elif high_confidence <= total_signals * 0.3:
+        insight += " | Low confidence - verify signals 🔍"
+    
+    return insight
+
+def create_guided_onboarding(strategy: str, indicators: List[str], has_data: bool):
+    """Help users get started with guided analysis"""
+    if not has_data:
+        st.info(f"""
+        **🎯 Getting Started with {strategy}**
+        
+        1. **Set Strategy Direction**: Choose Buy/Sell/Neutral tag above
+        2. **Analyze Indicators**: Expand each indicator to add notes
+        3. **Use Quick Presets**: Apply template analysis with one click
+        4. **Set Confidence**: Adjust based on signal strength
+        5. **Mark Complete**: Change status to Done when finished
+        6. **Save**: Don't forget to save your analysis!
+        """)
+        
+        # Add quick start template
+        if st.button("🚀 Apply Analysis Template", key="quick_start", use_container_width=True):
+            return True
+    return False
+
+def with_loading_spinner(operation_name: str):
+    """Decorator for operations that might take time"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            with st.spinner(f"{operation_name}..."):
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+@with_loading_spinner("Loading analysis data")
+def load_enhanced_data():
+    return load_data()
+
+def create_mobile_friendly_layout():
+    """Adjust layout for better mobile experience"""
+    if st.sidebar.checkbox("📱 Mobile Optimized View", key="mobile_view"):
+        st.markdown("""
+        <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .stExpander {
+            margin-bottom: 0.5rem;
+        }
+        .element-container {
+            margin-bottom: 0.5rem;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+def create_quick_actions(data: Dict, strategy: str, indicators: List[str], analysis_date: date):
+    """Add quick action buttons"""
+    st.markdown("### ⚡ Quick Actions")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🎯 Mark All as Done", key="mark_all_done", use_container_width=True):
+            target_date_str = analysis_date.strftime("%Y-%m-%d")
+            for ind in indicators:
+                if strategy not in data:
+                    data[strategy] = {}
+                if ind not in data[strategy]:
+                    data[strategy][ind] = {}
+                
+                data[strategy][ind].update({
+                    "status": "Done",
+                    "analysis_date": target_date_str,
+                    "last_modified": datetime.utcnow().isoformat() + "Z"
+                })
+            
+            if save_data(data):
+                st.session_state.data = data
+                st.success("All indicators marked as Done!")
+                st.rerun()
+                
+    with col2:
+        if st.button("📝 Add Template Notes", key="add_templates", use_container_width=True):
+            target_date_str = analysis_date.strftime("%Y-%m-%d")
+            for ind in indicators:
+                if strategy not in data:
+                    data[strategy] = {}
+                if ind not in data[strategy]:
+                    data[strategy][ind] = {}
+                
+                smart_defaults = get_smart_defaults(ind, {})
+                data[strategy][ind].update({
+                    "note": smart_defaults["note"],
+                    "analysis_date": target_date_str,
+                    "last_modified": datetime.utcnow().isoformat() + "Z"
+                })
+            
+            if save_data(data):
+                st.session_state.data = data
+                st.success("Template notes added!")
+                st.rerun()
+                
+    with col3:
+        if st.button("🔄 Reset Today", key="reset_today", use_container_width=True):
+            target_date_str = analysis_date.strftime("%Y-%m-%d")
+            for ind in indicators:
+                if strategy in data and ind in data[strategy]:
+                    if data[strategy][ind].get('analysis_date') == target_date_str:
+                        data[strategy][ind] = {
+                            "note": "",
+                            "status": "Open",
+                            "momentum": "Not Defined",
+                            "strategy_tag": "Neutral",
+                            "priority": "Medium",
+                            "confidence": 75,
+                            "analysis_date": target_date_str,
+                            "last_modified": datetime.utcnow().isoformat() + "Z",
+                            "id": str(uuid.uuid4())[:8]
+                        }
+            
+            if save_data(data):
+                st.session_state.data = data
+                st.success("Today's analysis reset!")
+                st.rerun()
+
 # -------------------------
 # STRATEGIES Definition
 # -------------------------
@@ -302,9 +519,8 @@ STRATEGIES = {
 # -------------------------
 # Initialize Data with Session State
 # -------------------------
-# FIX: Use session state to persist data across reruns
 if 'data' not in st.session_state:
-    st.session_state.data = load_data()
+    st.session_state.data = load_enhanced_data()
 
 data = st.session_state.data
 
@@ -314,10 +530,9 @@ data = st.session_state.data
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX: More robust query params handling
+# Date handling
 start_date = date(2025, 8, 9)
 
-# Get date from URL parameters - more robust approach
 try:
     current_date_str = st.query_params["date"]
 except (KeyError, IndexError):
@@ -331,7 +546,6 @@ if current_date_str:
 else:
     analysis_date = date.today()
 
-# Ensure analysis_date is not before start_date
 if analysis_date < start_date:
     analysis_date = start_date
 
@@ -339,7 +553,7 @@ if analysis_date < start_date:
 st.sidebar.subheader("📅 Analysis Date")
 st.sidebar.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-# FIX: SIMPLIFIED Date navigation with direct button actions
+# Date navigation
 col1, col2 = st.sidebar.columns(2)
 with col1:
     if st.button("◀️ Prev Day", use_container_width=True, key="prev_day_unique"):
@@ -381,11 +595,28 @@ for strategy in daily_strategies:
 
 st.sidebar.markdown("---")
 
+# 🚀 Quick Navigation
+st.sidebar.subheader("🚀 Quick Navigation")
+quick_strategy = st.sidebar.selectbox(
+    "Jump to Strategy:", 
+    daily_strategies,
+    key="quick_nav"
+)
+
+# Update selected strategy if quick nav is used
+if 'last_quick_nav' not in st.session_state:
+    st.session_state.last_quick_nav = quick_strategy
+
+if quick_strategy != st.session_state.last_quick_nav:
+    st.session_state.strategy_selector = quick_strategy
+    st.session_state.last_quick_nav = quick_strategy
+    st.rerun()
+
 # Strategy Selection
 selected_strategy = st.sidebar.selectbox(
     "🎯 Choose a strategy:", 
     daily_strategies,
-    index=0,
+    index=daily_strategies.index(quick_strategy) if quick_strategy in daily_strategies else 0,
     key="strategy_selector"
 )
 
@@ -395,6 +626,9 @@ with st.sidebar.expander("📚 All 15 Strategies", expanded=False):
         star = " ⭐" if strategy in daily_strategies else ""
         status_icon = "✅" if progress_data['strategies'].get(strategy, {}).get('progress', 0) == 1 else "🕓"
         st.write(f"{status_icon} {i}. {strategy}{star}")
+
+# Recent Activity
+show_recent_activity(data, selected_strategy)
 
 st.sidebar.markdown("---")
 
@@ -425,7 +659,7 @@ if available_dates:
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
     if st.button("🔄 Refresh Data", key="refresh_data"):
-        st.session_state.data = load_data()
+        st.session_state.data = load_enhanced_data()
         st.rerun()
     
     if st.button("💾 Create Backup", key="create_backup"):
@@ -434,15 +668,23 @@ with st.sidebar.expander("⚙️ Data Management", expanded=False):
     
     st.warning("⚠️ Data is automatically saved on changes")
 
+# 🎨 Display Options
+with st.sidebar.expander("🎨 Display Options", expanded=False):
+    theme = st.selectbox("Color Theme", ["Default", "Dark", "Professional"], key="theme_select")
+    compact_mode = st.checkbox("Compact Mode", False, key="compact_mode")
+    create_mobile_friendly_layout()
+
 # Help Section
 with st.sidebar.expander("ℹ️ How to Use", expanded=False):
     st.markdown("""
     **Daily Workflow:**
     1. Check today's 3 focus strategies
-    2. Analyze each indicator systematically  
-    3. Set appropriate tags and confidence levels
-    4. Mark completed indicators as "Done"
-    5. Save your analysis
+    2. Use Quick Navigation to jump between strategies
+    3. Analyze each indicator systematically  
+    4. Use Quick Presets for template analysis
+    5. Set appropriate tags and confidence levels
+    6. Mark completed indicators as "Done"
+    7. Save your analysis
     
     **5-Day Cycle:** Systematically rotates through all 15 strategies
     """)
@@ -453,11 +695,15 @@ with st.sidebar.expander("ℹ️ How to Use", expanded=False):
 st.title("📊 Advanced Chart Reminder & Indicator Notes")
 st.markdown(f"**Day {cycle_day}** | Strategy: **{selected_strategy}** | Date: **{analysis_date.strftime('%m/%d/%Y')}**")
 
+# Analysis Insights
+insight_text = create_analysis_insights(data, daily_strategies, analysis_date)
+st.info(insight_text)
+
 # Progress Visualization
 if PLOTLY_AVAILABLE:
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        progress_chart = create_progress_chart(progress_data, daily_strategies)
+        progress_chart = create_enhanced_progress_chart(progress_data, daily_strategies)
         if progress_chart:
             st.plotly_chart(progress_chart, use_container_width=True)
     with col2:
@@ -475,7 +721,7 @@ if PLOTLY_AVAILABLE:
 else:
     col1, col2 = st.columns(2)
     with col1:
-        create_progress_chart(progress_data, daily_strategies)
+        create_enhanced_progress_chart(progress_data, daily_strategies)
     with col2:
         create_tag_distribution_chart(data, analysis_date)
     
@@ -508,11 +754,20 @@ for i, strat in enumerate(daily_strategies):
 st.markdown("---")
 
 # -------------------------
-# Notes Form - FINAL POLISHED VERSION
+# Notes Form - ULTIMATE UX VERSION
 # -------------------------
 st.subheader(f"✏️ Analysis Editor - {selected_strategy}")
 
 strategy_data = data.get(selected_strategy, {})
+has_strategy_data = any(strategy_data.values())
+
+# Quick Actions
+create_quick_actions(data, selected_strategy, STRATEGIES[selected_strategy], analysis_date)
+
+# Guided Onboarding
+template_applied = create_guided_onboarding(selected_strategy, STRATEGIES[selected_strategy], has_strategy_data)
+if template_applied:
+    st.rerun()
 
 # Strategy-level settings
 col1, col2, col3, col4 = st.columns(4)
@@ -563,13 +818,44 @@ st.markdown("### 📊 Indicator Analysis")
 indicators = STRATEGIES[selected_strategy]
 col_objs = st.columns(2)
 
+# Quick Status Update
+st.markdown("#### ⚡ Quick Status Update")
+quick_status_cols = st.columns(min(6, len(indicators)))
+for i, ind in enumerate(indicators):
+    with quick_status_cols[i % len(quick_status_cols)]:
+        current_status = strategy_data.get(ind, {}).get("status", "Open")
+        status_options = ["Open", "In Progress", "Done", "Skipped"]
+        new_status = st.selectbox(
+            f"{ind[:12]}...",
+            status_options,
+            index=status_options.index(current_status) if current_status in status_options else 0,
+            key=f"quick_status_{sanitize_key(ind)}"
+        )
+        # Immediate status update
+        if new_status != current_status:
+            if selected_strategy not in data:
+                data[selected_strategy] = {}
+            if ind not in data[selected_strategy]:
+                data[selected_strategy][ind] = {}
+            
+            data[selected_strategy][ind].update({
+                "status": new_status,
+                "analysis_date": analysis_date.strftime("%Y-%m-%d"),
+                "last_modified": datetime.utcnow().isoformat() + "Z"
+            })
+            
+            if save_data(data):
+                st.session_state.data = data
+                st.rerun()
+
+st.markdown("---")
+
 # Main form
 with st.form("analysis_form", clear_on_submit=False):
     form_data = {}
     
     for i, ind in enumerate(indicators):
         col = col_objs[i % 2]
-        # FIX: Make keys more unique by including date
         key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}_{analysis_date.strftime('%Y%m%d')}"
         existing = strategy_data.get(ind, {})
         
@@ -583,11 +869,13 @@ with st.form("analysis_form", clear_on_submit=False):
                 key=f"status_{key_base}"
             )
             
-            # Note area
+            # Note area with presets
             default_note = existing.get("note", "")
+            enhanced_note = create_indicator_presets(ind, default_note)
+            
             note = st.text_area(
                 f"Analysis notes for {ind}",
-                value=default_note,
+                value=enhanced_note,
                 height=160,
                 key=f"note_{key_base}",
                 placeholder=f"Enter your analysis for {ind}..."
@@ -611,10 +899,9 @@ with st.form("analysis_form", clear_on_submit=False):
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
     
-    # Single save button - clean and simple
+    # Single save button
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # FIX: SIMPLIFIED Overwrite Logic - Just warn and proceed
     if submitted:
         # Validate form data
         errors = []
@@ -659,7 +946,7 @@ with st.form("analysis_form", clear_on_submit=False):
             
             # Update session state when saving data
             if save_data(data):
-                st.session_state.data = data  # Update session state
+                st.session_state.data = data
                 st.success("✅ Analysis saved successfully!")
                 st.balloons()
 
@@ -669,7 +956,7 @@ with st.form("analysis_form", clear_on_submit=False):
 st.markdown("---")
 st.subheader("📜 Saved Analyses & Historical View")
 
-# View options - SIMPLIFIED
+# View options
 view_options = ["Today's Focus", "All Strategies"] + daily_strategies
 filter_type = st.selectbox("View:", view_options, key="view_filter")
 
@@ -750,7 +1037,7 @@ with footer_col1:
 
 with footer_col2:
     st.markdown("🎯 Quick Actions")
-    if st.button("🔄 Check Today's Progress", key="check_progress"):
+    if st.button("🔄 Check Today's Progress", key="check_progress_footer"):
         progress_data = calculate_progress(data, daily_strategies, analysis_date)
         st.rerun()
 
@@ -764,4 +1051,4 @@ with footer_col3:
         st.warning("Time to focus on today's strategies! ⏰")
 
 st.markdown("---")
-st.caption("Advanced Chart Reminder & Notes v2.0 | Built with Streamlit | 15 Strategy Rotation System")
+st.caption("Advanced Chart Reminder & Notes v3.0 | Ultimate UX Edition | Built with Streamlit | 15 Strategy Rotation System")
