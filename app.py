@@ -1,4 +1,4 @@
-# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL POLISHED VERSION
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL VERSION
 import streamlit as st
 import json
 import os
@@ -27,6 +27,19 @@ st.set_page_config(
     page_icon="📊",
     initial_sidebar_state="expanded"
 )
+
+# Add custom CSS for gray confidence slider
+st.markdown("""
+<style>
+    /* Make confidence slider gray */
+    .stSlider [data-baseweb="slider"] {
+        background-color: #6B7280;
+    }
+    .stSlider [data-baseweb="slider"] [data-baseweb="slider-track"] {
+        background-color: #6B7280;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 SAVE_FILE = "strategy_analyses.json"
 BACKUP_DIR = "backups"
