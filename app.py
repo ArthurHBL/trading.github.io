@@ -28,15 +28,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Add custom CSS for gray confidence slider
+# Add custom CSS for gray confidence slider bars
 st.markdown("""
 <style>
-    /* Make confidence slider gray */
-    .stSlider [data-baseweb="slider"] {
-        background-color: #6B7280;
+    /* Make confidence slider bars gray */
+    .stSlider [data-testid="stThumbValue"] {
+        color: #6B7280;
     }
-    .stSlider [data-baseweb="slider"] [data-baseweb="slider-track"] {
-        background-color: #6B7280;
+    .stSlider [data-baseweb="slider"] > div > div > div > div {
+        background-color: #6B7280 !important;
     }
 </style>
 """, unsafe_allow_html=True)
