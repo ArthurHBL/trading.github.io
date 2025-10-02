@@ -1,4 +1,4 @@
-# app.py - Enhanced Chart Reminder & Notes (15 Strategies)
+# app.py - Enhanced Chart Reminder & Notes (15 Strategies) - FINAL POLISHED VERSION
 import streamlit as st
 import json
 import os
@@ -300,9 +300,13 @@ STRATEGIES = {
 }
 
 # -------------------------
-# Initialize Data
+# Initialize Data with Session State
 # -------------------------
-data = load_data()
+# FIX 2: Use session state to persist data across reruns
+if 'data' not in st.session_state:
+    st.session_state.data = load_data()
+
+data = st.session_state.data
 
 # -------------------------
 # Enhanced Sidebar
@@ -310,12 +314,14 @@ data = load_data()
 st.sidebar.title("🎛️ Control Panel")
 st.sidebar.markdown("---")
 
-# FIX: SIMPLIFIED Date navigation - removed session state complexity
+# FIX 1: More robust query params handling
 start_date = date(2025, 8, 9)
 
-# Get date from URL parameters
-query_params = st.query_params
-current_date_str = query_params.get("date", "")
+# Get date from URL parameters - more robust approach
+try:
+    current_date_str = st.query_params["date"]
+except (KeyError, IndexError):
+    current_date_str = ""
 
 if current_date_str:
     try:
@@ -419,7 +425,7 @@ if available_dates:
 # Data Management
 with st.sidebar.expander("⚙️ Data Management", expanded=False):
     if st.button("🔄 Refresh Data", key="refresh_data"):
-        data = load_data()
+        st.session_state.data = load_data()
         st.rerun()
     
     if st.button("💾 Create Backup", key="create_backup"):
@@ -608,7 +614,7 @@ with st.form("analysis_form", clear_on_submit=False):
     # Single save button - clean and simple
     submitted = st.form_submit_button("💾 Save All Analysis", use_container_width=True)
     
-    # FIX: Add form validation before saving
+    # FIX 3: Improved overwrite warning with confirmation BEFORE modifying data
     if submitted:
         # Validate form data
         errors = []
@@ -620,21 +626,28 @@ with st.form("analysis_form", clear_on_submit=False):
             for error in errors:
                 st.error(error)
         else:
+            # Check for overwriting different dates BEFORE modifying data
+            warnings = []
+            for ind in indicators:
+                existing_data = data.get(selected_strategy, {}).get(ind, {})
+                existing_date = existing_data.get("analysis_date")
+                current_date_str = analysis_date.strftime("%Y-%m-%d")
+                
+                if existing_date and existing_date != current_date_str:
+                    warnings.append(f"{ind} ({existing_date})")
+            
+            # Show warnings with confirmation BEFORE any data modification
+            if warnings:
+                st.warning(f"⚠️ Will overwrite data from different dates: {', '.join(warnings)}")
+                confirm = st.checkbox("I confirm overwriting this data", key="confirm_overwrite")
+                if not confirm:
+                    st.stop()  # Don't proceed with save
+            
             # Save the data
             if selected_strategy not in data:
                 data[selected_strategy] = {}
             
             for ind in indicators:
-                key_base = f"{sanitize_key(selected_strategy)}_{sanitize_key(ind)}"
-                
-                # FIX: Check if we're overwriting data from a different date
-                existing_data = data[selected_strategy].get(ind, {})
-                existing_date = existing_data.get("analysis_date")
-                current_date_str = analysis_date.strftime("%Y-%m-%d")
-                
-                if existing_date and existing_date != current_date_str:
-                    st.warning(f"⚠️ Overwriting {ind} analysis from {existing_date}")
-                
                 data[selected_strategy][ind] = {
                     "note": form_data[ind]['note'],
                     "status": form_data[ind]['status'],
@@ -642,12 +655,14 @@ with st.form("analysis_form", clear_on_submit=False):
                     "strategy_tag": strategy_tag,
                     "priority": strategy_priority,
                     "confidence": form_data[ind]['confidence'],
-                    "analysis_date": current_date_str,
+                    "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                     "last_modified": datetime.utcnow().isoformat() + "Z",
                     "id": str(uuid.uuid4())[:8]
                 }
             
+            # FIX 2: Update session state when saving data
             if save_data(data):
+                st.session_state.data = data  # Update session state
                 st.success("✅ Analysis saved successfully!")
                 st.balloons()
 
