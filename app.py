@@ -1,4 +1,4 @@
-# app.py - FIXED Streamlit Cloud Compatible Version
+# app.py - Streamlit Cloud Compatible Version
 import streamlit as st
 import json
 from datetime import datetime, date, timedelta
@@ -111,28 +111,28 @@ def render_login():
     st.markdown("---")
     
     with st.form("login_form"):
-        username = st.text_input("Username", key="login_username")
-        password = st.text_input("Password", type="password", key="login_password")
-        submitted = st.form_submit_button("Login", key="login_submit")
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
         
         if submitted:
             user_data = check_login(username, password)
             if user_data:
                 st.session_state.user = user_data
                 st.session_state.logged_in = True
-                st.session_state.trading_data = {}
+                st.session_state.trading_data = {}  # Reset data on login
                 st.rerun()
             else:
                 st.error("❌ Invalid username or password")
     
-    # Demo accounts info - FIXED: removed key from expander
+    # Demo accounts info
     with st.expander("Demo Accounts"):
         st.write("**Admin:** admin / admin123 (Full access)")
         st.write("**Premium:** maria / maria123 (All features)")
         st.write("**Basic:** demo / demo123 (Limited features)")
         st.write("**Expired:** joao / joao123 (Demo mode)")
 
-def render_premium_dashboard(dashboard_type="premium"):
+def render_premium_dashboard():
     """Full featured dashboard for premium users"""
     
     # Date handling
@@ -146,12 +146,12 @@ def render_premium_dashboard(dashboard_type="premium"):
     if analysis_date < start_date:
         analysis_date = start_date
 
-    # Sidebar with unique keys based on dashboard type
+    # Sidebar
     st.sidebar.title("🎛️ Control Panel")
     st.sidebar.write(f"Welcome, **{st.session_state.user['name']}**")
     st.sidebar.success(f"⭐ {st.session_state.user['plan'].title()} Plan")
     
-    if st.sidebar.button("🚪 Logout", key=f"logout_{dashboard_type}"):
+    if st.sidebar.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
         st.rerun()
@@ -163,18 +163,18 @@ def render_premium_dashboard(dashboard_type="premium"):
 
     col1, col2 = st.sidebar.columns(2)
     with col1:
-        if st.button("◀️ Prev Day", key=f"prev_day_{dashboard_type}"):
+        if st.button("◀️ Prev Day"):
             new_date = analysis_date - timedelta(days=1)
             if new_date >= start_date:
                 st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                 st.rerun()
     with col2:
-        if st.button("Next Day ▶️", key=f"next_day_{dashboard_type}"):
+        if st.button("Next Day ▶️"):
             new_date = analysis_date + timedelta(days=1)
             st.query_params["date"] = new_date.strftime("%Y-%m-%d")
             st.rerun()
 
-    if st.sidebar.button("🔄 Today", key=f"today_{dashboard_type}"):
+    if st.sidebar.button("🔄 Today"):
         st.query_params["date"] = date.today().strftime("%Y-%m-%d")
         st.rerun()
 
@@ -190,22 +190,17 @@ def render_premium_dashboard(dashboard_type="premium"):
     st.sidebar.metric(
         "Overall Progress", 
         f"{progress_data['completed_indicators']}/{progress_data['total_indicators']}",
-        f"{progress_data['overall']*100:.1f}%",
-        key=f"progress_metric_{dashboard_type}"
+        f"{progress_data['overall']*100:.1f}%"
     )
 
-    for i, strategy in enumerate(daily_strategies):
+    for strategy in daily_strategies:
         strat_progress = progress_data['strategies'][strategy]
         st.sidebar.progress(strat_progress['progress'], text=f"{strategy}")
 
     st.sidebar.markdown("---")
 
     # Strategy Selection
-    selected_strategy = st.sidebar.selectbox(
-        "🎯 Choose Strategy", 
-        daily_strategies,
-        key=f"strategy_select_{dashboard_type}"
-    )
+    selected_strategy = st.sidebar.selectbox("🎯 Choose Strategy", daily_strategies)
 
     # Main content
     st.title("🚀 Premium Trading Dashboard")
@@ -237,23 +232,11 @@ def render_premium_dashboard(dashboard_type="premium"):
     # Strategy-level settings
     col1, col2, col3 = st.columns(3)
     with col1:
-        strategy_tag = st.selectbox(
-            "🏷️ Overall Tag", 
-            ["Neutral", "Buy", "Sell"],
-            key=f"strategy_tag_{dashboard_type}"
-        )
+        strategy_tag = st.selectbox("🏷️ Overall Tag", ["Neutral", "Buy", "Sell"])
     with col2:
-        strategy_priority = st.selectbox(
-            "🎯 Priority", 
-            ["Low", "Medium", "High"],
-            key=f"strategy_priority_{dashboard_type}"
-        )
+        strategy_priority = st.selectbox("🎯 Priority", ["Low", "Medium", "High"])
     with col3:
-        strategy_confidence = st.slider(
-            "💪 Confidence", 
-            50, 100, 75,
-            key=f"strategy_confidence_{dashboard_type}"
-        )
+        strategy_confidence = st.slider("💪 Confidence", 50, 100, 75)
 
     st.markdown("---")
 
@@ -261,7 +244,7 @@ def render_premium_dashboard(dashboard_type="premium"):
     st.subheader("⚡ Quick Actions")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("🎯 Mark All as Done", use_container_width=True, key=f"mark_done_{dashboard_type}"):
+        if st.button("🎯 Mark All as Done", use_container_width=True):
             target_date_str = analysis_date.strftime("%Y-%m-%d")
             for ind in STRATEGIES[selected_strategy]:
                 save_to_session(selected_strategy, ind, {
@@ -277,7 +260,7 @@ def render_premium_dashboard(dashboard_type="premium"):
             st.rerun()
     
     with col2:
-        if st.button("🔄 Reset Strategy", use_container_width=True, key=f"reset_strategy_{dashboard_type}"):
+        if st.button("🔄 Reset Strategy", use_container_width=True):
             for ind in STRATEGIES[selected_strategy]:
                 if selected_strategy in st.session_state.trading_data and ind in st.session_state.trading_data[selected_strategy]:
                     del st.session_state.trading_data[selected_strategy][ind]
@@ -290,44 +273,32 @@ def render_premium_dashboard(dashboard_type="premium"):
     st.subheader("📊 Indicator Analysis")
     indicators = STRATEGIES[selected_strategy]
     
-    with st.form(f"analysis_form_{dashboard_type}"):
+    with st.form("analysis_form"):
         for i, ind in enumerate(indicators):
             existing_data = st.session_state.trading_data.get(selected_strategy, {}).get(ind, {})
             
-            # FIXED: removed key from expander
             with st.expander(f"**{ind}**", expanded=False):
                 col1, col2 = st.columns(2)
                 with col1:
-                    status = st.selectbox(
-                        "Status", 
-                        ["Open", "In Progress", "Done", "Skipped"], 
-                        index=["Open", "In Progress", "Done", "Skipped"].index(existing_data.get("status", "Open")),
-                        key=f"status_{ind}_{dashboard_type}"
-                    )
-                    confidence = st.slider(
-                        "Confidence", 
-                        50, 100, existing_data.get("confidence", strategy_confidence),
-                        key=f"conf_{ind}_{dashboard_type}"
-                    )
+                    status = st.selectbox("Status", ["Open", "In Progress", "Done", "Skipped"], 
+                                        index=["Open", "In Progress", "Done", "Skipped"].index(existing_data.get("status", "Open")),
+                                        key=f"status_{ind}")
+                    confidence = st.slider("Confidence", 50, 100, existing_data.get("confidence", strategy_confidence), key=f"conf_{ind}")
                 
                 with col2:
-                    note = st.text_area(
-                        "Analysis Notes", 
-                        value=existing_data.get("note", ""), 
-                        height=100, 
-                        key=f"note_{ind}_{dashboard_type}"
-                    )
+                    note = st.text_area("Analysis Notes", value=existing_data.get("note", ""), height=100, key=f"note_{ind}")
                 
+                # Save immediately or show last modified
                 if existing_data.get("last_modified"):
                     st.caption(f"Last updated: {existing_data['last_modified'][:16]}")
         
-        if st.form_submit_button("💾 Save All Analysis", use_container_width=True, key=f"save_all_{dashboard_type}"):
+        if st.form_submit_button("💾 Save All Analysis", use_container_width=True):
             target_date_str = analysis_date.strftime("%Y-%m-%d")
             for ind in indicators:
                 save_to_session(selected_strategy, ind, {
-                    "note": st.session_state[f"note_{ind}_{dashboard_type}"],
-                    "status": st.session_state[f"status_{ind}_{dashboard_type}"],
-                    "confidence": st.session_state[f"conf_{ind}_{dashboard_type}"],
+                    "note": st.session_state[f"note_{ind}"],
+                    "status": st.session_state[f"status_{ind}"],
+                    "confidence": st.session_state[f"conf_{ind}"],
                     "strategy_tag": strategy_tag,
                     "priority": strategy_priority,
                     "analysis_date": target_date_str,
@@ -342,7 +313,7 @@ def render_basic_dashboard():
     st.sidebar.write(f"Welcome, **{st.session_state.user['name']}**")
     st.sidebar.warning("Basic Plan - Limited Features")
     
-    if st.sidebar.button("🚪 Logout", key="logout_basic"):
+    if st.sidebar.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
         st.rerun()
@@ -352,22 +323,18 @@ def render_basic_dashboard():
     
     # Limited to first 2 strategies only
     available_strategies = list(STRATEGIES.keys())[:2]
-    selected_strategy = st.selectbox("Select Strategy", available_strategies, key="basic_strategy_select")
+    selected_strategy = st.selectbox("Select Strategy", available_strategies)
     
     # Simple analysis form
     with st.form("basic_analysis"):
         st.subheader(f"Basic Analysis - {selected_strategy}")
         
         # Limited to first 3 indicators per strategy
-        for i, indicator in enumerate(STRATEGIES[selected_strategy][:3]):
-            st.text_area(
-                f"Notes for {indicator}", 
-                key=f"basic_note_{indicator}", 
-                height=80,
-                placeholder="Enter your analysis notes..."
-            )
+        for indicator in STRATEGIES[selected_strategy][:3]:
+            st.text_area(f"Notes for {indicator}", key=f"basic_{indicator}", height=80,
+                        placeholder="Enter your analysis notes...")
         
-        if st.form_submit_button("💾 Save Notes", key="basic_save_notes"):
+        if st.form_submit_button("💾 Save Notes"):
             st.success("Notes saved! Upgrade to Premium for full analysis features.")
     
     st.markdown("---")
@@ -388,7 +355,7 @@ def render_admin_dashboard():
     st.sidebar.write(f"Welcome, **{st.session_state.user['name']}**")
     st.sidebar.success("Full Administrative Access")
     
-    if st.sidebar.button("🚪 Logout", key="logout_admin"):
+    if st.sidebar.button("🚪 Logout"):
         st.session_state.logged_in = False
         st.session_state.user = None
         st.rerun()
@@ -406,25 +373,25 @@ def render_admin_dashboard():
     
     st.dataframe(pd.DataFrame(users), use_container_width=True)
     
-    # Add user form - FIXED: removed key from expander
+    # Add user form
     with st.expander("Add New User"):
-        with st.form("add_user_form"):
+        with st.form("add_user"):
             col1, col2 = st.columns(2)
             with col1:
-                new_user = st.text_input("Username", key="new_username")
-                new_name = st.text_input("Full Name", key="new_fullname")
+                new_user = st.text_input("Username")
+                new_name = st.text_input("Full Name")
             with col2:
-                new_plan = st.selectbox("Plan", ["basic", "premium"], key="new_plan")
-                new_status = st.selectbox("Status", ["active", "inactive"], key="new_status")
+                new_plan = st.selectbox("Plan", ["basic", "premium"])
+                new_status = st.selectbox("Status", ["active", "inactive"])
             
-            if st.form_submit_button("Add User", key="add_user_submit"):
+            if st.form_submit_button("Add User"):
                 st.success(f"User {new_user} added successfully! (Simulated)")
     
     st.markdown("---")
     
-    # Admin also gets premium access but with unique dashboard type
+    # Admin also gets premium access
     st.title("Trading Dashboard")
-    render_premium_dashboard("admin_premium")
+    render_premium_dashboard()
 
 # -------------------------
 # MAIN APP
@@ -440,7 +407,7 @@ def main():
         if st.session_state.user['name'] == "Arthur (Admin)":
             render_admin_dashboard()
         elif user_plan == "premium":
-            render_premium_dashboard("user_premium")
+            render_premium_dashboard()
         else:
             # Check if subscription is expired
             expires = st.session_state.user['expires']
