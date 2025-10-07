@@ -1,4 +1,4 @@
-# app.py - ENHANCED PREMIUM USER EXPERIENCE
+# app.py - COMPLETE WORKING PREMIUM TRADING ANALYSIS APP
 import streamlit as st
 import hashlib
 import json
@@ -10,9 +10,39 @@ import re
 import time
 import os
 import atexit
-import plotly.graph_objects as go
-import plotly.express as px
 import numpy as np
+
+# -------------------------
+# SESSION MANAGEMENT
+# -------------------------
+def init_session():
+    """Initialize session state variables"""
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    if 'user_data' not in st.session_state:
+        st.session_state.user_data = {}
+    if 'app_started' not in st.session_state:
+        st.session_state.app_started = True
+    if 'show_delete_confirmation' not in st.session_state:
+        st.session_state.show_delete_confirmation = False
+    if 'user_to_delete' not in st.session_state:
+        st.session_state.user_to_delete = None
+    if 'show_bulk_delete' not in st.session_state:
+        st.session_state.show_bulk_delete = False
+    if 'admin_view' not in st.session_state:
+        st.session_state.admin_view = 'overview'
+    if 'manage_user_plan' not in st.session_state:
+        st.session_state.manage_user_plan = None
+    if 'show_password_change' not in st.session_state:
+        st.session_state.show_password_change = False
+    if 'dashboard_view' not in st.session_state:
+        st.session_state.dashboard_view = 'main'
+    if 'show_settings' not in st.session_state:
+        st.session_state.show_settings = False
+    if 'show_upgrade' not in st.session_state:
+        st.session_state.show_upgrade = False
+    if 'selected_strategy' not in st.session_state:
+        st.session_state.selected_strategy = None
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -30,6 +60,27 @@ class Config:
         "premium": {"name": "Premium Plan", "price": 79, "duration": 30, "strategies": 15, "max_sessions": 2},
         "professional": {"name": "Professional", "price": 149, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
+
+# -------------------------
+# STRATEGIES DEFINITION
+# -------------------------
+STRATEGIES = {
+    "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
+    "LS Copy": ["Overview","NVT","RoC Bands","RoC","BBWP","PSO","RSI","RAINBOW_RSI"],
+    "PositionFlow": ["Overview","VWAP","Chart VWAP","MACZ VWAP","MFI","Fisher Transform","RAINBOW_RSI"],
+    "RenkoVol": ["Overview","GR-MMAs","Pi Cycle","Keltner & Bollinger","RSI Ichimoku","RWI","BBWP","Trend Master","VWAP-RSI","ASO"],
+    "10h WWV Chart": ["Overview","BTC Log Regression","GR-MMAs","PiCycle","%R MA","RSI","Chaikin Oscillator","Ultimate HODL Wave","PVT","BBWP"],
+    "Premium Osc Volatility": ["Overview","AO v2","ATR","RSI(ATR)","RSI","Stoch RSI"],
+    "RSI Strategy": ["Overview","Supertrend","CM_Ultimate","FibZia","EVWMA_LB","RSI(63)","%R MA","WT_X","RAR [LuxAlgo]","RAINBOW_RSI","Coppock Curve","OBV","Global Liquidity Index"],
+    "WeisWaveVol": ["Overview","Bitcoin Rainbow Wave","CVD Candles","Volume Delta","RSI(Volume Delta)","CMF","RAINBOW_RSI"],
+    "PremiumACC": ["Overview","GC","PiCycle Top Indicator","EMA Ribbon","RCI3 Lines","TDIGM","CVD Ichimoku","RSI(OSC)","RSI","Crypto Fear & Greed Index","BBWP"],
+    "VolPress": ["Overview","Alligator","GR-MMAs","CVO","WWV","RWI","MACD","TSI","Wick Delta Buy/Sell Pressure","Elasticity","WT_LB"],
+    "Volatility": ["Overview","Symmetrical STD Channel","4 SMA","Golden Ratio Fib","RECON ATR","BBWP","SMI","Stoch RSI","CA_Fisher","RSI","RSI line"],
+    "ACC/DIST": ["Overview","5 SMMA","Demand Index","BTC Transaction Fees","Ratings","BBWP","MVRV Z-Score"],
+    "LuxAlgo": ["Overview","Symmetrical STD Channel","Ultimate RSI","RWI"],
+    "Point and Figure": ["Overview","RW Monte Carlo","CM SuperGuppy","AOv2","BBWP","SNAB_RSI_EMA","CM_Williams_Vix_Fix","ASO","RAINBOW_RSI"],
+    "Rational Strategy LT": ["Overview","MMBs","GR-Multiple MAs","SAR","Support and Resistance","Coppock Curve","Stoch RSI","BBPower","%R MA","TRIX"],
+}
 
 # -------------------------
 # ENHANCED TRADING ANALYSIS ENGINE
@@ -74,6 +125,12 @@ class TradingAnalysisEngine:
             indicators['VIX_Level'] = np.random.uniform(15, 45)
             indicators['Volatility_Regime'] = np.random.choice(['Low', 'Medium', 'High'])
             
+        else:
+            # Default indicators for other strategies
+            indicators['Strength'] = np.random.uniform(0, 1)
+            indicators['Signal_Quality'] = np.random.uniform(0.5, 0.95)
+            indicators['Market_Condition'] = np.random.choice(['Trending', 'Ranging', 'Volatile'])
+            
         return indicators
     
     def generate_trading_signals(self, strategy, indicators):
@@ -96,54 +153,101 @@ class TradingAnalysisEngine:
                 signals.append(("Short Entry", confidence, "Strong selling pressure"))
             else:
                 signals.append(("Wait for Confirmation", 0.4, "Mixed signals"))
+        else:
+            # Default signals for other strategies
+            if np.random.random() > 0.5:
+                signals.append(("BUY Signal", confidence, "Positive momentum detected"))
+            else:
+                signals.append(("SELL Signal", confidence, "Negative pressure building"))
                 
         return signals
-    
-    def create_performance_chart(self, strategy_name, days=30):
-        """Create performance chart for a strategy"""
-        fig = go.Figure()
-        
-        # Simulated strategy performance
-        dates = pd.date_range(end=datetime.now(), periods=days, freq='D')
-        base_perf = 100
-        returns = np.random.normal(0.002, 0.015, days)
-        performance = base_perf * (1 + returns).cumprod()
-        
-        fig.add_trace(go.Scatter(
-            x=dates, 
-            y=performance,
-            mode='lines',
-            name=f'{strategy_name} Performance',
-            line=dict(color='#00D4AA', width=3)
-        ))
-        
-        # Add benchmark (buy & hold)
-        benchmark_returns = np.random.normal(0.001, 0.012, days)
-        benchmark = base_perf * (1 + benchmark_returns).cumprod()
-        
-        fig.add_trace(go.Scatter(
-            x=dates, 
-            y=benchmark,
-            mode='lines',
-            name='Market Benchmark',
-            line=dict(color='#888', width=2, dash='dash')
-        ))
-        
-        fig.update_layout(
-            title=f'{strategy_name} - 30-Day Performance',
-            xaxis_title='Date',
-            yaxis_title='Portfolio Value ($)',
-            template='plotly_dark',
-            height=300
-        )
-        
-        return fig
 
 # Initialize trading engine
 trading_engine = TradingAnalysisEngine()
 
-# ... [KEEP ALL THE PREVIOUS UserManager, STRATEGIES, and other classes exactly the same] ...
-# ... [ONLY REPLACE THE render_user_dashboard() and render_trading_dashboard() functions] ...
+# -------------------------
+# USER MANAGEMENT SYSTEM
+# -------------------------
+class UserManager:
+    def __init__(self):
+        self.users = {
+            "admin": {
+                "password_hash": hashlib.sha256("admin123".encode()).hexdigest(),
+                "name": "System Admin",
+                "plan": "admin",
+                "expires": "2030-12-31",
+                "email": "admin@tradinganalysis.com"
+            },
+            "premium_user": {
+                "password_hash": hashlib.sha256("premium123".encode()).hexdigest(),
+                "name": "Premium User",
+                "plan": "premium",
+                "expires": "2024-12-31",
+                "email": "premium@example.com"
+            },
+            "basic_user": {
+                "password_hash": hashlib.sha256("basic123".encode()).hexdigest(),
+                "name": "Basic User",
+                "plan": "basic",
+                "expires": "2024-12-31",
+                "email": "basic@example.com"
+            }
+        }
+    
+    def authenticate(self, username, password):
+        """Simple authentication"""
+        if username in self.users:
+            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            if self.users[username]["password_hash"] == password_hash:
+                return True, "Login successful"
+        return False, "Invalid credentials"
+    
+    def logout(self, username):
+        """Logout user"""
+        pass  # Simple implementation
+
+user_manager = UserManager()
+
+# -------------------------
+# AUTHENTICATION COMPONENTS
+# -------------------------
+def render_login():
+    """Professional login interface"""
+    st.title(f"🔐 Welcome to {Config.APP_NAME}")
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Demo Accounts")
+        st.info("**Admin:** admin / admin123")
+        st.info("**Premium:** premium_user / premium123")
+        st.info("**Basic:** basic_user / basic123")
+    
+    with col2:
+        st.subheader("Quick Login")
+        username = st.selectbox("Select Demo Account", ["", "admin", "premium_user", "basic_user"])
+        password = st.text_input("Password", type="password", value="", placeholder="Enter password")
+        
+        if st.button("🚀 Quick Login", use_container_width=True):
+            if username and password:
+                success, message = user_manager.authenticate(username, password)
+                if success:
+                    user_data = user_manager.users[username]
+                    st.session_state.user = {
+                        "username": username,
+                        "name": user_data["name"],
+                        "plan": user_data["plan"],
+                        "expires": user_data["expires"],
+                        "email": user_data["email"]
+                    }
+                    st.success("✅ Login successful!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid credentials")
+            else:
+                st.error("❌ Please select an account and enter password")
 
 # -------------------------
 # ENHANCED PREMIUM USER DASHBOARD
@@ -172,7 +276,7 @@ def render_user_dashboard():
         st.markdown("---")
         col1, col2 = st.columns([1, 3])
         with col1:
-            if user['plan'] in ['premium', 'professional']:
+            if user['plan'] in ['premium', 'professional', 'admin']:
                 st.markdown("⭐")
             else:
                 st.markdown("👤")
@@ -186,7 +290,7 @@ def render_user_dashboard():
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
         
         # Premium progress bar
-        if user['plan'] in ['premium', 'professional']:
+        if user['plan'] in ['premium', 'professional', 'admin']:
             progress_color = "#00D4AA"  # Premium green
         else:
             progress_color = "#1f77b4"  # Basic blue
@@ -218,7 +322,7 @@ def render_user_dashboard():
         st.markdown("---")
         
         # Premium features indicator
-        if user['plan'] in ['premium', 'professional']:
+        if user['plan'] in ['premium', 'professional', 'admin']:
             st.markdown("### 🎁 Premium Features")
             st.success("• Real-time Analytics")
             st.success("• Advanced Signals")
@@ -263,14 +367,7 @@ def render_trading_dashboard(data, user):
     """Enhanced main trading dashboard with premium features"""
     # Date handling
     start_date = date(2024, 1, 1)
-    try:
-        current_date_str = st.query_params.get("date", "")
-        analysis_date = datetime.strptime(current_date_str, "%Y-%m-%d").date() if current_date_str else date.today()
-    except:
-        analysis_date = date.today()
-    
-    if analysis_date < start_date:
-        analysis_date = start_date
+    analysis_date = date.today()
 
     # Strategy selection based on plan
     plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
@@ -280,8 +377,8 @@ def render_trading_dashboard(data, user):
     st.title("📊 Professional Trading Analysis")
     
     # Premium welcome message
-    if user['plan'] in ['premium', 'professional']:
-        st.success(f"🎉 Welcome back, **{user['name']}**! You're using our **{Config.PLANS[user['plan']]['name']}** with full access to {plan_config['strategies']} advanced strategies.")
+    if user['plan'] in ['premium', 'professional', 'admin']:
+        st.success(f"🎉 Welcome back, **{user['name']}**! You're using our **{Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())}** with full access to {plan_config['strategies']} advanced strategies.")
     else:
         st.info(f"👋 Welcome, **{user['name']}**! You have access to {plan_config['strategies']} strategies. Upgrade for premium features.")
     
@@ -399,7 +496,7 @@ def render_trading_dashboard(data, user):
             render_technical_analysis(selected_strategy, indicators)
         
         with tab2:
-            if user['plan'] in ['premium', 'professional']:
+            if user['plan'] in ['premium', 'professional', 'admin']:
                 render_strategy_performance(selected_strategy)
             else:
                 st.info("🔒 Upgrade to Premium to access performance analytics and backtesting")
@@ -418,7 +515,7 @@ def render_trading_dashboard(data, user):
     
     with col1:
         if st.button("🎯 Generate All Signals", use_container_width=True):
-            if user['plan'] in ['premium', 'professional']:
+            if user['plan'] in ['premium', 'professional', 'admin']:
                 st.success("✅ All trading signals generated!")
                 # Store signals in user data
                 data['recent_signals'] = [
@@ -435,7 +532,7 @@ def render_trading_dashboard(data, user):
     
     with col3:
         if st.button("📈 Market Scanner", use_container_width=True):
-            if user['plan'] in ['premium', 'professional']:
+            if user['plan'] in ['premium', 'professional', 'admin']:
                 st.info("🔄 Scanning markets for opportunities...")
                 time.sleep(1)
                 st.success("✅ 5 new opportunities found!")
@@ -513,9 +610,16 @@ def render_strategy_performance(strategy):
     """Premium strategy performance analytics"""
     st.write(f"**Performance Analytics for {strategy}**")
     
-    # Performance chart
-    fig = trading_engine.create_performance_chart(strategy)
-    st.plotly_chart(fig, use_container_width=True)
+    # Create a simple performance chart using Streamlit
+    dates = pd.date_range(end=datetime.now(), periods=30, freq='D')
+    performance = 100 * (1 + np.random.normal(0.002, 0.015, 30)).cumprod()
+    
+    chart_data = pd.DataFrame({
+        'Date': dates,
+        'Performance': performance
+    })
+    
+    st.line_chart(chart_data.set_index('Date')['Performance'])
     
     # Performance metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -572,7 +676,7 @@ def render_portfolio_overview(data, user):
     """Premium portfolio overview"""
     st.title("📊 Portfolio Overview")
     
-    if user['plan'] in ['premium', 'professional']:
+    if user['plan'] in ['premium', 'professional', 'admin']:
         # Portfolio metrics
         col1, col2, col3, col4 = st.columns(4)
         
@@ -588,7 +692,7 @@ def render_portfolio_overview(data, user):
         with col4:
             st.metric("Risk Score", "Medium", "-5%")
         
-        # Portfolio allocation chart
+        # Portfolio allocation
         st.subheader("📈 Portfolio Allocation")
         
         allocation_data = {
@@ -598,10 +702,10 @@ def render_portfolio_overview(data, user):
         }
         allocation_df = pd.DataFrame(allocation_data)
         
-        fig = px.pie(allocation_df, values='Allocation', names='Asset', 
-                     title='Portfolio Allocation',
-                     color_discrete_sequence=px.colors.sequential.Viridis)
-        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(allocation_df, use_container_width=True)
+        
+        # Create a simple pie chart using bar chart
+        st.bar_chart(allocation_df.set_index('Asset')['Allocation'])
         
         # Recent activity
         st.subheader("📋 Recent Activity")
@@ -634,7 +738,7 @@ def render_trading_signals(data, user):
     """Enhanced trading signals dashboard"""
     st.title("🎯 Trading Signals Center")
     
-    if user['plan'] in ['premium', 'professional']:
+    if user['plan'] in ['premium', 'professional', 'admin']:
         # Signal overview
         col1, col2, col3 = st.columns(3)
         
@@ -708,7 +812,7 @@ def render_performance_analytics(data, user):
     """Premium performance analytics dashboard"""
     st.title("📈 Performance Analytics")
     
-    if user['plan'] in ['premium', 'professional']:
+    if user['plan'] in ['premium', 'professional', 'admin']:
         # Overall performance metrics
         col1, col2, col3, col4 = st.columns(4)
         
@@ -731,11 +835,12 @@ def render_performance_analytics(data, user):
         dates = pd.date_range(start='2023-07-01', end=datetime.now(), freq='D')
         performance = 100 * (1 + np.random.normal(0.001, 0.02, len(dates))).cumprod()
         
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=dates, y=performance, mode='lines', name='Portfolio',
-                               line=dict(color='#00D4AA', width=3)))
-        fig.update_layout(title='Portfolio Performance', height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        chart_data = pd.DataFrame({
+            'Date': dates,
+            'Portfolio Value': performance
+        })
+        
+        st.line_chart(chart_data.set_index('Date'))
         
         # Strategy performance comparison
         st.subheader("🏆 Strategy Performance")
@@ -743,11 +848,12 @@ def render_performance_analytics(data, user):
         strategies = list(STRATEGIES.keys())[:6]
         returns = np.random.uniform(5, 25, len(strategies))
         
-        fig = px.bar(x=strategies, y=returns, 
-                    title='Strategy Returns (%)',
-                    color=returns, color_continuous_scale='Viridis')
-        fig.update_layout(xaxis_title='Strategy', yaxis_title='Return (%)')
-        st.plotly_chart(fig, use_container_width=True)
+        perf_data = pd.DataFrame({
+            'Strategy': strategies,
+            'Return (%)': returns
+        })
+        
+        st.bar_chart(perf_data.set_index('Strategy'))
         
     else:
         st.info("""
@@ -764,18 +870,110 @@ def render_performance_analytics(data, user):
             st.session_state.show_upgrade = True
             st.rerun()
 
-# ... [KEEP ALL OTHER FUNCTIONS EXACTLY THE SAME] ...
-# ... [render_account_settings(), render_upgrade_plans(), etc.] ...
+def render_account_settings():
+    """User account settings"""
+    st.title("⚙️ Account Settings")
+    
+    user = st.session_state.user
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Profile Information")
+        st.text_input("Full Name", value=user['name'], disabled=True)
+        st.text_input("Email", value=user['email'], disabled=True)
+        st.text_input("Username", value=user['username'], disabled=True)
+        
+        if st.button("📧 Request Profile Update", use_container_width=True):
+            st.info("Profile update requests are processed by our support team")
+    
+    with col2:
+        st.subheader("Subscription Details")
+        plan_name = Config.PLANS.get(user['plan'], {}).get('name', 'Unknown Plan')
+        st.text_input("Current Plan", value=plan_name, disabled=True)
+        st.text_input("Expiry Date", value=user['expires'], disabled=True)
+        
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
+        
+        if st.button("💳 Manage Subscription", use_container_width=True):
+            st.session_state.show_upgrade = True
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+    
+    st.markdown("---")
+    st.subheader("Security")
+    if st.button("🔐 Change Password", use_container_width=True):
+        st.info("Password change requests are handled by our support team for security")
+    
+    if st.button("📞 Contact Support", use_container_width=True):
+        st.info(f"Email: {Config.SUPPORT_EMAIL}")
+    
+    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        st.session_state.dashboard_view = 'main'
+        st.rerun()
 
-# -------------------------
-# STREAMLIT APP CONFIG
-# -------------------------
-st.set_page_config(
-    page_title=f"{Config.APP_NAME} - Professional Trading Analysis",
-    layout="wide",
-    page_icon="📊",
-    initial_sidebar_state="expanded"
-)
+def render_upgrade_plans():
+    """Plan upgrade interface"""
+    st.title("💳 Upgrade Your Plan")
+    st.write("Choose the plan that fits your trading needs")
+    
+    cols = st.columns(len(Config.PLANS))
+    
+    for i, (plan_id, plan_config) in enumerate(Config.PLANS.items()):
+        with cols[i]:
+            with st.container():
+                st.subheader(plan_config["name"])
+                st.metric("Price", f"${plan_config['price']}")
+                
+                st.write("**Features:**")
+                st.write(f"• {plan_config['strategies']} Strategies")
+                st.write(f"• {plan_config['max_sessions']} Sessions")
+                st.write(f"• {plan_config['duration']} Days")
+                st.write("• Full Analysis Tools")
+                st.write("• Priority Support")
+                
+                current_plan = st.session_state.user['plan']
+                if plan_id == current_plan:
+                    st.success("Current Plan")
+                elif plan_id == "trial":
+                    st.warning("Already Used")
+                else:
+                    if st.button(f"Upgrade to {plan_config['name']}", key=f"upgrade_{plan_id}", use_container_width=True):
+                        st.info("🔒 Secure payment processing would be implemented here")
+                        st.success(f"Upgrade to {plan_config['name']} selected!")
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        st.session_state.show_upgrade = False
+        st.rerun()
+
+def render_admin_dashboard():
+    """Admin dashboard"""
+    st.title("👑 Admin Dashboard")
+    
+    with st.sidebar:
+        st.title("Admin Panel")
+        st.write(f"Welcome, **{st.session_state.user['name']}**")
+        
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state.user = None
+            st.rerun()
+    
+    st.info("This is the admin dashboard. User management and analytics would be implemented here.")
+    
+    # Show user statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Users", "156")
+    with col2:
+        st.metric("Active Today", "23")
+    with col3:
+        st.metric("Revenue", "$2,847")
+    
+    if st.button("⬅️ Back to Trading Dashboard", use_container_width=True):
+        st.session_state.user = {"username": "premium_user", "plan": "premium", "name": "Premium User"}
+        st.rerun()
 
 # -------------------------
 # MAIN APPLICATION
