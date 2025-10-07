@@ -1,4 +1,4 @@
-# app.py - COMPLETE VERSION WITH USER DELETION AND PLAN MANAGEMENT
+# app.py - COMPLETE VERSION WITH PERSISTENT DATA AND PASSWORD CHANGE
 import streamlit as st
 import hashlib
 import json
@@ -8,6 +8,8 @@ from datetime import datetime, date, timedelta
 from typing import Dict, List, Tuple
 import re
 import time
+import os
+import atexit
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -27,27 +29,26 @@ class Config:
     }
 
 # -------------------------
-# SECURE USER MANAGEMENT
+# SECURE USER MANAGEMENT WITH PERSISTENCE
 # -------------------------
 class UserManager:
     def __init__(self):
         self.users_file = "users.json"
         self.analytics_file = "analytics.json"
+        self._ensure_data_files()
         self.load_data()
+        atexit.register(self.cleanup_sessions)  # Clean up on app exit
     
-    def load_data(self):
-        """Load users and analytics data"""
-        try:
-            with open(self.users_file, 'r') as f:
-                self.users = json.load(f)
-        except:
+    def _ensure_data_files(self):
+        """Ensure data files exist and are valid"""
+        # Create users file if it doesn't exist
+        if not os.path.exists(self.users_file):
             self.users = {}
             self.create_default_admin()
+            self.save_users()
         
-        try:
-            with open(self.analytics_file, 'r') as f:
-                self.analytics = json.load(f)
-        except:
+        # Create analytics file if it doesn't exist
+        if not os.path.exists(self.analytics_file):
             self.analytics = {
                 "total_logins": 0,
                 "active_users": 0,
@@ -55,7 +56,37 @@ class UserManager:
                 "user_registrations": [],
                 "login_history": [],
                 "deleted_users": [],
-                "plan_changes": []
+                "plan_changes": [],
+                "password_changes": []
+            }
+            self.save_analytics()
+    
+    def load_data(self):
+        """Load users and analytics data with error handling"""
+        try:
+            with open(self.users_file, 'r') as f:
+                self.users = json.load(f)
+            print(f"✅ Loaded {len(self.users)} users from {self.users_file}")
+        except Exception as e:
+            print(f"❌ Error loading users: {e}")
+            self.users = {}
+            self.create_default_admin()
+        
+        try:
+            with open(self.analytics_file, 'r') as f:
+                self.analytics = json.load(f)
+            print(f"✅ Loaded analytics data from {self.analytics_file}")
+        except Exception as e:
+            print(f"❌ Error loading analytics: {e}")
+            self.analytics = {
+                "total_logins": 0,
+                "active_users": 0,
+                "revenue_today": 0,
+                "user_registrations": [],
+                "login_history": [],
+                "deleted_users": [],
+                "plan_changes": [],
+                "password_changes": []
             }
     
     def create_default_admin(self):
@@ -74,7 +105,7 @@ class UserManager:
             "email": "admin@tradinganalysis.com",
             "subscription_id": "admin_account"
         }
-        self.save_users()
+        print("✅ Created default admin account")
     
     def hash_password(self, password):
         """Secure password hashing"""
@@ -82,14 +113,32 @@ class UserManager:
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def save_users(self):
-        """Save users to file"""
-        with open(self.users_file, 'w') as f:
-            json.dump(self.users, f, indent=2)
+        """Save users to file with error handling"""
+        try:
+            with open(self.users_file, 'w') as f:
+                json.dump(self.users, f, indent=2)
+            print(f"✅ Saved {len(self.users)} users to {self.users_file}")
+            return True
+        except Exception as e:
+            print(f"❌ Error saving users: {e}")
+            return False
     
     def save_analytics(self):
-        """Save analytics data"""
-        with open(self.analytics_file, 'w') as f:
-            json.dump(self.analytics, f, indent=2)
+        """Save analytics data with error handling"""
+        try:
+            with open(self.analytics_file, 'w') as f:
+                json.dump(self.analytics, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"❌ Error saving analytics: {e}")
+            return False
+    
+    def cleanup_sessions(self):
+        """Reset all active sessions (called on app exit)"""
+        for username in self.users:
+            self.users[username]["active_sessions"] = 0
+        self.save_users()
+        print("✅ Cleaned up all active sessions")
     
     def register_user(self, username, password, name, email, plan="trial"):
         """Register new user with proper validation"""
@@ -134,13 +183,13 @@ class UserManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        self.save_users()
-        self.save_analytics()
-        
-        return True, f"Account created successfully! {plan_config['name']} activated."
+        if self.save_users() and self.save_analytics():
+            return True, f"Account created successfully! {plan_config['name']} activated."
+        else:
+            return False, "Error saving user data. Please try again."
 
     def create_test_user(self, plan="trial"):
-        """Create a test user for admin purposes - BYPASSES VALIDATION"""
+        """Create a test user for admin purposes"""
         test_username = f"test_{int(time.time())}"
         test_email = f"test{int(time.time())}@example.com"
         
@@ -150,7 +199,7 @@ class UserManager:
         
         # Create user without going through register_user validations
         self.users[test_username] = {
-            "password_hash": self.hash_password("test12345"),  # secure dummy password (>=8 chars)
+            "password_hash": self.hash_password("test12345"),
             "name": f"Test User {test_username}",
             "email": test_email,
             "plan": plan,
@@ -172,10 +221,10 @@ class UserManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        self.save_users()
-        self.save_analytics()
-        
-        return test_username, f"Test user '{test_username}' created with {plan} plan!"
+        if self.save_users() and self.save_analytics():
+            return test_username, f"Test user '{test_username}' created with {plan} plan!"
+        else:
+            return None, "Error creating test user"
 
     def delete_user(self, username):
         """Delete a user account completely"""
@@ -209,13 +258,12 @@ class UserManager:
             "deleted_at": datetime.now().isoformat()
         })
         
-        self.save_users()
-        self.save_analytics()
-        
-        # Log the deletion
-        print(f"User {username} deleted at {datetime.now()}")
-        
-        return True, f"User '{username}' has been permanently deleted"
+        if self.save_users() and self.save_analytics():
+            # Log the deletion
+            print(f"User {username} deleted at {datetime.now()}")
+            return True, f"User '{username}' has been permanently deleted"
+        else:
+            return False, "Error deleting user data"
 
     def change_user_plan(self, username, new_plan):
         """Change a user's subscription plan"""
@@ -259,10 +307,10 @@ class UserManager:
             "admin": self.users.get('admin', {}).get('name', 'System')
         })
         
-        self.save_users()
-        self.save_analytics()
-        
-        return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
+        if self.save_users() and self.save_analytics():
+            return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
+        else:
+            return False, "Error saving plan change"
 
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
@@ -303,10 +351,10 @@ class UserManager:
         # Update analytics
         self.analytics["login_history"][-1]["success"] = True
         
-        self.save_users()
-        self.save_analytics()
-        
-        return True, "Login successful"
+        if self.save_users() and self.save_analytics():
+            return True, "Login successful"
+        else:
+            return False, "Error saving login data"
     
     def verify_password(self, password, password_hash):
         return self.hash_password(password) == password_hash
@@ -316,6 +364,38 @@ class UserManager:
         if username in self.users:
             self.users[username]["active_sessions"] = max(0, self.users[username]["active_sessions"] - 1)
             self.save_users()
+    
+    def change_admin_password(self, current_password, new_password, changed_by="admin"):
+        """Change admin password with verification"""
+        admin_user = self.users.get("admin")
+        if not admin_user:
+            return False, "Admin account not found"
+        
+        # Verify current password
+        if not self.verify_password(current_password, admin_user["password_hash"]):
+            return False, "Current password is incorrect"
+        
+        # Check if new password is same as old
+        if self.verify_password(new_password, admin_user["password_hash"]):
+            return False, "New password cannot be the same as current password"
+        
+        # Update password
+        admin_user["password_hash"] = self.hash_password(new_password)
+        
+        # Update analytics
+        if 'password_changes' not in self.analytics:
+            self.analytics['password_changes'] = []
+        
+        self.analytics['password_changes'].append({
+            "username": "admin",
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": changed_by
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, "Admin password changed successfully!"
+        else:
+            return False, "Error saving password change"
     
     def get_business_metrics(self):
         """Get business metrics for admin"""
@@ -339,16 +419,6 @@ class UserManager:
 
 # Initialize user manager
 user_manager = UserManager()
-
-# -------------------------
-# STREAMLIT APP CONFIG
-# -------------------------
-st.set_page_config(
-    page_title=f"{Config.APP_NAME} - Professional Trading Analysis",
-    layout="wide",
-    page_icon="📊",
-    initial_sidebar_state="expanded"
-)
 
 # -------------------------
 # STRATEGIES DEFINITION
@@ -391,6 +461,74 @@ def init_session():
         st.session_state.admin_view = 'overview'
     if 'manage_user_plan' not in st.session_state:
         st.session_state.manage_user_plan = None
+    if 'show_password_change' not in st.session_state:
+        st.session_state.show_password_change = False
+
+# -------------------------
+# PASSWORD CHANGE INTERFACE
+# -------------------------
+def render_password_change_interface():
+    """Interface for changing admin password"""
+    st.subheader("🔐 Change Admin Password")
+    
+    with st.form("admin_password_change"):
+        st.info("**Security Note:** You must verify your current password to set a new one.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            current_password = st.text_input("Current Password*", type="password", 
+                                           placeholder="Enter current admin password")
+        with col2:
+            new_password = st.text_input("New Password*", type="password", 
+                                       placeholder="Enter new password (min 8 chars)")
+        
+        confirm_password = st.text_input("Confirm New Password*", type="password", 
+                                       placeholder="Re-enter new password")
+        
+        # Password strength requirements
+        st.markdown("**Password Requirements:**")
+        st.markdown("- Minimum 8 characters")
+        st.markdown("- Include letters and numbers")
+        st.markdown("- Avoid common passwords")
+        
+        submitted = st.form_submit_button("✅ Change Admin Password", use_container_width=True)
+        
+        if submitted:
+            # Validation
+            if not all([current_password, new_password, confirm_password]):
+                st.error("❌ Please fill in all password fields")
+                return
+            
+            if new_password != confirm_password:
+                st.error("❌ New passwords do not match")
+                return
+            
+            if len(new_password) < 8:
+                st.error("❌ New password must be at least 8 characters long")
+                return
+            
+            # Change password
+            success, message = user_manager.change_admin_password(
+                current_password, 
+                new_password, 
+                st.session_state.user['username']
+            )
+            
+            if success:
+                st.success("✅ " + message)
+                st.info("🔒 You will need to use the new password for your next login.")
+                
+                # Add a small delay and return to user management
+                time.sleep(2)
+                st.session_state.show_password_change = False
+                st.rerun()
+            else:
+                st.error("❌ " + message)
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to User Management", use_container_width=True):
+        st.session_state.show_password_change = False
+        st.rerun()
 
 # -------------------------
 # AUTHENTICATION COMPONENTS
@@ -399,6 +537,10 @@ def render_login():
     """Professional login/registration interface"""
     st.title(f"🔐 Welcome to {Config.APP_NAME}")
     st.markdown("---")
+    
+    # Display current user count for debugging
+    user_count = len(user_manager.users)
+    st.sidebar.info(f"📊 Total users in system: {user_count}")
     
     tab1, tab2 = st.tabs(["🚀 Login", "📝 Register"])
     
@@ -1037,7 +1179,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - UPDATED WITH DELETE AND PLAN MANAGEMENT
+# ADMIN DASHBOARD - UPDATED WITH PASSWORD CHANGE
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -1093,6 +1235,11 @@ def render_admin_dashboard():
     # Show plan management interface if needed
     if st.session_state.get('manage_user_plan'):
         render_plan_management_interface(st.session_state.manage_user_plan)
+        return
+    
+    # Show password change interface if needed
+    if st.session_state.get('show_password_change'):
+        render_password_change_interface()
         return
     
     # Default view or selected view
@@ -1218,8 +1365,8 @@ def render_admin_user_management():
     """User management interface with delete and plan management functionality"""
     st.subheader("👥 User Management")
     
-    # User actions
-    col1, col2, col3, col4 = st.columns(4)
+    # User actions - UPDATED WITH PASSWORD CHANGE
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True):
             st.rerun()
@@ -1229,11 +1376,18 @@ def render_admin_user_management():
     with col3:
         if st.button("🆕 Create Test User", use_container_width=True):
             created_username, msg = user_manager.create_test_user("trial")
-            st.success(msg)
+            if created_username:
+                st.success(msg)
+            else:
+                st.error(msg)
             st.rerun()
     with col4:
         if st.button("🗑️ Bulk Delete Inactive", use_container_width=True):
             st.session_state.show_bulk_delete = True
+            st.rerun()
+    with col5:  # NEW PASSWORD CHANGE BUTTON
+        if st.button("🔐 Change Admin Password", use_container_width=True):
+            st.session_state.show_password_change = True
             st.rerun()
     
     st.markdown("---")
@@ -1372,6 +1526,16 @@ def render_admin_revenue():
     
     st.markdown("---")
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
+
+# -------------------------
+# STREAMLIT APP CONFIG
+# -------------------------
+st.set_page_config(
+    page_title=f"{Config.APP_NAME} - Professional Trading Analysis",
+    layout="wide",
+    page_icon="📊",
+    initial_sidebar_state="expanded"
+)
 
 # -------------------------
 # MAIN APPLICATION
