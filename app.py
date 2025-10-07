@@ -1,4 +1,4 @@
-# app.py - COMPLETE VERSION WITH PERSISTENT DATA AND PASSWORD CHANGE
+# app.py - COMPLETE VERSION WITH FIXED ADMIN NAVIGATION
 import streamlit as st
 import hashlib
 import json
@@ -1200,18 +1200,20 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - UPDATED WITH PASSWORD CHANGE
+# ADMIN DASHBOARD - FIXED NAVIGATION
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
     
+    # FIXED: Always render the sidebar first, regardless of current view
     with st.sidebar:
         st.title("👑 Admin Panel")
         st.markdown("---")
         st.write(f"Welcome, **{st.session_state.user['name']}**")
         st.success("System Administrator")
         
-        if st.button("🚪 Logout", use_container_width=True):
+        # FIXED: Logout button should always work
+        if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout"):
             user_manager.logout(st.session_state.user['username'])
             st.session_state.user = None
             st.rerun()
@@ -1219,24 +1221,44 @@ def render_admin_dashboard():
         st.markdown("---")
         st.subheader("Admin Actions")
         
-        if st.button("🔄 Refresh All Data", use_container_width=True):
+        # FIXED: All sidebar buttons should work from any view
+        if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh"):
             user_manager.load_data()
             st.rerun()
         
-        if st.button("📊 View Analytics", use_container_width=True):
+        if st.button("📊 View Analytics", use_container_width=True, key="sidebar_analytics"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
             st.session_state.admin_view = "analytics"
             st.rerun()
         
-        if st.button("👥 Manage Users", use_container_width=True):
+        if st.button("👥 Manage Users", use_container_width=True, key="sidebar_users"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
             st.session_state.admin_view = "users"
             st.rerun()
         
-        if st.button("🗑️ Bulk Delete", use_container_width=True):
+        if st.button("🗑️ Bulk Delete", use_container_width=True, key="sidebar_bulk_delete"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
             st.session_state.admin_view = "users"
             st.session_state.show_bulk_delete = True
             st.rerun()
         
-        if st.button("💰 Revenue Report", use_container_width=True):
+        if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
             st.session_state.admin_view = "revenue"
             st.rerun()
     
@@ -1389,13 +1411,13 @@ def render_admin_user_management():
     # User actions - UPDATED WITH PASSWORD CHANGE
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        if st.button("🔄 Refresh User List", use_container_width=True):
+        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
             st.rerun()
     with col2:
-        if st.button("📧 Export User Data", use_container_width=True):
+        if st.button("📧 Export User Data", use_container_width=True, key="um_export"):
             st.success("User data export would be implemented here")
     with col3:
-        if st.button("🆕 Create Test User", use_container_width=True):
+        if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
             created_username, msg = user_manager.create_test_user("trial")
             if created_username:
                 st.success(msg)
@@ -1403,11 +1425,11 @@ def render_admin_user_management():
                 st.error(msg)
             st.rerun()
     with col4:
-        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True):
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
             st.session_state.show_bulk_delete = True
             st.rerun()
     with col5:  # NEW PASSWORD CHANGE BUTTON
-        if st.button("🔐 Change Admin Password", use_container_width=True):
+        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
             st.session_state.show_password_change = True
             st.rerun()
     
@@ -1465,7 +1487,7 @@ def render_admin_user_management():
     # Individual User Actions Section
     st.subheader("⚡ User Actions")
     
-    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()))
+    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()), key="user_select")
     
     if selected_user:
         if selected_user == "admin":
@@ -1474,7 +1496,7 @@ def render_admin_user_management():
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                if st.button("🔴 Deactivate User", use_container_width=True):
+                if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
                     user_manager.users[selected_user]["is_active"] = False
                     user_manager.users[selected_user]["active_sessions"] = 0
                     user_manager.save_users()
@@ -1482,21 +1504,21 @@ def render_admin_user_management():
                     st.rerun()
             
             with col2:
-                if st.button("🟢 Activate User", use_container_width=True):
+                if st.button("🟢 Activate User", use_container_width=True, key=f"activate_{selected_user}"):
                     user_manager.users[selected_user]["is_active"] = True
                     user_manager.save_users()
                     st.success(f"User '{selected_user}' activated!")
                     st.rerun()
             
             with col3:
-                if st.button("🔄 Reset Sessions", use_container_width=True):
+                if st.button("🔄 Reset Sessions", use_container_width=True, key=f"reset_{selected_user}"):
                     user_manager.users[selected_user]["active_sessions"] = 0
                     user_manager.save_users()
                     st.success(f"Sessions reset for '{selected_user}'!")
                     st.rerun()
             
             with col4:
-                if st.button("🗑️ Delete User", type="secondary", use_container_width=True):
+                if st.button("🗑️ Delete User", type="secondary", use_container_width=True, key=f"delete_{selected_user}"):
                     st.session_state.user_to_delete = selected_user
                     st.session_state.show_delete_confirmation = True
                     st.rerun()
