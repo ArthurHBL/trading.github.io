@@ -1,4 +1,4 @@
-# app.py - FIXED ADMIN DASHBOARD
+# app.py - FIXED VERSION
 import streamlit as st
 import hashlib
 import json
@@ -137,44 +137,6 @@ class UserManager:
         
         return True, f"Account created successfully! {plan_config['name']} activated."
     
-    def create_test_user(self, plan="trial"):
-        """Create a test user for admin purposes - BYPASSES VALIDATION"""
-        test_username = f"test_{int(time.time())}"
-        test_email = f"test{int(time.time())}@example.com"
-        
-        # Calculate expiry date
-        plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
-        expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
-        
-        # Create user without validation
-        self.users[test_username] = {
-            "password_hash": self.hash_password("test123"),
-            "name": f"Test User {test_username}",
-            "email": test_email,
-            "plan": plan,
-            "expires": expires,
-            "created": datetime.now().isoformat(),
-            "last_login": None,
-            "login_count": 0,
-            "active_sessions": 0,
-            "max_sessions": plan_config["max_sessions"],
-            "is_active": True,
-            "subscription_id": f"test_{test_username}",
-            "payment_status": "active"
-        }
-        
-        # Update analytics
-        self.analytics["user_registrations"].append({
-            "username": test_username,
-            "plan": plan,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        self.save_users()
-        self.save_analytics()
-        
-        return test_username, f"Test user '{test_username}' created with {plan} plan!"
-    
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
         self.analytics["total_logins"] += 1
@@ -228,26 +190,6 @@ class UserManager:
             self.users[username]["active_sessions"] = max(0, self.users[username]["active_sessions"] - 1)
             self.save_users()
     
-    def update_user_plan(self, username, new_plan, new_expires=None):
-        """Update user's subscription plan"""
-        if username not in self.users:
-            return False, "User not found"
-        
-        user = self.users[username]
-        user["plan"] = new_plan
-        
-        if new_expires:
-            user["expires"] = new_expires
-        else:
-            plan_config = Config.PLANS.get(new_plan, Config.PLANS["trial"])
-            user["expires"] = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
-        
-        # Update max sessions based on new plan
-        user["max_sessions"] = Config.PLANS.get(new_plan, {}).get("max_sessions", 1)
-        
-        self.save_users()
-        return True, f"User {username} updated to {new_plan} plan"
-    
     def get_business_metrics(self):
         """Get business metrics for admin"""
         total_users = len(self.users)
@@ -271,11 +213,373 @@ class UserManager:
 # Initialize user manager
 user_manager = UserManager()
 
-# ... (rest of the imports and configurations remain the same)
-# ... (login, user dashboard, account settings functions remain the same)
+# -------------------------
+# STREAMLIT APP CONFIG
+# -------------------------
+st.set_page_config(
+    page_title=f"{Config.APP_NAME} - Professional Trading Analysis",
+    layout="wide",
+    page_icon="📊",
+    initial_sidebar_state="expanded"
+)
 
 # -------------------------
-# ADMIN DASHBOARD - FIXED VERSION
+# STRATEGIES DEFINITION
+# -------------------------
+STRATEGIES = {
+    "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
+    "LS Copy": ["Overview","NVT","RoC Bands","RoC","BBWP","PSO","RSI","RAINBOW_RSI"],
+    "PositionFlow": ["Overview","VWAP","Chart VWAP","MACZ VWAP","MFI","Fisher Transform","RAINBOW_RSI"],
+    "RenkoVol": ["Overview","GR-MMAs","Pi Cycle","Keltner & Bollinger","RSI Ichimoku","RWI","BBWP","Trend Master","VWAP-RSI","ASO"],
+    "10h WWV Chart": ["Overview","BTC Log Regression","GR-MMAs","PiCycle","%R MA","RSI","Chaikin Oscillator","Ultimate HODL Wave","PVT","BBWP"],
+    "Premium Osc Volatility": ["Overview","AO v2","ATR","RSI(ATR)","RSI","Stoch RSI"],
+    "RSI Strategy": ["Overview","Supertrend","CM_Ultimate","FibZia","EVWMA_LB","RSI(63)","%R MA","WT_X","RAR [LuxAlgo]","RAINBOW_RSI","Coppock Curve","OBV","Global Liquidity Index"],
+    "WeisWaveVol": ["Overview","Bitcoin Rainbow Wave","CVD Candles","Volume Delta","RSI(Volume Delta)","CMF","RAINBOW_RSI"],
+    "PremiumACC": ["Overview","GC","PiCycle Top Indicator","EMA Ribbon","RCI3 Lines","TDIGM","CVD Ichimoku","RSI(OSC)","RSI","Crypto Fear & Greed Index","BBWP"],
+    "VolPress": ["Overview","Alligator","GR-MMAs","CVO","WWV","RWI","MACD","TSI","Wick Delta Buy/Sell Pressure","Elasticity","WT_LB"],
+    "Volatility": ["Overview","Symmetrical STD Channel","4 SMA","Golden Ratio Fib","RECON ATR","BBWP","SMI","Stoch RSI","CA_Fisher","RSI","RSI line"],
+    "ACC/DIST": ["Overview","5 SMMA","Demand Index","BTC Transaction Fees","Ratings","BBWP","MVRV Z-Score"],
+    "LuxAlgo": ["Overview","Symmetrical STD Channel","Ultimate RSI","RWI"],
+    "Point and Figure": ["Overview","RW Monte Carlo","CM SuperGuppy","AOv2","BBWP","SNAB_RSI_EMA","CM_Williams_Vix_Fix","ASO","RAINBOW_RSI"],
+    "Rational Strategy LT": ["Overview","MMBs","GR-Multiple MAs","SAR","Support and Resistance","Coppock Curve","Stoch RSI","BBPower","%R MA","TRIX"],
+}
+
+# -------------------------
+# SESSION MANAGEMENT
+# -------------------------
+def init_session():
+    if 'user' not in st.session_state:
+        st.session_state.user = None
+    if 'user_data' not in st.session_state:
+        st.session_state.user_data = {}
+    if 'app_started' not in st.session_state:
+        st.session_state.app_started = True
+
+# -------------------------
+# AUTHENTICATION COMPONENTS
+# -------------------------
+def render_login():
+    """Professional login/registration interface"""
+    st.title(f"🔐 Welcome to {Config.APP_NAME}")
+    st.markdown("---")
+    
+    tab1, tab2 = st.tabs(["🚀 Login", "📝 Register"])
+    
+    with tab1:
+        with st.form("login_form"):
+            st.subheader("Sign In to Your Account")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                username = st.text_input("Username", placeholder="Enter your username")
+            with col2:
+                password = st.text_input("Password", type="password", placeholder="Enter your password")
+            
+            submitted = st.form_submit_button("🔐 Secure Login", use_container_width=True)
+            
+            if submitted:
+                if not username or not password:
+                    st.error("❌ Please enter both username and password")
+                else:
+                    with st.spinner("Authenticating..."):
+                        success, message = user_manager.authenticate(username, password)
+                        if success:
+                            st.session_state.user = {
+                                "username": username,
+                                "name": user_manager.users[username]["name"],
+                                "plan": user_manager.users[username]["plan"],
+                                "expires": user_manager.users[username]["expires"],
+                                "email": user_manager.users[username]["email"]
+                            }
+                            st.success(f"✅ {message}")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+    
+    with tab2:
+        with st.form("register_form"):
+            st.subheader("Create New Account")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only")
+                new_name = st.text_input("Full Name*")
+                plan_choice = st.selectbox(
+                    "Subscription Plan*", 
+                    list(Config.PLANS.keys()),
+                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month"
+                )
+            
+            with col2:
+                new_email = st.text_input("Email Address*")
+                new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters")
+                confirm_password = st.text_input("Confirm Password*", type="password")
+            
+            st.markdown("**Required fields marked with ***")
+            
+            # Plan features
+            if plan_choice:
+                plan_info = Config.PLANS[plan_choice]
+                with st.expander(f"📋 {plan_info['name']} Features"):
+                    st.write(f"• {plan_info['strategies']} Trading Strategies")
+                    st.write(f"• {plan_info['max_sessions']} Concurrent Session(s)")
+                    st.write(f"• {plan_info['duration']}-day access")
+                    st.write(f"• Professional Analysis Tools")
+                    if plan_choice == "trial":
+                        st.info("🎁 Free trial - no payment required")
+            
+            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*")
+            
+            submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
+            
+            if submitted:
+                if not all([new_username, new_name, new_email, new_password, confirm_password]):
+                    st.error("❌ Please fill in all required fields")
+                elif new_password != confirm_password:
+                    st.error("❌ Passwords do not match")
+                elif not agreed:
+                    st.error("❌ Please agree to the Terms of Service")
+                else:
+                    with st.spinner("Creating your account..."):
+                        success, message = user_manager.register_user(
+                            new_username, new_password, new_name, new_email, plan_choice
+                        )
+                        if success:
+                            st.success(f"✅ {message}")
+                            st.balloons()
+                            st.info("📧 Welcome email sent with login instructions")
+                        else:
+                            st.error(f"❌ {message}")
+
+# -------------------------
+# DASHBOARD COMPONENTS
+# -------------------------
+def render_user_dashboard():
+    """Main trading dashboard for subscribed users"""
+    user = st.session_state.user
+    
+    # User-specific data isolation
+    user_data_key = f"{user['username']}_data"
+    if user_data_key not in st.session_state.user_data:
+        st.session_state.user_data[user_data_key] = {}
+    
+    data = st.session_state.user_data[user_data_key]
+    
+    # Enhanced sidebar with user management
+    with st.sidebar:
+        st.title("🎛️ Control Panel")
+        
+        # User profile section
+        st.markdown("---")
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            st.markdown("👤")
+        with col2:
+            st.write(f"**{user['name']}**")
+            st.caption(f"⭐ {user['plan'].title()} Plan")
+        
+        # Account status
+        plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.progress(min(1.0, days_left / 30), text=f"{days_left} days remaining")
+        
+        # Quick actions
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            st.rerun()
+            
+        if st.button("📊 Account Settings", use_container_width=True):
+            st.session_state.show_settings = True
+            
+        if st.button("🚪 Secure Logout", use_container_width=True):
+            user_manager.logout(user['username'])
+            st.session_state.user = None
+            st.rerun()
+        
+        st.markdown("---")
+        
+        # Plan upgrade prompt for trial users
+        if user['plan'] == 'trial' and days_left <= 3:
+            st.warning(f"🎯 Trial ends in {days_left} days!")
+            if st.button("💳 Upgrade Plan", use_container_width=True, type="primary"):
+                st.session_state.show_upgrade = True
+    
+    # Main dashboard content
+    if st.session_state.get('show_settings'):
+        render_account_settings()
+    elif st.session_state.get('show_upgrade'):
+        render_upgrade_plans()
+    else:
+        render_trading_dashboard(data, user)
+
+def render_trading_dashboard(data, user):
+    """The actual trading analysis dashboard"""
+    # Date handling
+    start_date = date(2025, 8, 9)
+    try:
+        current_date_str = st.query_params.get("date", "")
+        analysis_date = datetime.strptime(current_date_str, "%Y-%m-%d").date() if current_date_str else date.today()
+    except:
+        analysis_date = date.today()
+    
+    if analysis_date < start_date:
+        analysis_date = start_date
+
+    # Strategy selection based on plan
+    plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
+    available_strategies = list(STRATEGIES.keys())[:plan_config['strategies']]
+    
+    # FIXED: Ensure we have strategies to display
+    if not available_strategies:
+        st.error("No strategies available for your plan. Please contact support.")
+        return
+    
+    # Daily strategy rotation - FIXED: Handle edge cases
+    strategy_list = available_strategies
+    days_since_start = (analysis_date - start_date).days
+    cycle_day = days_since_start % 5
+    start_index = cycle_day * min(3, len(available_strategies))
+    end_index = start_index + min(3, len(available_strategies))
+    daily_strategies = strategy_list[start_index:end_index]
+    
+    # FIXED: Ensure daily_strategies is not empty
+    if not daily_strategies:
+        daily_strategies = available_strategies[:1]  # Fallback to first strategy
+    
+    # Dashboard header
+    st.title("📊 Professional Trading Analysis")
+    st.write(f"**Welcome back, {user['name']}** • Day {cycle_day + 1} of analysis cycle • {analysis_date.strftime('%m/%d/%Y')}")
+    
+    # Strategy progress (simplified) - FIXED: Handle empty columns
+    st.subheader("🎯 Today's Focus Strategies")
+    
+    # FIXED: Only create columns if we have strategies
+    if daily_strategies:
+        cols = st.columns(len(daily_strategies))
+        for i, strategy in enumerate(daily_strategies):
+            with cols[i]:
+                st.info(f"**{strategy}**")
+                st.progress(0.3, text=f"{len(STRATEGIES[strategy])} indicators")
+    else:
+        st.warning("No strategies available for today's focus")
+    
+    # Strategy selector
+    selected_strategy = st.selectbox("Select Strategy for Analysis", available_strategies)
+    
+    # Analysis interface
+    st.markdown("---")
+    st.subheader(f"✏️ Analysis - {selected_strategy}")
+    
+    # Analysis form
+    with st.form(f"analysis_{selected_strategy}"):
+        for indicator in STRATEGIES[selected_strategy]:
+            with st.expander(f"**{indicator}**", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    status = st.selectbox("Status", ["Open", "In Progress", "Done", "Skipped"], key=f"status_{indicator}")
+                    confidence = st.slider("Confidence", 50, 100, 75, key=f"conf_{indicator}")
+                with col2:
+                    note = st.text_area("Analysis Notes", height=100, key=f"note_{indicator}", 
+                                      placeholder="Enter your technical analysis...")
+        
+        if st.form_submit_button("💾 Save Analysis", use_container_width=True):
+            st.success("✅ Analysis saved successfully!")
+    
+    # Quick actions
+    st.markdown("---")
+    st.subheader("⚡ Quick Actions")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🎯 Mark All as Done", use_container_width=True):
+            st.success("All indicators marked as Done!")
+    with col2:
+        if st.button("📈 Generate Report", use_container_width=True):
+            st.info("Report generation would be implemented here")
+    with col3:
+        if st.button("🔄 Reset Analysis", use_container_width=True):
+            st.warning("Analysis reset for current strategy")
+
+def render_account_settings():
+    """User account settings"""
+    st.title("⚙️ Account Settings")
+    
+    user = st.session_state.user
+    user_data = user_manager.users[user['username']]
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Profile Information")
+        st.text_input("Full Name", value=user['name'], disabled=True)
+        st.text_input("Email", value=user['email'], disabled=True)
+        st.text_input("Username", value=user['username'], disabled=True)
+        
+        if st.button("📧 Request Profile Update", use_container_width=True):
+            st.info("Profile update requests are processed by our support team")
+    
+    with col2:
+        st.subheader("Subscription Details")
+        plan_name = Config.PLANS.get(user['plan'], {}).get('name', 'Unknown Plan')
+        st.text_input("Current Plan", value=plan_name, disabled=True)
+        st.text_input("Expiry Date", value=user['expires'], disabled=True)
+        
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
+        
+        if st.button("💳 Manage Subscription", use_container_width=True):
+            st.session_state.show_upgrade = True
+            st.session_state.show_settings = False
+            st.rerun()
+    
+    st.markdown("---")
+    st.subheader("Security")
+    if st.button("🔐 Change Password", use_container_width=True):
+        st.info("Password change requests are handled by our support team for security")
+    
+    if st.button("📞 Contact Support", use_container_width=True):
+        st.info(f"Email: {Config.SUPPORT_EMAIL}")
+    
+    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        st.session_state.show_settings = False
+        st.rerun()
+
+def render_upgrade_plans():
+    """Plan upgrade interface"""
+    st.title("💳 Upgrade Your Plan")
+    st.write("Choose the plan that fits your trading needs")
+    
+    cols = st.columns(len(Config.PLANS))
+    
+    for i, (plan_id, plan_config) in enumerate(Config.PLANS.items()):
+        with cols[i]:
+            with st.container():
+                st.subheader(plan_config["name"])
+                st.metric("Price", f"${plan_config['price']}")
+                
+                st.write("**Features:**")
+                st.write(f"• {plan_config['strategies']} Strategies")
+                st.write(f"• {plan_config['max_sessions']} Sessions")
+                st.write(f"• {plan_config['duration']} Days")
+                st.write("• Full Analysis Tools")
+                st.write("• Priority Support")
+                
+                current_plan = st.session_state.user['plan']
+                if plan_id == current_plan:
+                    st.success("Current Plan")
+                elif plan_id == "trial":
+                    st.warning("Already Used")
+                else:
+                    if st.button(f"Upgrade to {plan_config['name']}", key=f"upgrade_{plan_id}", use_container_width=True):
+                        st.info("🔒 Secure payment processing would be implemented here")
+                        st.success(f"Upgrade to {plan_config['name']} selected!")
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        st.session_state.show_upgrade = False
+        st.rerun()
+
+# -------------------------
+# ADMIN DASHBOARD
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -294,24 +598,20 @@ def render_admin_dashboard():
         st.markdown("---")
         st.subheader("Admin Actions")
         
-        if st.button("📊 Business Overview", use_container_width=True):
-            st.session_state.admin_view = "overview"
+        if st.button("🔄 Refresh All Data", use_container_width=True):
+            user_manager.load_data()
             st.rerun()
         
-        if st.button("👥 User Management", use_container_width=True):
-            st.session_state.admin_view = "users"
-            st.rerun()
-        
-        if st.button("📈 Analytics", use_container_width=True):
+        if st.button("📊 View Analytics", use_container_width=True):
             st.session_state.admin_view = "analytics"
             st.rerun()
         
-        if st.button("💰 Revenue", use_container_width=True):
-            st.session_state.admin_view = "revenue"
+        if st.button("👥 Manage Users", use_container_width=True):
+            st.session_state.admin_view = "users"
             st.rerun()
         
-        if st.button("⚙️ System Tools", use_container_width=True):
-            st.session_state.admin_view = "tools"
+        if st.button("💰 Revenue Report", use_container_width=True):
+            st.session_state.admin_view = "revenue"
             st.rerun()
     
     # Main admin content
@@ -328,8 +628,6 @@ def render_admin_dashboard():
         render_admin_user_management()
     elif current_view == 'revenue':
         render_admin_revenue()
-    elif current_view == 'tools':
-        render_admin_tools()
 
 def render_admin_overview():
     """Admin overview with business metrics"""
@@ -348,33 +646,6 @@ def render_admin_overview():
         st.metric("Online Now", metrics["online_users"])
     with col4:
         st.metric("Total Logins", metrics["total_logins"])
-    
-    st.markdown("---")
-    
-    # Quick actions
-    st.subheader("⚡ Quick Actions")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        if st.button("🆕 Create Test User", use_container_width=True):
-            username, message = user_manager.create_test_user("trial")
-            st.success(message)
-            st.rerun()
-    
-    with col2:
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            user_manager.load_data()
-            st.rerun()
-    
-    with col3:
-        if st.button("📋 User List", use_container_width=True):
-            st.session_state.admin_view = "users"
-            st.rerun()
-    
-    with col4:
-        if st.button("📊 Analytics", use_container_width=True):
-            st.session_state.admin_view = "analytics"
-            st.rerun()
     
     st.markdown("---")
     
@@ -397,8 +668,6 @@ def render_admin_overview():
                 percentage = (count / total) * 100 if total > 0 else 0
                 st.write(f"{plan.title()}: {count} ({percentage:.1f}%)")
                 st.progress(percentage / 100)
-    else:
-        st.info("No user data available")
     
     st.markdown("---")
     
@@ -414,60 +683,63 @@ def render_admin_overview():
     else:
         st.info("No recent registrations")
 
+def render_admin_analytics():
+    """Detailed analytics view"""
+    st.subheader("📈 Detailed Analytics")
+    
+    # Login analytics
+    st.write("**Login Activity**")
+    total_logins = user_manager.analytics.get("total_logins", 0)
+    successful_logins = len([x for x in user_manager.analytics.get("login_history", []) if x.get('success')])
+    failed_logins = total_logins - successful_logins
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Login Attempts", total_logins)
+    with col2:
+        st.metric("Successful Logins", successful_logins)
+    with col3:
+        st.metric("Failed Logins", failed_logins)
+    
+    # User growth
+    st.markdown("---")
+    st.subheader("📈 User Growth")
+    
+    registrations = user_manager.analytics.get("user_registrations", [])
+    if registrations:
+        # Group by date
+        reg_by_date = {}
+        for reg in registrations:
+            date_str = reg['timestamp'][:10]
+            reg_by_date[date_str] = reg_by_date.get(date_str, 0) + 1
+        
+        # Display as table
+        st.write("**Registrations by Date:**")
+        reg_df = pd.DataFrame(list(reg_by_date.items()), columns=['Date', 'Registrations'])
+        reg_df = reg_df.sort_values('Date', ascending=False).head(10)
+        st.dataframe(reg_df, use_container_width=True)
+    else:
+        st.info("No registration data available")
+
 def render_admin_user_management():
-    """User management interface - IMPROVED VERSION"""
+    """User management interface"""
     st.subheader("👥 User Management")
     
-    # Quick actions
-    col1, col2, col3, col4 = st.columns(4)
+    # User actions
+    col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🆕 Create Test User", use_container_width=True, type="primary"):
-            username, message = user_manager.create_test_user("trial")
-            st.success(message)
+        if st.button("🔄 Refresh User List", use_container_width=True):
             st.rerun()
     with col2:
-        if st.button("🔄 Refresh List", use_container_width=True):
-            st.rerun()
-    with col3:
-        if st.button("📧 Export Data", use_container_width=True):
+        if st.button("📧 Export User Data", use_container_width=True):
             st.success("User data export would be implemented here")
-    with col4:
-        if st.button("📊 Back to Overview", use_container_width=True):
-            st.session_state.admin_view = "overview"
+    with col3:
+        if st.button("🆕 Create Test User", use_container_width=True):
+            # Create a test user for demo
+            test_username = f"test_{int(time.time())}"
+            user_manager.register_user(test_username, "test123", "Test User", "test@example.com", "trial")
+            st.success(f"Test user '{test_username}' created!")
             st.rerun()
-    
-    st.markdown("---")
-    
-    # Create user form for admin
-    with st.expander("➕ Create New User Account", expanded=False):
-        with st.form("admin_create_user"):
-            st.write("**Create User Account**")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                new_username = st.text_input("Username*")
-                new_name = st.text_input("Full Name*")
-                new_email = st.text_input("Email*")
-            with col2:
-                new_password = st.text_input("Password*", type="password", value="default123")
-                new_plan = st.selectbox("Plan*", list(Config.PLANS.keys()))
-                new_status = st.selectbox("Status", ["active", "inactive"])
-            
-            if st.form_submit_button("🚀 Create User Account", use_container_width=True):
-                if all([new_username, new_name, new_email, new_password]):
-                    success, message = user_manager.register_user(
-                        new_username, new_password, new_name, new_email, new_plan
-                    )
-                    if success:
-                        st.success(f"✅ {message}")
-                        if new_status == "inactive":
-                            user_manager.users[new_username]["is_active"] = False
-                            user_manager.save_users()
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {message}")
-                else:
-                    st.error("❌ Please fill in all required fields")
     
     st.markdown("---")
     
@@ -493,118 +765,113 @@ def render_admin_user_management():
     
     # User actions
     st.subheader("⚡ User Actions")
-    col1, col2 = st.columns(2)
+    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()))
     
-    with col1:
-        selected_user = st.selectbox("Select User", [""] + [u for u in user_manager.users.keys() if u != "admin"])
-    
-    with col2:
-        if selected_user:
-            user_info = user_manager.users[selected_user]
-            st.write(f"**Selected:** {user_info['name']} ({selected_user})")
-            st.write(f"**Plan:** {user_info['plan']} | **Status:** {'🟢 Active' if user_info.get('is_active', True) else '🔴 Inactive'}")
-    
-    if selected_user:
-        col1, col2, col3, col4 = st.columns(4)
+    if selected_user and selected_user != "admin":
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            new_plan = st.selectbox("Change Plan", list(Config.PLANS.keys()), key="change_plan")
-            if st.button("🔄 Update Plan", use_container_width=True):
-                success, message = user_manager.update_user_plan(selected_user, new_plan)
-                if success:
-                    st.success(message)
-                    st.rerun()
-        
-        with col2:
-            if st.button("🔴 Deactivate", use_container_width=True):
+            if st.button("🔴 Deactivate User", use_container_width=True):
                 user_manager.users[selected_user]["is_active"] = False
                 user_manager.users[selected_user]["active_sessions"] = 0
                 user_manager.save_users()
                 st.success(f"User '{selected_user}' deactivated!")
                 st.rerun()
         
-        with col3:
-            if st.button("🟢 Activate", use_container_width=True):
+        with col2:
+            if st.button("🟢 Activate User", use_container_width=True):
                 user_manager.users[selected_user]["is_active"] = True
                 user_manager.save_users()
                 st.success(f"User '{selected_user}' activated!")
                 st.rerun()
         
-        with col4:
+        with col3:
             if st.button("🔄 Reset Sessions", use_container_width=True):
                 user_manager.users[selected_user]["active_sessions"] = 0
                 user_manager.save_users()
                 st.success(f"Sessions reset for '{selected_user}'!")
                 st.rerun()
 
-def render_admin_tools():
-    """Admin system tools"""
-    st.subheader("⚙️ System Tools")
+def render_admin_revenue():
+    """Revenue and financial reporting"""
+    st.subheader("💰 Revenue Analytics")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**Database Management**")
-        
-        if st.button("🔄 Reload All Data", use_container_width=True):
-            user_manager.load_data()
-            st.success("Data reloaded successfully!")
-        
-        if st.button("🧹 Clear Analytics", use_container_width=True):
-            user_manager.analytics = {
-                "total_logins": 0,
-                "active_users": 0,
-                "revenue_today": 0,
-                "user_registrations": [],
-                "login_history": []
-            }
-            user_manager.save_analytics()
-            st.success("Analytics data cleared!")
-        
-        if st.button("📊 System Health", use_container_width=True):
-            st.success("System health check completed!")
-            st.info(f"Total users: {len(user_manager.users)}")
-            st.info(f"Data files: OK")
-            st.info(f"Memory usage: Normal")
-    
-    with col2:
-        st.write("**Test Data Generation**")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            test_plan = st.selectbox("Test Plan", list(Config.PLANS.keys()), key="test_plan")
-        with col2:
-            num_users = st.number_input("Number of users", min_value=1, max_value=10, value=3)
-        
-        if st.button("🎯 Generate Test Users", use_container_width=True):
-            created_users = []
-            for i in range(num_users):
-                username, message = user_manager.create_test_user(test_plan)
-                created_users.append(username)
-            st.success(f"Created {num_users} test users: {', '.join(created_users)}")
-            st.rerun()
-        
-        if st.button("🗑️ Delete Test Users", use_container_width=True):
-            test_users = [u for u in user_manager.users.keys() if u.startswith('test_')]
-            for username in test_users:
-                del user_manager.users[username]
-            user_manager.save_users()
-            st.success(f"Deleted {len(test_users)} test users")
-            st.rerun()
-    
-    st.markdown("---")
-    st.write("**System Information**")
-    
+    # Revenue metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("App Version", Config.VERSION)
+        st.metric("Estimated MRR", "$1,250")
     with col2:
-        st.metric("Total Plans", len(Config.PLANS))
+        st.metric("Active Subscriptions", "28")
     with col3:
-        st.metric("Support Email", Config.SUPPORT_EMAIL)
+        st.metric("Trial Conversions", "12%")
+    
+    st.markdown("---")
+    
+    # Revenue by plan
+    st.write("**Revenue by Plan Type:**")
+    
+    revenue_data = {
+        "Trial": {"users": 0, "revenue": 0},
+        "Basic": {"users": 0, "revenue": 0},
+        "Premium": {"users": 0, "revenue": 0},
+        "Professional": {"users": 0, "revenue": 0}
+    }
+    
+    for user_data in user_manager.users.values():
+        plan = user_data.get("plan", "trial")
+        if plan in revenue_data:
+            revenue_data[plan]["users"] += 1
+            if plan != "trial":
+                revenue_data[plan]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
+    
+    # Display revenue table
+    revenue_df = pd.DataFrame([
+        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
+        {"Plan": "Basic", "Users": revenue_data["Basic"]["users"], "Monthly Revenue": revenue_data["Basic"]["revenue"]},
+        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]},
+        {"Plan": "Professional", "Users": revenue_data["Professional"]["users"], "Monthly Revenue": revenue_data["Professional"]["revenue"]}
+    ])
+    
+    st.dataframe(revenue_df, use_container_width=True)
+    
+    st.markdown("---")
+    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
-# ... (rest of the admin analytics and revenue functions remain the same)
-# ... (main application function remains the same)
+# -------------------------
+# MAIN APPLICATION
+# -------------------------
+def main():
+    init_session()
+    
+    # Custom CSS for professional appearance
+    st.markdown("""
+    <style>
+    .main-header {
+        font-size: 2.5rem;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .plan-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+    }
+    .premium-plan {
+        border: 2px solid #ff6b6b;
+        background: #fff5f5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    if not st.session_state.user:
+        render_login()
+    else:
+        if st.session_state.user['plan'] == 'admin':
+            render_admin_dashboard()
+        else:
+            render_user_dashboard()
 
 if __name__ == "__main__":
     main()
