@@ -1,4 +1,4 @@
-# app.py - COMPLETE WORKING VERSION WITH ORIGINAL ADMIN DASHBOARD
+# app.py - ENHANCED WITH USERNAME/PASSWORD CHANGE FEATURES
 import streamlit as st
 import hashlib
 import json
@@ -43,6 +43,14 @@ def init_session():
         st.session_state.show_upgrade = False
     if 'selected_strategy' not in st.session_state:
         st.session_state.selected_strategy = None
+    if 'show_username_change' not in st.session_state:
+        st.session_state.show_username_change = False
+    if 'user_to_change_username' not in st.session_state:
+        st.session_state.user_to_change_username = None
+    if 'show_user_password_change' not in st.session_state:
+        st.session_state.show_user_password_change = False
+    if 'user_to_change_password' not in st.session_state:
+        st.session_state.user_to_change_password = None
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -88,7 +96,8 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "username_changes": []
             }
             self.save_analytics()
     
@@ -115,7 +124,8 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "username_changes": []
             }
     
     def create_default_admin(self):
@@ -318,6 +328,77 @@ class UserManager:
             return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
         else:
             return False, "Error saving plan change"
+
+    def change_username(self, old_username, new_username, changed_by="admin"):
+        """Change a user's username"""
+        if old_username not in self.users:
+            return False, "User not found"
+        
+        if new_username in self.users:
+            return False, "New username already exists"
+        
+        if not re.match("^[a-zA-Z0-9_]{3,20}$", new_username):
+            return False, "Username must be 3-20 characters (letters, numbers, _)"
+        
+        # Store user data and remove old entry
+        user_data = self.users[old_username]
+        del self.users[old_username]
+        
+        # Create new entry with new username
+        self.users[new_username] = user_data
+        
+        # Track username change in analytics
+        if 'username_changes' not in self.analytics:
+            self.analytics['username_changes'] = []
+        
+        self.analytics['username_changes'].append({
+            "old_username": old_username,
+            "new_username": new_username,
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": changed_by
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Username changed from '{old_username}' to '{new_username}'"
+        else:
+            # Rollback in case of error
+            self.users[old_username] = user_data
+            if new_username in self.users:
+                del self.users[new_username]
+            return False, "Error saving username change"
+
+    def change_user_password(self, username, new_password, changed_by="admin"):
+        """Change a user's password (admin function)"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        if len(new_password) < 8:
+            return False, "Password must be at least 8 characters"
+        
+        user_data = self.users[username]
+        
+        # Check if new password is same as current
+        if self.verify_password(new_password, user_data["password_hash"]):
+            return False, "New password cannot be the same as current password"
+        
+        # Update password
+        user_data["password_hash"] = self.hash_password(new_password)
+        
+        # Track password change in analytics
+        if 'password_changes' not in self.analytics:
+            self.analytics['password_changes'] = []
+        
+        self.analytics['password_changes'].append({
+            "username": username,
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": changed_by,
+            "type": "admin_forced_change"
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Password for '{username}' has been changed successfully"
+        else:
+            return False, "Error saving password change"
 
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
@@ -620,7 +701,188 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# PASSWORD CHANGE INTERFACE
+# USERNAME CHANGE INTERFACE
+# -------------------------
+def render_username_change_interface():
+    """Interface for changing a user's username"""
+    username = st.session_state.get('user_to_change_username')
+    
+    if not username:
+        st.error("No user selected for username change")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_username_change = False
+            st.rerun()
+        return
+    
+    if username not in user_manager.users:
+        st.error("User not found")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_username_change = False
+            st.rerun()
+        return
+    
+    user_data = user_manager.users[username]
+    
+    st.subheader(f"👤 Change Username: {username}")
+    
+    with st.form("username_change_form"):
+        st.info(f"**Changing username for:** {user_data['name']} ({user_data['email']})")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.text_input("Current Username", value=username, disabled=True)
+        with col2:
+            new_username = st.text_input("New Username*", placeholder="Enter new username (3-20 chars)")
+        
+        st.markdown("**Username Requirements:**")
+        st.markdown("- 3-20 characters long")
+        st.markdown("- Letters, numbers, and underscores only")
+        st.markdown("- Must be unique")
+        
+        # Show username availability
+        if new_username:
+            if new_username in user_manager.users and new_username != username:
+                st.error("❌ Username already taken")
+            elif not re.match("^[a-zA-Z0-9_]{3,20}$", new_username):
+                st.error("❌ Invalid username format")
+            else:
+                st.success("✅ Username available")
+        
+        reason = st.text_area("Reason for change (optional):", 
+                            placeholder="e.g., User requested change, Security concern...")
+        
+        submitted = st.form_submit_button("✅ Change Username", use_container_width=True)
+        
+        if submitted:
+            if not new_username:
+                st.error("❌ Please enter a new username")
+                return
+            
+            if new_username == username:
+                st.error("❌ New username cannot be the same as current username")
+                return
+            
+            success, message = user_manager.change_username(
+                username, 
+                new_username, 
+                st.session_state.user['username']
+            )
+            
+            if success:
+                st.success("✅ " + message)
+                st.info("🔄 The user will need to use the new username for their next login.")
+                
+                # Add a small delay and return to user management
+                time.sleep(2)
+                st.session_state.show_username_change = False
+                st.session_state.user_to_change_username = None
+                st.rerun()
+            else:
+                st.error("❌ " + message)
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to User Management", use_container_width=True):
+        st.session_state.show_username_change = False
+        st.session_state.user_to_change_username = None
+        st.rerun()
+
+# -------------------------
+# USER PASSWORD CHANGE INTERFACE
+# -------------------------
+def render_user_password_change_interface():
+    """Interface for changing a user's password (admin function)"""
+    username = st.session_state.get('user_to_change_password')
+    
+    if not username:
+        st.error("No user selected for password change")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_user_password_change = False
+            st.rerun()
+        return
+    
+    if username not in user_manager.users:
+        st.error("User not found")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_user_password_change = False
+            st.rerun()
+        return
+    
+    user_data = user_manager.users[username]
+    
+    st.subheader(f"🔐 Change Password: {username}")
+    
+    with st.form("user_password_change_form"):
+        st.info(f"**Changing password for:** {user_data['name']} ({user_data['email']})")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            new_password = st.text_input("New Password*", type="password", 
+                                       placeholder="Enter new password (min 8 chars)")
+        with col2:
+            confirm_password = st.text_input("Confirm New Password*", type="password", 
+                                           placeholder="Re-enter new password")
+        
+        # Password strength requirements
+        st.markdown("**Password Requirements:**")
+        st.markdown("- Minimum 8 characters")
+        st.markdown("- Include letters and numbers")
+        st.markdown("- Avoid common passwords")
+        
+        # Show password strength
+        if new_password:
+            if len(new_password) < 8:
+                st.error("❌ Password too short (min 8 characters)")
+            elif not re.search(r"[A-Za-z]", new_password) or not re.search(r"\d", new_password):
+                st.warning("⚠️ Consider using both letters and numbers")
+            else:
+                st.success("✅ Password meets requirements")
+        
+        reason = st.text_area("Reason for change (optional):", 
+                            placeholder="e.g., Security reset, User forgot password...")
+        
+        submitted = st.form_submit_button("✅ Change User Password", use_container_width=True)
+        
+        if submitted:
+            # Validation
+            if not new_password or not confirm_password:
+                st.error("❌ Please fill in all password fields")
+                return
+            
+            if new_password != confirm_password:
+                st.error("❌ Passwords do not match")
+                return
+            
+            if len(new_password) < 8:
+                st.error("❌ Password must be at least 8 characters long")
+                return
+            
+            # Change password
+            success, message = user_manager.change_user_password(
+                username, 
+                new_password, 
+                st.session_state.user['username']
+            )
+            
+            if success:
+                st.success("✅ " + message)
+                st.info("🔒 The user will need to use the new password for their next login.")
+                
+                # Add a small delay and return to user management
+                time.sleep(2)
+                st.session_state.show_user_password_change = False
+                st.session_state.user_to_change_password = None
+                st.rerun()
+            else:
+                st.error("❌ " + message)
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to User Management", use_container_width=True):
+        st.session_state.show_user_password_change = False
+        st.session_state.user_to_change_password = None
+        st.rerun()
+
+# -------------------------
+# ADMIN PASSWORD CHANGE INTERFACE
 # -------------------------
 def render_password_change_interface():
     """Interface for changing admin password"""
@@ -1026,6 +1288,151 @@ def render_plan_management_interface(username):
         if st.button("⬅️ Back to User Management", key="back_bottom", use_container_width=True):
             st.session_state.manage_user_plan = None
             st.rerun()
+
+# -------------------------
+# ENHANCED ADMIN USER MANAGEMENT
+# -------------------------
+def render_admin_user_management():
+    """User management interface with enhanced username/password change functionality"""
+    st.subheader("👥 User Management")
+    
+    # User actions - ENHANCED WITH USERNAME/PASSWORD CHANGE
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
+            st.rerun()
+    with col2:
+        if st.button("📧 Export User Data", use_container_width=True, key="um_export"):
+            st.success("User data export would be implemented here")
+    with col3:
+        if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
+            created_username, msg = user_manager.create_test_user("trial")
+            if created_username:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+    with col4:
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
+            st.session_state.show_bulk_delete = True
+            st.rerun()
+    with col5:
+        if st.button("👤 Change Username", use_container_width=True, key="um_username"):
+            st.session_state.show_username_change = True
+            st.rerun()
+    with col6:
+        if st.button("🔐 Change Password", use_container_width=True, key="um_password"):
+            st.session_state.show_user_password_change = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Enhanced User table with quick actions
+    st.write("**All Users - Quick Management:**")
+    
+    # Display users with enhanced management options
+    for username, user_data in user_manager.users.items():
+        with st.container():
+            col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 2, 2, 1, 1, 1])
+            
+            with col1:
+                st.write(f"**{username}**")
+                st.caption(user_data['name'])
+            
+            with col2:
+                st.write(user_data['email'])
+            
+            with col3:
+                current_plan = user_data['plan']
+                plan_display = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+                st.write(f"`{plan_display}`")
+            
+            with col4:
+                expires = user_data['expires']
+                days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
+                st.write(f"Expires: {expires}")
+                st.caption(f"{days_left} days left")
+            
+            with col5:
+                if username != "admin":
+                    # Quick upgrade to premium
+                    if current_plan != "premium":
+                        if st.button("⭐", key=f"quick_premium_{username}", help="Upgrade to Premium"):
+                            success, message = user_manager.change_user_plan(username, "premium")
+                            if success:
+                                st.success(message)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(message)
+                    else:
+                        st.write("⭐")
+            
+            with col6:
+                if username != "admin":
+                    if st.button("👤", key=f"change_user_{username}", help="Change Username"):
+                        st.session_state.user_to_change_username = username
+                        st.session_state.show_username_change = True
+                        st.rerun()
+            
+            with col7:
+                if username != "admin":
+                    if st.button("🔐", key=f"change_pass_{username}", help="Change Password"):
+                        st.session_state.user_to_change_password = username
+                        st.session_state.show_user_password_change = True
+                        st.rerun()
+    
+    st.markdown("---")
+    
+    # Individual User Actions Section
+    st.subheader("⚡ User Actions")
+    
+    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()), key="user_select")
+    
+    if selected_user:
+        if selected_user == "admin":
+            st.warning("⚠️ Admin account cannot be modified")
+        else:
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
+            
+            with col1:
+                if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
+                    user_manager.users[selected_user]["is_active"] = False
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' deactivated!")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🟢 Activate User", use_container_width=True, key=f"activate_{selected_user}"):
+                    user_manager.users[selected_user]["is_active"] = True
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' activated!")
+                    st.rerun()
+            
+            with col3:
+                if st.button("🔄 Reset Sessions", use_container_width=True, key=f"reset_{selected_user}"):
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"Sessions reset for '{selected_user}'!")
+                    st.rerun()
+            
+            with col4:
+                if st.button("📋 Manage Plan", use_container_width=True, key=f"manage_{selected_user}"):
+                    st.session_state.manage_user_plan = selected_user
+                    st.rerun()
+            
+            with col5:
+                if st.button("👤 Change Username", use_container_width=True, key=f"username_{selected_user}"):
+                    st.session_state.user_to_change_username = selected_user
+                    st.session_state.show_username_change = True
+                    st.rerun()
+            
+            with col6:
+                if st.button("🔐 Change Password", use_container_width=True, key=f"password_{selected_user}"):
+                    st.session_state.user_to_change_password = selected_user
+                    st.session_state.show_user_password_change = True
+                    st.rerun()
 
 # -------------------------
 # ENHANCED PREMIUM USER DASHBOARD
@@ -1727,7 +2134,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - ORIGINAL VERSION RESTORED
+# ADMIN DASHBOARD - ENHANCED WITH USERNAME/PASSWORD CHANGE
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -1759,6 +2166,8 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_username_change = False
+            st.session_state.show_user_password_change = False
             st.session_state.admin_view = "analytics"
             st.rerun()
         
@@ -1768,6 +2177,8 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_username_change = False
+            st.session_state.show_user_password_change = False
             st.session_state.admin_view = "users"
             st.rerun()
         
@@ -1776,6 +2187,8 @@ def render_admin_dashboard():
             st.session_state.show_delete_confirmation = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_username_change = False
+            st.session_state.show_user_password_change = False
             st.session_state.admin_view = "users"
             st.session_state.show_bulk_delete = True
             st.rerun()
@@ -1786,11 +2199,23 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_username_change = False
+            st.session_state.show_user_password_change = False
             st.session_state.admin_view = "revenue"
             st.rerun()
     
     # Main admin content
     st.title("👑 Business Administration Dashboard")
+    
+    # Show username change interface if needed
+    if st.session_state.get('show_username_change'):
+        render_username_change_interface()
+        return
+    
+    # Show user password change interface if needed
+    if st.session_state.get('show_user_password_change'):
+        render_user_password_change_interface()
+        return
     
     # Show delete confirmation modal if needed
     if st.session_state.get('show_delete_confirmation'):
@@ -1882,16 +2307,32 @@ def render_admin_overview():
             st.info("No recent registrations")
     
     with col2:
-        st.subheader("🔄 Recent Plan Changes")
-        recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
-        if recent_plan_changes:
-            for change in reversed(recent_plan_changes):
-                old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
-                new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
-                st.write(f"• {change['username']}: {old_plan} → {new_plan}")
-                st.caption(f"{change['timestamp'][:16]}")
+        st.subheader("🔄 Recent Changes")
+        recent_changes = []
+        
+        # Add username changes
+        username_changes = user_manager.analytics.get("username_changes", [])[-3:]
+        for change in username_changes:
+            recent_changes.append(f"👤 {change['old_username']} → {change['new_username']}")
+        
+        # Add password changes
+        password_changes = user_manager.analytics.get("password_changes", [])[-3:]
+        for change in password_changes:
+            if change.get('type') == 'admin_forced_change':
+                recent_changes.append(f"🔐 {change['username']} password reset")
+        
+        # Add plan changes
+        plan_changes = user_manager.analytics.get("plan_changes", [])[-3:]
+        for change in plan_changes:
+            old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
+            new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
+            recent_changes.append(f"📋 {change['username']}: {old_plan} → {new_plan}")
+        
+        if recent_changes:
+            for change in reversed(recent_changes[-5:]):  # Show last 5 changes
+                st.write(f"• {change}")
         else:
-            st.info("No recent plan changes")
+            st.info("No recent changes")
 
 def render_admin_analytics():
     """Detailed analytics view"""
@@ -1910,6 +2351,32 @@ def render_admin_analytics():
         st.metric("Successful Logins", successful_logins)
     with col3:
         st.metric("Failed Logins", failed_logins)
+    
+    # User changes analytics
+    st.markdown("---")
+    st.subheader("🔄 User Account Changes")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        username_changes = len(user_manager.analytics.get("username_changes", []))
+        st.metric("Username Changes", username_changes)
+    
+    with col2:
+        password_changes = len([x for x in user_manager.analytics.get("password_changes", []) if x.get('type') == 'admin_forced_change'])
+        st.metric("Admin Password Resets", password_changes)
+    
+    with col3:
+        plan_changes = len(user_manager.analytics.get("plan_changes", []))
+        st.metric("Plan Changes", plan_changes)
+    
+    # Recent username changes
+    username_changes = user_manager.analytics.get("username_changes", [])
+    if username_changes:
+        st.markdown("---")
+        st.subheader("👤 Recent Username Changes")
+        for change in reversed(username_changes[-5:]):
+            st.write(f"• **{change['old_username']}** → **{change['new_username']}**")
+            st.caption(f"By: {change['changed_by']} | {change['timestamp'][:16]}")
     
     # User growth
     st.markdown("---")
@@ -1930,125 +2397,6 @@ def render_admin_analytics():
         st.dataframe(reg_df, use_container_width=True)
     else:
         st.info("No registration data available")
-
-def render_admin_user_management():
-    """User management interface with delete and plan management functionality"""
-    st.subheader("👥 User Management")
-    
-    # User actions - UPDATED WITH PASSWORD CHANGE
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
-            st.rerun()
-    with col2:
-        if st.button("📧 Export User Data", use_container_width=True, key="um_export"):
-            st.success("User data export would be implemented here")
-    with col3:
-        if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
-            created_username, msg = user_manager.create_test_user("trial")
-            if created_username:
-                st.success(msg)
-            else:
-                st.error(msg)
-            st.rerun()
-    with col4:
-        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
-            st.session_state.show_bulk_delete = True
-            st.rerun()
-    with col5:  # NEW PASSWORD CHANGE BUTTON
-        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
-            st.session_state.show_password_change = True
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Enhanced User table with quick actions
-    st.write("**All Users - Quick Plan Management:**")
-    
-    # Display users with quick plan change options
-    for username, user_data in user_manager.users.items():
-        with st.container():
-            col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 1, 1])
-            
-            with col1:
-                st.write(f"**{username}**")
-                st.caption(user_data['name'])
-            
-            with col2:
-                st.write(user_data['email'])
-            
-            with col3:
-                current_plan = user_data['plan']
-                plan_display = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
-                st.write(f"`{plan_display}`")
-            
-            with col4:
-                expires = user_data['expires']
-                days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
-                st.write(f"Expires: {expires}")
-                st.caption(f"{days_left} days left")
-            
-            with col5:
-                if username != "admin":
-                    # Quick upgrade to premium
-                    if current_plan != "premium":
-                        if st.button("⭐", key=f"quick_premium_{username}", help="Upgrade to Premium"):
-                            success, message = user_manager.change_user_plan(username, "premium")
-                            if success:
-                                st.success(message)
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error(message)
-                    else:
-                        st.write("⭐")
-            
-            with col6:
-                if username != "admin":
-                    if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
-                        st.session_state.manage_user_plan = username
-                        st.rerun()
-    
-    st.markdown("---")
-    
-    # Individual User Actions Section
-    st.subheader("⚡ User Actions")
-    
-    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()), key="user_select")
-    
-    if selected_user:
-        if selected_user == "admin":
-            st.warning("⚠️ Admin account cannot be modified")
-        else:
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
-                    user_manager.users[selected_user]["is_active"] = False
-                    user_manager.users[selected_user]["active_sessions"] = 0
-                    user_manager.save_users()
-                    st.success(f"User '{selected_user}' deactivated!")
-                    st.rerun()
-            
-            with col2:
-                if st.button("🟢 Activate User", use_container_width=True, key=f"activate_{selected_user}"):
-                    user_manager.users[selected_user]["is_active"] = True
-                    user_manager.save_users()
-                    st.success(f"User '{selected_user}' activated!")
-                    st.rerun()
-            
-            with col3:
-                if st.button("🔄 Reset Sessions", use_container_width=True, key=f"reset_{selected_user}"):
-                    user_manager.users[selected_user]["active_sessions"] = 0
-                    user_manager.save_users()
-                    st.success(f"Sessions reset for '{selected_user}'!")
-                    st.rerun()
-            
-            with col4:
-                if st.button("🗑️ Delete User", type="secondary", use_container_width=True, key=f"delete_{selected_user}"):
-                    st.session_state.user_to_delete = selected_user
-                    st.session_state.show_delete_confirmation = True
-                    st.rerun()
 
 def render_admin_revenue():
     """Revenue and financial reporting"""
