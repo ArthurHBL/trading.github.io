@@ -1,4 +1,4 @@
-# app.py - FIXED VERSION (with create_test_user fix)
+# app.py - COMPLETE VERSION WITH USER DELETION
 import streamlit as st
 import hashlib
 import json
@@ -53,7 +53,8 @@ class UserManager:
                 "active_users": 0,
                 "revenue_today": 0,
                 "user_registrations": [],
-                "login_history": []
+                "login_history": [],
+                "deleted_users": []
             }
     
     def create_default_admin(self):
@@ -175,6 +176,46 @@ class UserManager:
         
         return test_username, f"Test user '{test_username}' created with {plan} plan!"
 
+    def delete_user(self, username):
+        """Delete a user account completely"""
+        # Validation checks
+        if username not in self.users:
+            return False, "User not found"
+        
+        if username == "admin":
+            return False, "Cannot delete admin account"
+        
+        # Check if user has active sessions
+        user_data = self.users[username]
+        if user_data.get('active_sessions', 0) > 0:
+            return False, "User has active sessions. Reset sessions first."
+        
+        # Store user info for analytics before deletion
+        user_plan = user_data.get('plan', 'unknown')
+        user_created = user_data.get('created', 'unknown')
+        
+        # Delete the user
+        del self.users[username]
+        
+        # Update analytics
+        if 'deleted_users' not in self.analytics:
+            self.analytics['deleted_users'] = []
+        
+        self.analytics['deleted_users'].append({
+            "username": username,
+            "plan": user_plan,
+            "created": user_created,
+            "deleted_at": datetime.now().isoformat()
+        })
+        
+        self.save_users()
+        self.save_analytics()
+        
+        # Log the deletion
+        print(f"User {username} deleted at {datetime.now()}")
+        
+        return True, f"User '{username}' has been permanently deleted"
+
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
         self.analytics["total_logins"] += 1
@@ -292,6 +333,14 @@ def init_session():
         st.session_state.user_data = {}
     if 'app_started' not in st.session_state:
         st.session_state.app_started = True
+    if 'show_delete_confirmation' not in st.session_state:
+        st.session_state.show_delete_confirmation = False
+    if 'user_to_delete' not in st.session_state:
+        st.session_state.user_to_delete = None
+    if 'show_bulk_delete' not in st.session_state:
+        st.session_state.show_bulk_delete = False
+    if 'admin_view' not in st.session_state:
+        st.session_state.admin_view = 'overview'
 
 # -------------------------
 # AUTHENTICATION COMPONENTS
@@ -389,6 +438,180 @@ def render_login():
                             st.info("📧 Welcome email sent with login instructions")
                         else:
                             st.error(f"❌ {message}")
+
+# -------------------------
+# DELETE CONFIRMATION MODAL
+# -------------------------
+def render_delete_confirmation_modal():
+    """Modal for confirming user deletion"""
+    user_to_delete = st.session_state.get('user_to_delete')
+    
+    if not user_to_delete:
+        return
+    
+    # Create overlay effect
+    st.markdown("""
+        <style>
+        .delete-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            border: 2px solid #ff6b6b;
+            min-width: 500px;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Backdrop
+    st.markdown('<div class="modal-backdrop"></div>', unsafe_allow_html=True)
+    
+    # Modal content
+    with st.container():
+        st.markdown(f'<div class="delete-modal">', unsafe_allow_html=True)
+        
+        st.error("🚨 **Confirm User Deletion**")
+        st.warning(f"**User to delete:** {user_to_delete}")
+        
+        user_data = user_manager.users[user_to_delete]
+        st.write(f"**Name:** {user_data['name']}")
+        st.write(f"**Email:** {user_data['email']}")
+        st.write(f"**Plan:** {user_data['plan']}")
+        st.write(f"**Status:** {'Active' if user_data.get('is_active', True) else 'Inactive'}")
+        
+        st.markdown("---")
+        st.error("**This action cannot be undone!**")
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            if st.button("✅ Confirm Delete", type="primary", use_container_width=True):
+                success, message = user_manager.delete_user(user_to_delete)
+                if success:
+                    st.success(f"✅ {message}")
+                    # Clear modal state
+                    st.session_state.show_delete_confirmation = False
+                    st.session_state.user_to_delete = None
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+        
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.show_delete_confirmation = False
+                st.session_state.user_to_delete = None
+                st.rerun()
+        
+        with col3:
+            st.markdown("")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------
+# BULK DELETE INTERFACE
+# -------------------------
+def render_bulk_delete_interface():
+    """Interface for bulk deleting inactive users"""
+    st.subheader("🗑️ Bulk Delete Inactive Users")
+    
+    # Get inactive users
+    inactive_users = []
+    for username, user_data in user_manager.users.items():
+        if username != "admin" and not user_data.get('is_active', True):
+            days_inactive = 0
+            if user_data.get('last_login'):
+                try:
+                    last_login = datetime.fromisoformat(user_data['last_login'])
+                    days_inactive = (datetime.now() - last_login).days
+                except:
+                    days_inactive = 999
+            
+            inactive_users.append({
+                "username": username,
+                "name": user_data["name"],
+                "email": user_data["email"],
+                "plan": user_data["plan"],
+                "last_login": user_data.get("last_login", "Never"),
+                "days_inactive": days_inactive
+            })
+    
+    if not inactive_users:
+        st.info("🎉 No inactive users found!")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
+        return
+    
+    st.warning(f"Found {len(inactive_users)} inactive users")
+    
+    # Display with checkboxes
+    users_to_delete = []
+    for user in inactive_users:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**{user['username']}** - {user['name']}")
+            st.caption(f"Email: {user['email']} | Plan: {user['plan']} | Inactive for {user['days_inactive']} days")
+        with col2:
+            if st.checkbox("Select", key=f"bulk_{user['username']}"):
+                users_to_delete.append(user['username'])
+    
+    st.markdown("---")
+    
+    if users_to_delete:
+        st.error(f"**{len(users_to_delete)} users selected for deletion**")
+        
+        # Show selected users
+        with st.expander("📋 Review Selected Users"):
+            for username in users_to_delete:
+                user_data = next((u for u in inactive_users if u['username'] == username), None)
+                if user_data:
+                    st.write(f"• {username} ({user_data['name']}) - {user_data['email']}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Delete Selected Users", type="primary", use_container_width=True):
+                deleted_count = 0
+                errors = []
+                for username in users_to_delete:
+                    success, message = user_manager.delete_user(username)
+                    if success:
+                        deleted_count += 1
+                    else:
+                        errors.append(f"{username}: {message}")
+                
+                if deleted_count > 0:
+                    st.success(f"✅ Successfully deleted {deleted_count} users!")
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                
+                time.sleep(2)
+                st.session_state.show_bulk_delete = False
+                st.rerun()
+        
+        with col2:
+            if st.button("❌ Cancel Bulk Delete", use_container_width=True):
+                st.session_state.show_bulk_delete = False
+                st.rerun()
+    else:
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
 
 # -------------------------
 # DASHBOARD COMPONENTS
@@ -617,7 +840,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD
+# ADMIN DASHBOARD - UPDATED WITH DELETE FUNCTIONALITY
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -648,12 +871,27 @@ def render_admin_dashboard():
             st.session_state.admin_view = "users"
             st.rerun()
         
+        if st.button("🗑️ Bulk Delete", use_container_width=True):
+            st.session_state.admin_view = "users"
+            st.session_state.show_bulk_delete = True
+            st.rerun()
+        
         if st.button("💰 Revenue Report", use_container_width=True):
             st.session_state.admin_view = "revenue"
             st.rerun()
     
     # Main admin content
     st.title("👑 Business Administration Dashboard")
+    
+    # Show delete confirmation modal if needed
+    if st.session_state.get('show_delete_confirmation'):
+        render_delete_confirmation_modal()
+        return
+    
+    # Show bulk delete interface if needed
+    if st.session_state.get('show_bulk_delete'):
+        render_bulk_delete_interface()
+        return
     
     # Default view or selected view
     current_view = st.session_state.get('admin_view', 'overview')
@@ -760,11 +998,11 @@ def render_admin_analytics():
         st.info("No registration data available")
 
 def render_admin_user_management():
-    """User management interface"""
+    """User management interface with delete functionality"""
     st.subheader("👥 User Management")
     
     # User actions
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True):
             st.rerun()
@@ -776,6 +1014,10 @@ def render_admin_user_management():
             # Use the dedicated create_test_user method (bypasses validation)
             created_username, msg = user_manager.create_test_user("trial")
             st.success(msg)
+            st.rerun()
+    with col4:
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True):
+            st.session_state.show_bulk_delete = True
             st.rerun()
     
     st.markdown("---")
@@ -804,30 +1046,39 @@ def render_admin_user_management():
     st.subheader("⚡ User Actions")
     selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()))
     
-    if selected_user and selected_user != "admin":
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("🔴 Deactivate User", use_container_width=True):
-                user_manager.users[selected_user]["is_active"] = False
-                user_manager.users[selected_user]["active_sessions"] = 0
-                user_manager.save_users()
-                st.success(f"User '{selected_user}' deactivated!")
-                st.rerun()
-        
-        with col2:
-            if st.button("🟢 Activate User", use_container_width=True):
-                user_manager.users[selected_user]["is_active"] = True
-                user_manager.save_users()
-                st.success(f"User '{selected_user}' activated!")
-                st.rerun()
-        
-        with col3:
-            if st.button("🔄 Reset Sessions", use_container_width=True):
-                user_manager.users[selected_user]["active_sessions"] = 0
-                user_manager.save_users()
-                st.success(f"Sessions reset for '{selected_user}'!")
-                st.rerun()
+    if selected_user:
+        if selected_user == "admin":
+            st.warning("⚠️ Admin account cannot be modified")
+        else:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if st.button("🔴 Deactivate User", use_container_width=True):
+                    user_manager.users[selected_user]["is_active"] = False
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' deactivated!")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🟢 Activate User", use_container_width=True):
+                    user_manager.users[selected_user]["is_active"] = True
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' activated!")
+                    st.rerun()
+            
+            with col3:
+                if st.button("🔄 Reset Sessions", use_container_width=True):
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"Sessions reset for '{selected_user}'!")
+                    st.rerun()
+            
+            with col4:
+                if st.button("🗑️ Delete User", type="secondary", use_container_width=True):
+                    st.session_state.user_to_delete = selected_user
+                    st.session_state.show_delete_confirmation = True
+                    st.rerun()
 
 def render_admin_revenue():
     """Revenue and financial reporting"""
