@@ -1,4 +1,4 @@
-# app.py - POLISHED PRODUCTION VERSION
+# app.py - POLISHED PRODUCTION VERSION WITH ADMIN DASHBOARD
 import streamlit as st
 import hashlib
 import json
@@ -564,22 +564,65 @@ def render_upgrade_plans():
         st.session_state.show_upgrade = False
         st.rerun()
 
+# -------------------------
+# ADMIN DASHBOARD - ADDED BACK
+# -------------------------
 def render_admin_dashboard():
-    """Professional admin dashboard"""
-    st.sidebar.title("👑 Admin Panel")
-    st.sidebar.write(f"Welcome, **{st.session_state.user['name']}**")
+    """Professional admin dashboard for business management"""
     
-    if st.sidebar.button("🚪 Logout"):
-        user_manager.logout(st.session_state.user['username'])
-        st.session_state.user = None
-        st.rerun()
+    with st.sidebar:
+        st.title("👑 Admin Panel")
+        st.markdown("---")
+        st.write(f"Welcome, **{st.session_state.user['name']}**")
+        st.success("System Administrator")
+        
+        if st.button("🚪 Logout", use_container_width=True):
+            user_manager.logout(st.session_state.user['username'])
+            st.session_state.user = None
+            st.rerun()
+        
+        st.markdown("---")
+        st.subheader("Admin Actions")
+        
+        if st.button("🔄 Refresh All Data", use_container_width=True):
+            user_manager.load_data()
+            st.rerun()
+        
+        if st.button("📊 View Analytics", use_container_width=True):
+            st.session_state.admin_view = "analytics"
+            st.rerun()
+        
+        if st.button("👥 Manage Users", use_container_width=True):
+            st.session_state.admin_view = "users"
+            st.rerun()
+        
+        if st.button("💰 Revenue Report", use_container_width=True):
+            st.session_state.admin_view = "revenue"
+            st.rerun()
     
-    st.title("👑 Business Administration")
+    # Main admin content
+    st.title("👑 Business Administration Dashboard")
     
-    # Business metrics
+    # Default view or selected view
+    current_view = st.session_state.get('admin_view', 'overview')
+    
+    if current_view == 'overview':
+        render_admin_overview()
+    elif current_view == 'analytics':
+        render_admin_analytics()
+    elif current_view == 'users':
+        render_admin_user_management()
+    elif current_view == 'revenue':
+        render_admin_revenue()
+
+def render_admin_overview():
+    """Admin overview with business metrics"""
+    st.subheader("📈 Business Overview")
+    
+    # Get business metrics
     metrics = user_manager.get_business_metrics()
     
-    st.subheader("📈 Business Overview")
+    # Key metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Total Users", metrics["total_users"])
@@ -590,41 +633,195 @@ def render_admin_dashboard():
     with col4:
         st.metric("Total Logins", metrics["total_logins"])
     
-    # User management
     st.markdown("---")
+    
+    # Plan distribution
+    st.subheader("📊 Plan Distribution")
+    plan_data = metrics["plan_distribution"]
+    
+    if plan_data:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Users by Plan:**")
+            for plan, count in plan_data.items():
+                st.write(f"• {plan.title()}: {count} users")
+        
+        with col2:
+            # Simple chart using progress bars
+            total = sum(plan_data.values())
+            for plan, count in plan_data.items():
+                percentage = (count / total) * 100 if total > 0 else 0
+                st.write(f"{plan.title()}: {count} ({percentage:.1f}%)")
+                st.progress(percentage / 100)
+    
+    st.markdown("---")
+    
+    # Recent activity
+    st.subheader("🕒 Recent Activity")
+    
+    # Show recent registrations
+    recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
+    if recent_registrations:
+        st.write("**Latest Registrations:**")
+        for reg in reversed(recent_registrations):
+            st.write(f"• {reg['username']} - {reg['plan']} - {reg['timestamp'][:16]}")
+    else:
+        st.info("No recent registrations")
+
+def render_admin_analytics():
+    """Detailed analytics view"""
+    st.subheader("📈 Detailed Analytics")
+    
+    # Login analytics
+    st.write("**Login Activity**")
+    total_logins = user_manager.analytics.get("total_logins", 0)
+    successful_logins = len([x for x in user_manager.analytics.get("login_history", []) if x.get('success')])
+    failed_logins = total_logins - successful_logins
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Login Attempts", total_logins)
+    with col2:
+        st.metric("Successful Logins", successful_logins)
+    with col3:
+        st.metric("Failed Logins", failed_logins)
+    
+    # User growth
+    st.markdown("---")
+    st.subheader("📈 User Growth")
+    
+    registrations = user_manager.analytics.get("user_registrations", [])
+    if registrations:
+        # Group by date
+        reg_by_date = {}
+        for reg in registrations:
+            date_str = reg['timestamp'][:10]
+            reg_by_date[date_str] = reg_by_date.get(date_str, 0) + 1
+        
+        # Display as table
+        st.write("**Registrations by Date:**")
+        reg_df = pd.DataFrame(list(reg_by_date.items()), columns=['Date', 'Registrations'])
+        reg_df = reg_df.sort_values('Date', ascending=False).head(10)
+        st.dataframe(reg_df, use_container_width=True)
+    else:
+        st.info("No registration data available")
+
+def render_admin_user_management():
+    """User management interface"""
     st.subheader("👥 User Management")
     
+    # User actions
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔄 Refresh User List", use_container_width=True):
+            st.rerun()
+    with col2:
+        if st.button("📧 Export User Data", use_container_width=True):
+            st.success("User data export would be implemented here")
+    with col3:
+        if st.button("🆕 Create Test User", use_container_width=True):
+            # Create a test user for demo
+            test_username = f"test_{int(time.time())}"
+            user_manager.register_user(test_username, "test123", "Test User", "test@example.com", "trial")
+            st.success(f"Test user '{test_username}' created!")
+            st.rerun()
+    
+    st.markdown("---")
+    
     # User table
+    st.write("**All Users:**")
     users_data = []
     for username, user_data in user_manager.users.items():
         users_data.append({
             "Username": username,
             "Name": user_data["name"],
-            "Plan": user_data["plan"],
             "Email": user_data["email"],
+            "Plan": user_data["plan"],
             "Expires": user_data["expires"],
-            "Last Login": user_data.get("last_login", "Never"),
+            "Last Login": user_data.get("last_login", "Never")[:16] if user_data.get("last_login") else "Never",
             "Status": "🟢 Active" if user_data.get("is_active", True) else "🔴 Inactive",
             "Sessions": f"{user_data.get('active_sessions', 0)}/{user_data.get('max_sessions', 1)}"
         })
     
-    st.dataframe(pd.DataFrame(users_data), use_container_width=True)
+    users_df = pd.DataFrame(users_data)
+    st.dataframe(users_df, use_container_width=True)
     
-    # Admin actions
     st.markdown("---")
-    st.subheader("⚡ Administrative Actions")
     
+    # User actions
+    st.subheader("⚡ User Actions")
+    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()))
+    
+    if selected_user and selected_user != "admin":
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("🔴 Deactivate User", use_container_width=True):
+                user_manager.users[selected_user]["is_active"] = False
+                user_manager.users[selected_user]["active_sessions"] = 0
+                user_manager.save_users()
+                st.success(f"User '{selected_user}' deactivated!")
+                st.rerun()
+        
+        with col2:
+            if st.button("🟢 Activate User", use_container_width=True):
+                user_manager.users[selected_user]["is_active"] = True
+                user_manager.save_users()
+                st.success(f"User '{selected_user}' activated!")
+                st.rerun()
+        
+        with col3:
+            if st.button("🔄 Reset Sessions", use_container_width=True):
+                user_manager.users[selected_user]["active_sessions"] = 0
+                user_manager.save_users()
+                st.success(f"Sessions reset for '{selected_user}'!")
+                st.rerun()
+
+def render_admin_revenue():
+    """Revenue and financial reporting"""
+    st.subheader("💰 Revenue Analytics")
+    
+    # Revenue metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🔄 Refresh Analytics", use_container_width=True):
-            user_manager.load_data()
-            st.rerun()
+        st.metric("Estimated MRR", "$1,250")
     with col2:
-        if st.button("📊 Export Data", use_container_width=True):
-            st.success("Data export would be implemented here")
+        st.metric("Active Subscriptions", "28")
     with col3:
-        if st.button("🛠️ System Health", use_container_width=True):
-            st.info("System monitoring would be implemented here")
+        st.metric("Trial Conversions", "12%")
+    
+    st.markdown("---")
+    
+    # Revenue by plan
+    st.write("**Revenue by Plan Type:**")
+    
+    revenue_data = {
+        "Trial": {"users": 0, "revenue": 0},
+        "Basic": {"users": 0, "revenue": 0},
+        "Premium": {"users": 0, "revenue": 0},
+        "Professional": {"users": 0, "revenue": 0}
+    }
+    
+    for user_data in user_manager.users.values():
+        plan = user_data.get("plan", "trial")
+        if plan in revenue_data:
+            revenue_data[plan]["users"] += 1
+            if plan != "trial":
+                revenue_data[plan]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
+    
+    # Display revenue table
+    revenue_df = pd.DataFrame([
+        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
+        {"Plan": "Basic", "Users": revenue_data["Basic"]["users"], "Monthly Revenue": revenue_data["Basic"]["revenue"]},
+        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]},
+        {"Plan": "Professional", "Users": revenue_data["Professional"]["users"], "Monthly Revenue": revenue_data["Professional"]["revenue"]}
+    ])
+    
+    st.dataframe(revenue_df, use_container_width=True)
+    
+    st.markdown("---")
+    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
 # MAIN APPLICATION
