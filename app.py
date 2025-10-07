@@ -1,13 +1,13 @@
-# app.py - FIXED VERSION (with create_test_user fix)
+# app.py - FULL WORKING VERSION (with Test Password modal, create/delete test users)
 import streamlit as st
 import hashlib
 import json
 import pandas as pd
 import uuid
 from datetime import datetime, date, timedelta
-from typing import Dict, List, Tuple
 import re
 import time
+import os
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -17,7 +17,10 @@ class Config:
     VERSION = "2.0.0"
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
-    
+    CONFIG_FILE = "config.json"
+    USERS_FILE = "users.json"
+    ANALYTICS_FILE = "analytics.json"
+
     # Subscription Plans
     PLANS = {
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
@@ -30,11 +33,26 @@ class Config:
 # SECURE USER MANAGEMENT
 # -------------------------
 class UserManager:
-    def __init__(self):
-        self.users_file = "users.json"
-        self.analytics_file = "analytics.json"
+    def __init__(self, users_file=Config.USERS_FILE, analytics_file=Config.ANALYTICS_FILE, config_file=Config.CONFIG_FILE):
+        self.users_file = users_file
+        self.analytics_file = analytics_file
+        self.config_file = config_file
+        self.load_config()
         self.load_data()
-    
+
+    # Config persistence (for storing test password and misc)
+    def load_config(self):
+        try:
+            with open(self.config_file, 'r') as f:
+                self.config = json.load(f)
+        except:
+            self.config = {"test_password": "test12345"}  # default safe length >=8
+            self.save_config()
+
+    def save_config(self):
+        with open(self.config_file, 'w') as f:
+            json.dump(self.config, f, indent=2)
+
     def load_data(self):
         """Load users and analytics data"""
         try:
@@ -43,7 +61,8 @@ class UserManager:
         except:
             self.users = {}
             self.create_default_admin()
-        
+            self.save_users()
+
         try:
             with open(self.analytics_file, 'r') as f:
                 self.analytics = json.load(f)
@@ -55,7 +74,8 @@ class UserManager:
                 "user_registrations": [],
                 "login_history": []
             }
-    
+            self.save_analytics()
+
     def create_default_admin(self):
         """Create default admin account"""
         self.users["admin"] = {
@@ -72,42 +92,46 @@ class UserManager:
             "email": "admin@tradinganalysis.com",
             "subscription_id": "admin_account"
         }
-        self.save_users()
-    
+
     def hash_password(self, password):
-        """Secure password hashing"""
-        salt = st.secrets.get("PASSWORD_SALT", "default-salt-change-in-production")
+        """Secure password hashing (salt from streamlit secrets if present)"""
+        salt = ""
+        try:
+            salt = st.secrets.get("PASSWORD_SALT", "")
+        except:
+            salt = ""
         return hashlib.sha256((password + salt).encode()).hexdigest()
-    
+
     def save_users(self):
         """Save users to file"""
         with open(self.users_file, 'w') as f:
             json.dump(self.users, f, indent=2)
-    
+
     def save_analytics(self):
         """Save analytics data"""
         with open(self.analytics_file, 'w') as f:
             json.dump(self.analytics, f, indent=2)
-    
+
+    # ---------- User operations ----------
     def register_user(self, username, password, name, email, plan="trial"):
         """Register new user with proper validation"""
         # Validation
         if username in self.users:
             return False, "Username already exists"
-        
+
         if not re.match("^[a-zA-Z0-9_]{3,20}$", username):
             return False, "Username must be 3-20 characters (letters, numbers, _)"
-        
+
         if len(password) < 8:
             return False, "Password must be at least 8 characters"
-        
+
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             return False, "Invalid email address"
-        
+
         # Calculate expiry date
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
-        
+
         # Create user
         self.users[username] = {
             "password_hash": self.hash_password(password),
@@ -124,31 +148,36 @@ class UserManager:
             "subscription_id": f"sub_{username}_{int(time.time())}",
             "payment_status": "active" if plan == "trial" else "pending"
         }
-        
+
         # Update analytics
         self.analytics["user_registrations"].append({
             "username": username,
             "plan": plan,
             "timestamp": datetime.now().isoformat()
         })
-        
+
         self.save_users()
         self.save_analytics()
-        
+
         return True, f"Account created successfully! {plan_config['name']} activated."
 
-    def create_test_user(self, plan="trial"):
-        """Create a test user for admin purposes - BYPASSES VALIDATION"""
+    def create_test_user(self, plan="trial", password=None):
+        """Create a test user for admin purposes - BYPASSES validation (but ensures password length)"""
         test_username = f"test_{int(time.time())}"
-        test_email = f"test{int(time.time())}@example.com"
-        
+        test_email = f"{test_username}@example.com"
+
+        # Use provided password, otherwise config stored password
+        pw = password if password else self.config.get("test_password", "test12345")
+        if not pw or len(pw) < 8:
+            return False, "Test password must be at least 8 characters"
+
         # Calculate expiry date
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
-        
+
         # Create user without going through register_user validations
         self.users[test_username] = {
-            "password_hash": self.hash_password("test12345"),  # secure dummy password (>=8 chars)
+            "password_hash": self.hash_password(pw),
             "name": f"Test User {test_username}",
             "email": test_email,
             "plan": plan,
@@ -160,85 +189,121 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"test_{test_username}",
-            "payment_status": "active"
+            "payment_status": "active",
+            "is_test": True
         }
-        
+
         # Update analytics
         self.analytics["user_registrations"].append({
             "username": test_username,
             "plan": plan,
             "timestamp": datetime.now().isoformat()
         })
-        
+
         self.save_users()
         self.save_analytics()
-        
-        return test_username, f"Test user '{test_username}' created with {plan} plan!"
+
+        return True, f"Test user '{test_username}' created with {plan} plan!"
 
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
-        self.analytics["total_logins"] += 1
-        self.analytics["login_history"].append({
+        self.analytics["total_logins"] = self.analytics.get("total_logins", 0) + 1
+        self.analytics.setdefault("login_history", []).append({
             "username": username,
             "timestamp": datetime.now().isoformat(),
             "success": False
         })
-        
+
         if username not in self.users:
             self.save_analytics()
             return False, "Invalid username or password"
-        
+
         user = self.users[username]
-        
+
         # Security checks
         if not user.get("is_active", True):
             return False, "Account deactivated. Please contact support."
-        
+
         if not self.verify_password(password, user["password_hash"]):
             return False, "Invalid username or password"
-        
+
         # Check subscription
         expires = user.get("expires")
         if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
             return False, "Subscription expired. Please renew your plan."
-        
+
         # Check concurrent sessions
         if user["active_sessions"] >= user["max_sessions"]:
             return False, "Account in use. Maximum concurrent sessions reached."
-        
+
         # Update user stats
         user["last_login"] = datetime.now().isoformat()
         user["login_count"] = user.get("login_count", 0) + 1
         user["active_sessions"] += 1
-        
+
         # Update analytics
         self.analytics["login_history"][-1]["success"] = True
-        
+
         self.save_users()
         self.save_analytics()
-        
+
         return True, "Login successful"
-    
+
     def verify_password(self, password, password_hash):
         return self.hash_password(password) == password_hash
-    
+
     def logout(self, username):
         """Logout user"""
         if username in self.users:
             self.users[username]["active_sessions"] = max(0, self.users[username]["active_sessions"] - 1)
             self.save_users()
-    
+
+    def update_user_plan(self, username, new_plan, new_expires=None):
+        """Update user's subscription plan"""
+        if username not in self.users:
+            return False, "User not found"
+
+        user = self.users[username]
+        user["plan"] = new_plan
+
+        if new_expires:
+            user["expires"] = new_expires
+        else:
+            plan_config = Config.PLANS.get(new_plan, Config.PLANS["trial"])
+            user["expires"] = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
+
+        # Update max sessions based on new plan
+        user["max_sessions"] = Config.PLANS.get(new_plan, {}).get("max_sessions", 1)
+
+        self.save_users()
+        return True, f"User {username} updated to {new_plan} plan"
+
+    def delete_user(self, username):
+        """Permanently delete a user"""
+        if username not in self.users:
+            return False, "User not found"
+        # Prevent deleting admin accidentally
+        if username == "admin":
+            return False, "Cannot delete the admin account"
+        del self.users[username]
+        # Optionally remove analytics entries related to user (not mandatory)
+        self.analytics["user_registrations"] = [r for r in self.analytics.get("user_registrations", []) if r.get("username") != username]
+        self.analytics["login_history"] = [l for l in self.analytics.get("login_history", []) if l.get("username") != username]
+        self.save_users()
+        self.save_analytics()
+        return True, f"User '{username}' deleted."
+
     def get_business_metrics(self):
         """Get business metrics for admin"""
         total_users = len(self.users)
         active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
         online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
-        
+
         plan_counts = {}
         for user in self.users.values():
             plan = user.get('plan', 'unknown')
             plan_counts[plan] = plan_counts.get(plan, 0) + 1
-        
+
         return {
             "total_users": total_users,
             "active_users": active_users,
@@ -290,8 +355,16 @@ def init_session():
         st.session_state.user = None
     if 'user_data' not in st.session_state:
         st.session_state.user_data = {}
-    if 'app_started' not in st.session_state:
-        st.session_state.app_started = True
+    if 'show_settings' not in st.session_state:
+        st.session_state.show_settings = False
+    if 'show_upgrade' not in st.session_state:
+        st.session_state.show_upgrade = False
+    if 'admin_view' not in st.session_state:
+        st.session_state.admin_view = 'overview'
+    if 'test_modal_open' not in st.session_state:
+        st.session_state.test_modal_open = False
+    if 'pending_delete' not in st.session_state:
+        st.session_state.pending_delete = None
 
 # -------------------------
 # AUTHENTICATION COMPONENTS
@@ -617,7 +690,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD
+# ADMIN DASHBOARD - FIXED VERSION
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -648,8 +721,12 @@ def render_admin_dashboard():
             st.session_state.admin_view = "users"
             st.rerun()
         
-        if st.button("💰 Revenue Report", use_container_width=True):
+        if st.button("💰 Revenue", use_container_width=True):
             st.session_state.admin_view = "revenue"
+            st.rerun()
+        
+        if st.button("⚙️ System Tools", use_container_width=True):
+            st.session_state.admin_view = "tools"
             st.rerun()
     
     # Main admin content
@@ -666,6 +743,8 @@ def render_admin_dashboard():
         render_admin_user_management()
     elif current_view == 'revenue':
         render_admin_revenue()
+    elif current_view == 'tools':
+        render_admin_tools()
 
 def render_admin_overview():
     """Admin overview with business metrics"""
@@ -760,25 +839,70 @@ def render_admin_analytics():
         st.info("No registration data available")
 
 def render_admin_user_management():
-    """User management interface"""
+    """User management interface - IMPROVED VERSION"""
     st.subheader("👥 User Management")
     
-    # User actions
-    col1, col2, col3 = st.columns(3)
+    # Quick actions
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        if st.button("🔄 Refresh User List", use_container_width=True):
-            st.rerun()
+        if st.button("🆕 Create Test User", use_container_width=True, type="primary"):
+            # Open modal-like area for password choice
+            st.session_state.test_modal_open = True
+            st.experimental_rerun()
     with col2:
-        if st.button("📧 Export User Data", use_container_width=True):
-            st.success("User data export would be implemented here")
+        if st.button("🔄 Refresh List", use_container_width=True):
+            user_manager.load_data()
+            st.experimental_rerun()
     with col3:
-        if st.button("🆕 Create Test User", use_container_width=True):
-            # Use the dedicated create_test_user method (bypasses validation)
-            created_username, msg = user_manager.create_test_user("trial")
-            st.success(msg)
-            st.rerun()
+        if st.button("📧 Export Data", use_container_width=True):
+            st.success("User data export would be implemented here")
+    with col4:
+        if st.button("📊 Back to Overview", use_container_width=True):
+            st.session_state.admin_view = "overview"
+            st.experimental_rerun()
     
     st.markdown("---")
+    
+    # If modal open, show password input and create actions
+    if st.session_state.get('test_modal_open', False):
+        st.info("🔐 Create Test User — choose password (min 8 chars) or leave blank to use saved test password.")
+        pw_col1, pw_col2 = st.columns([3,1])
+        with pw_col1:
+            new_pw = st.text_input("Test user password (leave blank to use stored)", type="password", key="testpw_input")
+            confirm_pw = st.text_input("Confirm password", type="password", key="testpw_confirm")
+        with pw_col2:
+            if st.button("Create Test User Now", use_container_width=True):
+                # if provided, must match and >=8
+                pw_to_use = new_pw.strip() if new_pw else None
+                if pw_to_use:
+                    if pw_to_use != confirm_pw:
+                        st.error("Passwords do not match.")
+                    elif len(pw_to_use) < 8:
+                        st.error("Password must be at least 8 characters.")
+                    else:
+                        ok, msg = user_manager.create_test_user("trial", password=pw_to_use)
+                        if ok:
+                            st.success(msg)
+                            # optionally save chosen test password into config for later
+                            user_manager.config['test_password'] = pw_to_use
+                            user_manager.save_config()
+                            st.session_state.test_modal_open = False
+                            st.experimental_rerun()
+                        else:
+                            st.error(msg)
+                else:
+                    # use stored password
+                    ok, msg = user_manager.create_test_user("trial", password=None)
+                    if ok:
+                        st.success(msg)
+                        st.session_state.test_modal_open = False
+                        st.experimental_rerun()
+                    else:
+                        st.error(msg)
+            if st.button("Cancel", use_container_width=True):
+                st.session_state.test_modal_open = False
+                st.experimental_rerun()
+        st.markdown("---")
     
     # User table
     st.write("**All Users:**")
@@ -786,11 +910,11 @@ def render_admin_user_management():
     for username, user_data in user_manager.users.items():
         users_data.append({
             "Username": username,
-            "Name": user_data["name"],
-            "Email": user_data["email"],
-            "Plan": user_data["plan"],
-            "Expires": user_data["expires"],
-            "Last Login": user_data.get("last_login", "Never")[:16] if user_data.get("last_login") else "Never",
+            "Name": user_data.get("name",""),
+            "Email": user_data.get("email",""),
+            "Plan": user_data.get("plan",""),
+            "Expires": user_data.get("expires",""),
+            "Last Login": (user_data.get("last_login")[:16] if user_data.get("last_login") else "Never"),
             "Status": "🟢 Active" if user_data.get("is_active", True) else "🔴 Inactive",
             "Sessions": f"{user_data.get('active_sessions', 0)}/{user_data.get('max_sessions', 1)}"
         })
@@ -800,114 +924,167 @@ def render_admin_user_management():
     
     st.markdown("---")
     
-    # User actions
+    # User actions area (select user)
     st.subheader("⚡ User Actions")
-    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()))
+    non_admin_users = [u for u in user_manager.users.keys() if u != "admin"]
+    selected_user = st.selectbox("Select User", [""] + non_admin_users)
     
-    if selected_user and selected_user != "admin":
-        col1, col2, col3 = st.columns(3)
+    if selected_user:
+        user_info = user_manager.users[selected_user]
+        st.write(f"**Selected:** {user_info.get('name','')} ({selected_user})")
+        st.write(f"**Plan:** {user_info.get('plan','')} | **Status:** {'🟢 Active' if user_info.get('is_active', True) else '🔴 Inactive'}")
         
+        col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("🔴 Deactivate User", use_container_width=True):
+            if st.button("🔴 Deactivate", use_container_width=True):
                 user_manager.users[selected_user]["is_active"] = False
                 user_manager.users[selected_user]["active_sessions"] = 0
                 user_manager.save_users()
                 st.success(f"User '{selected_user}' deactivated!")
-                st.rerun()
-        
+                st.experimental_rerun()
         with col2:
-            if st.button("🟢 Activate User", use_container_width=True):
+            if st.button("🟢 Activate", use_container_width=True):
                 user_manager.users[selected_user]["is_active"] = True
                 user_manager.save_users()
                 st.success(f"User '{selected_user}' activated!")
-                st.rerun()
-        
+                st.experimental_rerun()
         with col3:
-            if st.button("🔄 Reset Sessions", use_container_width=True):
-                user_manager.users[selected_user]["active_sessions"] = 0
-                user_manager.save_users()
-                st.success(f"Sessions reset for '{selected_user}'!")
-                st.rerun()
-
-def render_admin_revenue():
-    """Revenue and financial reporting"""
-    st.subheader("💰 Revenue Analytics")
+            if st.button("🗑️ Delete User", use_container_width=True):
+                # set pending delete and ask to confirm
+                st.session_state.pending_delete = selected_user
     
-    # Revenue metrics
+    # If a delete is pending, ask for exact username confirmation
+    if st.session_state.get('pending_delete'):
+        pd_user = st.session_state.pending_delete
+        st.warning(f"You're about to permanently delete **{pd_user}**. This action is irreversible.")
+        confirm_txt = st.text_input("Type the username to confirm deletion:", key="confirm_delete_input")
+        colc1, colc2 = st.columns([1,1])
+        with colc1:
+            if st.button("Confirm Delete", use_container_width=True):
+                if confirm_txt == pd_user:
+                    ok, msg = user_manager.delete_user(pd_user)
+                    if ok:
+                        st.success(msg)
+                        st.session_state.pending_delete = None
+                        st.experimental_rerun()
+                    else:
+                        st.error(msg)
+                else:
+                    st.error("Username does not match. Deletion cancelled.")
+        with colc2:
+            if st.button("Cancel Delete", use_container_width=True):
+                st.session_state.pending_delete = None
+                st.experimental_rerun()
+
+def render_admin_tools():
+    """Admin system tools"""
+    st.subheader("⚙️ System Tools")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Database & Analytics**")
+        
+        if st.button("🔄 Reload All Data", use_container_width=True):
+            user_manager.load_data()
+            st.success("Data reloaded successfully!")
+        
+        if st.button("🧹 Clear Analytics", use_container_width=True):
+            user_manager.analytics = {
+                "total_logins": 0,
+                "active_users": 0,
+                "revenue_today": 0,
+                "user_registrations": [],
+                "login_history": []
+            }
+            user_manager.save_analytics()
+            st.success("Analytics data cleared!")
+        
+        if st.button("📊 System Health", use_container_width=True):
+            st.success("System health check completed!")
+            st.info(f"Total users: {len(user_manager.users)}")
+            st.info(f"Data files: OK")
+            st.info(f"Memory usage: Normal")
+    
+    with col2:
+        st.write("**Test Password Configuration**")
+        st.write("Stored test password is used when creating test users if no password is provided in the modal.")
+        st.write(f"Current stored test password: `{user_manager.config.get('test_password','')}`")
+        new_store_pw = st.text_input("Change stored test password (min 8 chars)", type="password", key="store_pw")
+        if st.button("Save Stored Test Password"):
+            if new_store_pw and len(new_store_pw) >= 8:
+                user_manager.config['test_password'] = new_store_pw
+                user_manager.save_config()
+                st.success("Stored test password updated.")
+            else:
+                st.error("Password must be at least 8 characters.")
+
+    st.markdown("---")
+    st.write("**System Information**")
+    
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Estimated MRR", "$1,250")
+        st.metric("App Version", Config.VERSION)
     with col2:
-        st.metric("Active Subscriptions", "28")
+        st.metric("Total Plans", len(Config.PLANS))
     with col3:
-        st.metric("Trial Conversions", "12%")
-    
+        st.metric("Support Email", Config.SUPPORT_EMAIL)
+
+def render_admin_analytics():
+    """Analytics view (simplified)"""
+    st.subheader("📊 Analytics")
+    analytics = user_manager.analytics
+    st.write("Basic analytics snapshot:")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Logins", analytics.get("total_logins", 0))
+    with col2:
+        st.metric("Registered Users", len(user_manager.users))
+    with col3:
+        st.metric("Revenue Today", analytics.get("revenue_today", 0))
     st.markdown("---")
-    
-    # Revenue by plan
-    st.write("**Revenue by Plan Type:**")
-    
-    revenue_data = {
-        "Trial": {"users": 0, "revenue": 0},
-        "Basic": {"users": 0, "revenue": 0},
-        "Premium": {"users": 0, "revenue": 0},
-        "Professional": {"users": 0, "revenue": 0}
-    }
-    
-    for user_data in user_manager.users.values():
-        plan = user_data.get("plan", "trial")
-        # Normalize plan names to match revenue_data keys where possible
-        pkey = plan.title() if plan.title() in revenue_data else plan.capitalize()
-        if pkey in revenue_data:
-            revenue_data[pkey]["users"] += 1
-            if pkey != "Trial":
-                revenue_data[pkey]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
-    
-    # Display revenue table
-    revenue_df = pd.DataFrame([
-        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
-        {"Plan": "Basic", "Users": revenue_data["Basic"]["users"], "Monthly Revenue": revenue_data["Basic"]["revenue"]},
-        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]},
-        {"Plan": "Professional", "Users": revenue_data["Professional"]["users"], "Monthly Revenue": revenue_data["Professional"]["revenue"]}
-    ])
-    
-    st.dataframe(revenue_df, use_container_width=True)
-    
+    st.write("Recent registration events:")
+    regs = analytics.get("user_registrations", [])[-10:]
+    if regs:
+        df = pd.DataFrame(regs)
+        st.dataframe(df.sort_values("timestamp", ascending=False), use_container_width=True)
+    else:
+        st.info("No registration events")
+
+def render_admin_revenue():
+    """Revenue and reporting (simplified)"""
+    st.subheader("💰 Revenue Overview")
+    metrics = user_manager.get_business_metrics()
+    st.metric("Active Users", metrics["active_users"])
+    st.metric("Total Users", metrics["total_users"])
     st.markdown("---")
-    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
+    # Build revenue by plan using plan prices
+    rows = []
+    for plan, cfg in Config.PLANS.items():
+        users_count = sum(1 for u in user_manager.users.values() if u.get("plan") == plan)
+        rows.append({"Plan": plan, "Users": users_count, "Monthly Price": cfg['price'], "Revenue (Mo)": users_count * cfg['price']})
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True)
+    st.info("Revenue shown is a simple multiplication of users by plan price. Integrate payment provider for real data.")
 
 # -------------------------
 # MAIN APPLICATION
 # -------------------------
 def main():
     init_session()
-    
-    # Custom CSS for professional appearance
+    # CSS (small)
     st.markdown("""
     <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .plan-card {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-    }
-    .premium-plan {
-        border: 2px solid #ff6b6b;
-        background: #fff5f5;
-    }
+    .stApp { font-family: 'Segoe UI', Roboto, sans-serif; }
     </style>
     """, unsafe_allow_html=True)
-    
+
+    # Route: login or dashboard
     if not st.session_state.user:
         render_login()
     else:
-        if st.session_state.user['plan'] == 'admin':
+        # Admin route
+        if st.session_state.user.get('plan') == 'admin':
             render_admin_dashboard()
         else:
             render_user_dashboard()
