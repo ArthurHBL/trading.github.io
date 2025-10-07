@@ -125,7 +125,8 @@ def render_login():
             else:
                 st.error("❌ Invalid username or password")
     
-    with st.expander("Demo Accounts", key="demo_accounts"):
+    # Demo accounts info - FIXED: removed key from expander
+    with st.expander("Demo Accounts"):
         st.write("**Admin:** admin / admin123 (Full access)")
         st.write("**Premium:** maria / maria123 (All features)")
         st.write("**Basic:** demo / demo123 (Limited features)")
@@ -225,7 +226,7 @@ def render_premium_dashboard(dashboard_type="premium"):
             else:
                 st.warning(f"🕓 **{strat}**")
             
-            st.progress(progress_pct, key=f"progress_bar_{strat}_{dashboard_type}")
+            st.progress(progress_pct)
             st.caption(f"{strat_data['completed']}/{strat_data['total']} indicators")
 
     st.markdown("---")
@@ -293,7 +294,8 @@ def render_premium_dashboard(dashboard_type="premium"):
         for i, ind in enumerate(indicators):
             existing_data = st.session_state.trading_data.get(selected_strategy, {}).get(ind, {})
             
-            with st.expander(f"**{ind}**", expanded=False, key=f"expander_{ind}_{dashboard_type}"):
+            # FIXED: removed key from expander
+            with st.expander(f"**{ind}**", expanded=False):
                 col1, col2 = st.columns(2)
                 with col1:
                     status = st.selectbox(
@@ -402,10 +404,10 @@ def render_admin_dashboard():
         {"username": "joao", "name": "João Santos", "plan": "expired", "status": "inactive"}
     ]
     
-    st.dataframe(pd.DataFrame(users), use_container_width=True, key="users_table")
+    st.dataframe(pd.DataFrame(users), use_container_width=True)
     
-    # Add user form
-    with st.expander("Add New User", key="add_user_expander"):
+    # Add user form - FIXED: removed key from expander
+    with st.expander("Add New User"):
         with st.form("add_user_form"):
             col1, col2 = st.columns(2)
             with col1:
