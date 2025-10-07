@@ -1,4 +1,4 @@
-# app.py - POLISHED PRODUCTION VERSION WITH ADMIN DASHBOARD
+# app.py - FIXED VERSION
 import streamlit as st
 import hashlib
 import json
@@ -429,7 +429,12 @@ def render_trading_dashboard(data, user):
     plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
     available_strategies = list(STRATEGIES.keys())[:plan_config['strategies']]
     
-    # Daily strategy rotation
+    # FIXED: Ensure we have strategies to display
+    if not available_strategies:
+        st.error("No strategies available for your plan. Please contact support.")
+        return
+    
+    # Daily strategy rotation - FIXED: Handle edge cases
     strategy_list = available_strategies
     days_since_start = (analysis_date - start_date).days
     cycle_day = days_since_start % 5
@@ -437,17 +442,26 @@ def render_trading_dashboard(data, user):
     end_index = start_index + min(3, len(available_strategies))
     daily_strategies = strategy_list[start_index:end_index]
     
+    # FIXED: Ensure daily_strategies is not empty
+    if not daily_strategies:
+        daily_strategies = available_strategies[:1]  # Fallback to first strategy
+    
     # Dashboard header
     st.title("📊 Professional Trading Analysis")
     st.write(f"**Welcome back, {user['name']}** • Day {cycle_day + 1} of analysis cycle • {analysis_date.strftime('%m/%d/%Y')}")
     
-    # Strategy progress (simplified)
+    # Strategy progress (simplified) - FIXED: Handle empty columns
     st.subheader("🎯 Today's Focus Strategies")
-    cols = st.columns(len(daily_strategies))
-    for i, strategy in enumerate(daily_strategies):
-        with cols[i]:
-            st.info(f"**{strategy}**")
-            st.progress(0.3, text=f"{len(STRATEGIES[strategy])} indicators")
+    
+    # FIXED: Only create columns if we have strategies
+    if daily_strategies:
+        cols = st.columns(len(daily_strategies))
+        for i, strategy in enumerate(daily_strategies):
+            with cols[i]:
+                st.info(f"**{strategy}**")
+                st.progress(0.3, text=f"{len(STRATEGIES[strategy])} indicators")
+    else:
+        st.warning("No strategies available for today's focus")
     
     # Strategy selector
     selected_strategy = st.selectbox("Select Strategy for Analysis", available_strategies)
@@ -565,7 +579,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - ADDED BACK
+# ADMIN DASHBOARD
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
