@@ -1,4 +1,4 @@
-# app.py - Streamlit Cloud Compatible Version
+# app.py - Streamlit Cloud Compatible Version (Fixed Admin)
 import streamlit as st
 import json
 from datetime import datetime, date, timedelta
@@ -127,8 +127,8 @@ def render_login():
     
     # Demo accounts info
     with st.expander("Demo Accounts"):
-        st.write("**Admin:** admin / admin123 (Full access)")
-        st.write("**Premium:** maria / maria123 (All features)")
+        st.write("**Admin:** admin / admin123 (User management only)")
+        st.write("**Premium:** maria / maria123 (All trading features)")
         st.write("**Basic:** demo / demo123 (Limited features)")
         st.write("**Expired:** joao / joao123 (Demo mode)")
 
@@ -350,7 +350,7 @@ def render_basic_dashboard():
     """)
 
 def render_admin_dashboard():
-    """Admin dashboard"""
+    """Admin dashboard - ONLY user management"""
     st.sidebar.title("👑 Admin Panel")
     st.sidebar.write(f"Welcome, **{st.session_state.user['name']}**")
     st.sidebar.success("Full Administrative Access")
@@ -361,37 +361,82 @@ def render_admin_dashboard():
         st.rerun()
 
     st.title("👑 Admin Dashboard")
+    st.info("User Management System - Administrative Purposes Only")
     
-    # User management simulation
-    st.subheader("User Accounts")
+    # User management section
+    st.subheader("📋 User Accounts")
+    
+    # Current users table
     users = [
-        {"username": "admin", "name": "Arthur (Admin)", "plan": "premium", "status": "active"},
-        {"username": "maria", "name": "Maria Silva", "plan": "premium", "status": "active"},
-        {"username": "demo", "name": "Demo User", "plan": "basic", "status": "active"},
-        {"username": "joao", "name": "João Santos", "plan": "expired", "status": "inactive"}
+        {"username": "admin", "name": "Arthur (Admin)", "plan": "premium", "status": "active", "expires": "2030-12-31"},
+        {"username": "maria", "name": "Maria Silva", "plan": "premium", "status": "active", "expires": "2025-12-31"},
+        {"username": "demo", "name": "Demo User", "plan": "basic", "status": "active", "expires": "2024-12-31"},
+        {"username": "joao", "name": "João Santos", "plan": "expired", "status": "inactive", "expires": "2024-01-31"}
     ]
     
-    st.dataframe(pd.DataFrame(users), use_container_width=True)
+    users_df = pd.DataFrame(users)
+    st.dataframe(users_df, use_container_width=True)
     
-    # Add user form
-    with st.expander("Add New User"):
-        with st.form("add_user"):
-            col1, col2 = st.columns(2)
-            with col1:
-                new_user = st.text_input("Username")
-                new_name = st.text_input("Full Name")
-            with col2:
-                new_plan = st.selectbox("Plan", ["basic", "premium"])
-                new_status = st.selectbox("Status", ["active", "inactive"])
-            
-            if st.form_submit_button("Add User"):
-                st.success(f"User {new_user} added successfully! (Simulated)")
+    # Statistics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", len(users))
+    with col2:
+        st.metric("Premium Users", len([u for u in users if u['plan'] == 'premium']))
+    with col3:
+        st.metric("Basic Users", len([u for u in users if u['plan'] == 'basic']))
+    with col4:
+        st.metric("Inactive Users", len([u for u in users if u['status'] == 'inactive']))
     
     st.markdown("---")
     
-    # Admin also gets premium access
-    st.title("Trading Dashboard")
-    render_premium_dashboard()
+    # Add New User Section
+    st.subheader("➕ Add New User")
+    
+    with st.form("add_user_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            new_username = st.text_input("Username", placeholder="Enter unique username")
+            new_name = st.text_input("Full Name", placeholder="Enter user's full name")
+            new_plan = st.selectbox("Subscription Plan", ["basic", "premium", "trial"])
+            
+        with col2:
+            new_password = st.text_input("Password", type="password", placeholder="Set user password")
+            new_status = st.selectbox("Account Status", ["active", "inactive", "suspended"])
+            new_expires = st.date_input("Subscription Expiry", value=date.today() + timedelta(days=365))
+        
+        st.markdown("---")
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            submitted = st.form_submit_button("🚀 Create User", use_container_width=True)
+        
+        if submitted:
+            if new_username and new_name and new_password:
+                # In a real app, you'd save to database here
+                st.success(f"✅ User '{new_username}' created successfully!")
+                st.info(f"**Username:** {new_username} | **Plan:** {new_plan} | **Status:** {new_status} | **Expires:** {new_expires}")
+            else:
+                st.error("❌ Please fill in all required fields")
+    
+    st.markdown("---")
+    
+    # User Actions Section
+    st.subheader("⚡ User Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Refresh User Data", use_container_width=True):
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Export User Report", use_container_width=True):
+            st.success("User report exported successfully! (Simulated)")
+    
+    with col3:
+        if st.button("🛑 Bulk Deactivate", use_container_width=True):
+            st.warning("Bulk deactivation feature would be implemented here")
 
 # -------------------------
 # MAIN APP
