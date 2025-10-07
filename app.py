@@ -1,4 +1,4 @@
-# app.py - FIXED VERSION
+# app.py - FIXED VERSION (with create_test_user fix)
 import streamlit as st
 import hashlib
 import json
@@ -136,7 +136,45 @@ class UserManager:
         self.save_analytics()
         
         return True, f"Account created successfully! {plan_config['name']} activated."
-    
+
+    def create_test_user(self, plan="trial"):
+        """Create a test user for admin purposes - BYPASSES VALIDATION"""
+        test_username = f"test_{int(time.time())}"
+        test_email = f"test{int(time.time())}@example.com"
+        
+        # Calculate expiry date
+        plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
+        expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
+        
+        # Create user without going through register_user validations
+        self.users[test_username] = {
+            "password_hash": self.hash_password("test12345"),  # secure dummy password (>=8 chars)
+            "name": f"Test User {test_username}",
+            "email": test_email,
+            "plan": plan,
+            "expires": expires,
+            "created": datetime.now().isoformat(),
+            "last_login": None,
+            "login_count": 0,
+            "active_sessions": 0,
+            "max_sessions": plan_config["max_sessions"],
+            "is_active": True,
+            "subscription_id": f"test_{test_username}",
+            "payment_status": "active"
+        }
+        
+        # Update analytics
+        self.analytics["user_registrations"].append({
+            "username": test_username,
+            "plan": plan,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        self.save_users()
+        self.save_analytics()
+        
+        return test_username, f"Test user '{test_username}' created with {plan} plan!"
+
     def authenticate(self, username, password):
         """Authenticate user with security checks"""
         self.analytics["total_logins"] += 1
@@ -735,10 +773,9 @@ def render_admin_user_management():
             st.success("User data export would be implemented here")
     with col3:
         if st.button("🆕 Create Test User", use_container_width=True):
-            # Create a test user for demo
-            test_username = f"test_{int(time.time())}"
-            user_manager.register_user(test_username, "test123", "Test User", "test@example.com", "trial")
-            st.success(f"Test user '{test_username}' created!")
+            # Use the dedicated create_test_user method (bypasses validation)
+            created_username, msg = user_manager.create_test_user("trial")
+            st.success(msg)
             st.rerun()
     
     st.markdown("---")
@@ -819,10 +856,12 @@ def render_admin_revenue():
     
     for user_data in user_manager.users.values():
         plan = user_data.get("plan", "trial")
-        if plan in revenue_data:
-            revenue_data[plan]["users"] += 1
-            if plan != "trial":
-                revenue_data[plan]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
+        # Normalize plan names to match revenue_data keys where possible
+        pkey = plan.title() if plan.title() in revenue_data else plan.capitalize()
+        if pkey in revenue_data:
+            revenue_data[pkey]["users"] += 1
+            if pkey != "Trial":
+                revenue_data[pkey]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
     
     # Display revenue table
     revenue_df = pd.DataFrame([
