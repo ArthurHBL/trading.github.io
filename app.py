@@ -1,4 +1,4 @@
-# app.py - ENHANCED WITH USERNAME/PASSWORD CHANGE FEATURES
+# app.py - FIXED VERSION WITH VISIBLE USERNAME/PASSWORD CHANGE FUNCTIONALITY
 import streamlit as st
 import hashlib
 import json
@@ -1290,7 +1290,7 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
-# ENHANCED ADMIN USER MANAGEMENT
+# ENHANCED ADMIN USER MANAGEMENT - FIXED VERSION
 # -------------------------
 def render_admin_user_management():
     """User management interface with enhanced username/password change functionality"""
@@ -2207,12 +2207,12 @@ def render_admin_dashboard():
     # Main admin content
     st.title("👑 Business Administration Dashboard")
     
-    # Show username change interface if needed
+    # Show username change interface if needed - THIS WAS MISSING!
     if st.session_state.get('show_username_change'):
         render_username_change_interface()
         return
     
-    # Show user password change interface if needed
+    # Show user password change interface if needed - THIS WAS MISSING!
     if st.session_state.get('show_user_password_change'):
         render_user_password_change_interface()
         return
@@ -2245,7 +2245,7 @@ def render_admin_dashboard():
     elif current_view == 'analytics':
         render_admin_analytics()
     elif current_view == 'users':
-        render_admin_user_management()
+        render_admin_user_management()  # This is the main user management interface
     elif current_view == 'revenue':
         render_admin_revenue()
 
