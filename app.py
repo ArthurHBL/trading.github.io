@@ -1,4 +1,4 @@
-# app.py - FIXED AND IMPROVED VERSION
+# app.py - COMPLETE VERSION WITH ROBUST DATA PERSISTENCE
 import streamlit as st
 import hashlib
 import json
@@ -10,18 +10,24 @@ import re
 import time
 import os
 import numpy as np
+import threading
+import shutil
 
 # -------------------------
-# SESSION MANAGEMENT - FIXED
+# SESSION MANAGEMENT - ENHANCED
 # -------------------------
 def init_session():
-    """Initialize session state variables with proper structure"""
+    """Initialize session state with recovery"""
     if 'user' not in st.session_state:
         st.session_state.user = None
+    
     if 'user_data' not in st.session_state:
-        st.session_state.user_data = {}  # Main user data container
+        st.session_state.user_data = {}
+    
     if 'app_started' not in st.session_state:
         st.session_state.app_started = True
+        print("🚀 Application started - initializing robust data system")
+    
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
     if 'user_to_delete' not in st.session_state:
@@ -42,13 +48,17 @@ def init_session():
         st.session_state.show_upgrade = False
     if 'selected_strategy' not in st.session_state:
         st.session_state.selected_strategy = None
+    
+    # Add recovery for user session if they were logged in
+    if st.session_state.user is None and 'recover_user' not in st.session_state:
+        st.session_state.recover_user = True
 
 # -------------------------
 # PRODUCTION CONFIGURATION
 # -------------------------
 class Config:
     APP_NAME = "TradingAnalysis Pro"
-    VERSION = "2.0.1"  # Updated version
+    VERSION = "2.1.0"  # Updated version with persistence
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
     
@@ -61,51 +71,88 @@ class Config:
     }
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED
+# ROBUST USER MANAGEMENT WITH PERSISTENCE
 # -------------------------
-class UserManager:
+class RobustUserManager:
     def __init__(self):
-        self.users_file = "users.json"
-        self.analytics_file = "analytics.json"
-        self._ensure_data_files()
-        self.load_data()
-        # FIXED: Removed problematic atexit registration
-        # Session cleanup is now handled explicitly in logout
+        self.users_file = "data/users.json"
+        self.analytics_file = "data/analytics.json"
+        self.backup_dir = "data/backups"
+        self.lock = threading.Lock()  # Thread safety for file operations
+        
+        # Ensure directories exist
+        self._ensure_directories()
+        
+        # Initialize data with auto-recovery
+        self._initialize_with_recovery()
+        
+        # Start auto-save and backup threads
+        self._start_background_tasks()
     
-    def _ensure_data_files(self):
-        """Ensure data files exist and are valid"""
+    def _ensure_directories(self):
+        """Create necessary directories"""
+        os.makedirs("data", exist_ok=True)
+        os.makedirs(self.backup_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.backup_dir, "emergency"), exist_ok=True)
+    
+    def _initialize_with_recovery(self):
+        """Initialize data with automatic recovery from backups if needed"""
+        print("🔄 Initializing data with recovery checks...")
+        
+        # Try to load main data files
+        self.users = self._load_data_with_recovery(self.users_file, "users")
+        self.analytics = self._load_data_with_recovery(self.analytics_file, "analytics")
+        
+        # Ensure default admin exists
+        if "admin" not in self.users:
+            self.create_default_admin()
+            self._immediate_save()
+        
+        print("✅ Data initialization complete")
+    
+    def _load_data_with_recovery(self, filepath, data_type):
+        """Load data with automatic recovery from backups if main file is corrupted"""
         try:
-            if not os.path.exists(self.users_file):
-                self.users = {}
-                self.create_default_admin()
-                self.save_users()
+            # First try to load the main file
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                print(f"✅ Successfully loaded {data_type} from {filepath}")
+                return data
             else:
-                # Validate existing file
-                with open(self.users_file, 'r') as f:
-                    json.load(f)  # Test if valid JSON
-            
-            if not os.path.exists(self.analytics_file):
-                self.analytics = {
-                    "total_logins": 0,
-                    "active_users": 0,
-                    "revenue_today": 0,
-                    "user_registrations": [],
-                    "login_history": [],
-                    "deleted_users": [],
-                    "plan_changes": [],
-                    "password_changes": []
-                }
-                self.save_analytics()
-            else:
-                # Validate existing file
-                with open(self.analytics_file, 'r') as f:
-                    json.load(f)  # Test if valid JSON
+                # File doesn't exist, try to restore from latest backup
+                restored = self._restore_from_backup(filepath, data_type)
+                if restored:
+                    with open(filepath, 'r') as f:
+                        return json.load(f)
+                else:
+                    # No backup, return empty structure
+                    print(f"⚠️ No {data_type} file found, creating new one")
+                    return self._get_default_data(data_type)
                     
         except Exception as e:
-            print(f"❌ Error ensuring data files: {e}")
-            # Create fresh files if corrupted
-            self.users = {}
-            self.analytics = {
+            print(f"❌ Error loading {data_type} from {filepath}: {e}")
+            # Try to restore from backup
+            restored = self._restore_from_backup(filepath, data_type)
+            if restored:
+                try:
+                    with open(filepath, 'r') as f:
+                        return json.load(f)
+                except:
+                    pass
+            
+            # If all else fails, return default data
+            print(f"🔄 Creating new {data_type} data structure")
+            return self._get_default_data(data_type)
+    
+    def _get_default_data(self, data_type):
+        """Get default data structure for different data types"""
+        if data_type == "users":
+            default_data = {}
+            self.create_default_admin(default_data)
+            return default_data
+        elif data_type == "analytics":
+            return {
                 "total_logins": 0,
                 "active_users": 0,
                 "revenue_today": 0,
@@ -113,41 +160,235 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "data_recovery_events": [],
+                "last_backup": datetime.now().isoformat(),
+                "last_save": datetime.now().isoformat(),
+                "total_backups": 0
             }
-            self.create_default_admin()
-            self.save_users()
-            self.save_analytics()
+        return {}
     
-    def load_data(self):
-        """Load users and analytics data with enhanced error handling"""
+    def _restore_from_backup(self, original_file, data_type):
+        """Restore data from the most recent backup"""
         try:
-            with open(self.users_file, 'r') as f:
-                self.users = json.load(f)
+            # Get all backups for this file type
+            filename = os.path.basename(original_file)
+            backup_pattern = f"{filename}.backup."
+            
+            backups = []
+            for file in os.listdir(self.backup_dir):
+                if file.startswith(backup_pattern):
+                    backups.append(file)
+            
+            if not backups:
+                print(f"⚠️ No backups found for {data_type}")
+                return False
+            
+            # Sort by timestamp (newest first)
+            backups.sort(reverse=True)
+            latest_backup = os.path.join(self.backup_dir, backups[0])
+            
+            # Restore from backup
+            shutil.copy2(latest_backup, original_file)
+            
+            # Log recovery event
+            recovery_event = {
+                "timestamp": datetime.now().isoformat(),
+                "original_file": original_file,
+                "backup_used": latest_backup,
+                "data_type": data_type,
+                "reason": "Auto-recovery from corruption"
+            }
+            
+            if 'data_recovery_events' not in self.analytics:
+                self.analytics['data_recovery_events'] = []
+            self.analytics['data_recovery_events'].append(recovery_event)
+            
+            print(f"✅ Successfully restored {data_type} from backup: {latest_backup}")
+            return True
+            
         except Exception as e:
-            print(f"❌ Error loading users: {e}")
-            self.users = {}
-            self.create_default_admin()
+            print(f"❌ Failed to restore {data_type} from backup: {e}")
+            return False
+    
+    def _start_background_tasks(self):
+        """Start background tasks for auto-save and backups"""
+        # Auto-save every 2 minutes
+        def auto_save():
+            while True:
+                time.sleep(120)  # 2 minutes
+                self._immediate_save()
         
-        try:
-            with open(self.analytics_file, 'r') as f:
-                self.analytics = json.load(f)
-        except Exception as e:
-            print(f"❌ Error loading analytics: {e}")
-            self.analytics = {
-                "total_logins": 0,
-                "active_users": 0,
-                "revenue_today": 0,
-                "user_registrations": [],
-                "login_history": [],
-                "deleted_users": [],
-                "plan_changes": [],
-                "password_changes": []
-            }
+        # Backup every 10 minutes
+        def auto_backup():
+            while True:
+                time.sleep(600)  # 10 minutes
+                self.create_data_backup()
+                self.cleanup_old_backups()
+        
+        # Start threads (daemon threads will exit when main thread exits)
+        save_thread = threading.Thread(target=auto_save, daemon=True)
+        backup_thread = threading.Thread(target=auto_backup, daemon=True)
+        
+        save_thread.start()
+        backup_thread.start()
+        
+        print("✅ Background tasks started: auto-save (2min), auto-backup (10min)")
     
-    def create_default_admin(self):
+    def _immediate_save(self):
+        """Immediately save all data with error handling"""
+        with self.lock:
+            try:
+                # Save users
+                temp_users_file = self.users_file + ".tmp"
+                with open(temp_users_file, 'w') as f:
+                    json.dump(self.users, f, indent=2)
+                
+                # Save analytics
+                temp_analytics_file = self.analytics_file + ".tmp"
+                with open(temp_analytics_file, 'w') as f:
+                    json.dump(self.analytics, f, indent=2)
+                
+                # Atomic rename (more reliable than direct write)
+                os.replace(temp_users_file, self.users_file)
+                os.replace(temp_analytics_file, self.analytics_file)
+                
+                # Update last save timestamp
+                self.analytics['last_save'] = datetime.now().isoformat()
+                
+                print(f"💾 Auto-saved data at {datetime.now().strftime('%H:%M:%S')}")
+                return True
+                
+            except Exception as e:
+                print(f"❌ Auto-save failed: {e}")
+                # Try to create emergency backup
+                self._emergency_backup()
+                return False
+    
+    def _emergency_backup(self):
+        """Create emergency backup when normal save fails"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_emergency")
+            emergency_dir = os.path.join(self.backup_dir, "emergency")
+            os.makedirs(emergency_dir, exist_ok=True)
+            
+            # Save current state to emergency backup
+            emergency_file = os.path.join(emergency_dir, f"emergency_{timestamp}.json")
+            emergency_data = {
+                "timestamp": datetime.now().isoformat(),
+                "users": self.users,
+                "analytics": self.analytics
+            }
+            
+            with open(emergency_file, 'w') as f:
+                json.dump(emergency_data, f, indent=2)
+            
+            print(f"🚨 Emergency backup created: {emergency_file}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Emergency backup also failed: {e}")
+            return False
+    
+    def create_data_backup(self):
+        """Create timestamped backup of data files"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Backup users file
+            if os.path.exists(self.users_file):
+                backup_file = os.path.join(self.backup_dir, f"users.json.backup.{timestamp}")
+                shutil.copy2(self.users_file, backup_file)
+            
+            # Backup analytics file
+            if os.path.exists(self.analytics_file):
+                backup_file = os.path.join(self.backup_dir, f"analytics.json.backup.{timestamp}")
+                shutil.copy2(self.analytics_file, backup_file)
+            
+            # Update analytics
+            self.analytics['last_backup'] = datetime.now().isoformat()
+            self.analytics['total_backups'] = self.analytics.get('total_backups', 0) + 1
+            self._immediate_save()
+            
+            print(f"📦 Backup created at {timestamp}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Backup creation failed: {e}")
+            return False
+    
+    def cleanup_old_backups(self, keep_count=10):
+        """Keep only the most recent backups"""
+        try:
+            # Cleanup regular backups
+            backup_types = ['users.json.backup.', 'analytics.json.backup.']
+            
+            for backup_type in backup_types:
+                backups = []
+                for file in os.listdir(self.backup_dir):
+                    if file.startswith(backup_type):
+                        backups.append(file)
+                
+                # Sort by timestamp (newest first)
+                backups.sort(reverse=True)
+                
+                # Remove excess backups
+                for old_backup in backups[keep_count:]:
+                    os.remove(os.path.join(self.backup_dir, old_backup))
+            
+            # Cleanup emergency backups (keep only last 5)
+            emergency_dir = os.path.join(self.backup_dir, "emergency")
+            if os.path.exists(emergency_dir):
+                emergencies = []
+                for file in os.listdir(emergency_dir):
+                    if file.startswith("emergency_"):
+                        emergencies.append(file)
+                
+                emergencies.sort(reverse=True)
+                for old_emergency in emergencies[5:]:
+                    os.remove(os.path.join(emergency_dir, old_emergency))
+            
+            print(f"🧹 Cleaned up old backups, keeping {keep_count} most recent")
+            
+        except Exception as e:
+            print(f"❌ Backup cleanup failed: {e}")
+    
+    def save_users(self):
+        """Public method to save users (triggers immediate save)"""
+        return self._immediate_save()
+    
+    def save_analytics(self):
+        """Public method to save analytics (triggers immediate save)"""
+        return self._immediate_save()
+    
+    def get_backup_status(self):
+        """Get backup system status"""
+        status = {
+            "last_backup": self.analytics.get('last_backup', 'Never'),
+            "total_backups": self.analytics.get('total_backups', 0),
+            "last_save": self.analytics.get('last_save', 'Never'),
+            "recovery_events": len(self.analytics.get('data_recovery_events', [])),
+            "backup_files": 0,
+            "emergency_backups": 0
+        }
+        
+        # Count backup files
+        if os.path.exists(self.backup_dir):
+            for file in os.listdir(self.backup_dir):
+                if file.startswith(('users.json.backup.', 'analytics.json.backup.')):
+                    status["backup_files"] += 1
+            
+            emergency_dir = os.path.join(self.backup_dir, "emergency")
+            if os.path.exists(emergency_dir):
+                status["emergency_backups"] = len(os.listdir(emergency_dir))
+        
+        return status
+
+    # Existing UserManager methods with persistence integration
+    def create_default_admin(self, users_dict=None):
         """Create default admin account"""
-        self.users["admin"] = {
+        target_dict = users_dict if users_dict is not None else self.users
+        target_dict["admin"] = {
             "password_hash": self.hash_password("ChangeThis123!"),
             "name": "System Administrator",
             "plan": "admin",
@@ -166,39 +407,6 @@ class UserManager:
         """Secure password hashing"""
         salt = st.secrets.get("PASSWORD_SALT", "default-salt-change-in-production")
         return hashlib.sha256((password + salt).encode()).hexdigest()
-    
-    def save_users(self):
-        """Save users to file with enhanced error handling"""
-        try:
-            # Create backup of existing file
-            if os.path.exists(self.users_file):
-                backup_file = f"{self.users_file}.backup.{int(time.time())}"
-                import shutil
-                shutil.copy2(self.users_file, backup_file)
-            
-            with open(self.users_file, 'w') as f:
-                json.dump(self.users, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"❌ Error saving users: {e}")
-            st.error("Failed to save user data. Please try again.")
-            return False
-    
-    def save_analytics(self):
-        """Save analytics data with enhanced error handling"""
-        try:
-            with open(self.analytics_file, 'w') as f:
-                json.dump(self.analytics, f, indent=2)
-            return True
-        except Exception as e:
-            print(f"❌ Error saving analytics: {e}")
-            return False
-    
-    def cleanup_sessions(self):
-        """Reset all active sessions"""
-        for username in self.users:
-            self.users[username]["active_sessions"] = 0
-        self.save_users()
     
     def register_user(self, username, password, name, email, plan="trial"):
         """Register new user with proper validation"""
@@ -239,7 +447,7 @@ class UserManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return True, f"Account created successfully! {plan_config['name']} activated."
         else:
             return False, "Error saving user data. Please try again."
@@ -274,7 +482,7 @@ class UserManager:
             "timestamp": datetime.now().isoformat()
         })
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return test_username, f"Test user '{test_username}' created with {plan} plan!"
         else:
             return None, "Error creating test user"
@@ -306,13 +514,13 @@ class UserManager:
             "deleted_at": datetime.now().isoformat()
         })
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return True, f"User '{username}' has been permanently deleted"
         else:
             return False, "Error deleting user data"
 
     def change_user_plan(self, username, new_plan, change_reason=None):
-        """Change a user's subscription plan - FIXED: added change_reason parameter"""
+        """Change a user's subscription plan"""
         if username not in self.users:
             return False, "User not found"
         
@@ -348,13 +556,12 @@ class UserManager:
             "admin": self.users.get('admin', {}).get('name', 'System')
         }
         
-        # FIXED: Now using the change_reason parameter
         if change_reason:
             change_record["reason"] = change_reason
             
         self.analytics['plan_changes'].append(change_record)
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
         else:
             return False, "Error saving plan change"
@@ -369,7 +576,7 @@ class UserManager:
         })
         
         if username not in self.users:
-            self.save_analytics()
+            self._immediate_save()
             return False, "Invalid username or password"
         
         user = self.users[username]
@@ -393,7 +600,7 @@ class UserManager:
         
         self.analytics["login_history"][-1]["success"] = True
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return True, "Login successful"
         else:
             return False, "Error saving login data"
@@ -405,7 +612,7 @@ class UserManager:
         """Logout user"""
         if username in self.users:
             self.users[username]["active_sessions"] = max(0, self.users[username]["active_sessions"] - 1)
-            self.save_users()
+            self._immediate_save()
     
     def change_admin_password(self, current_password, new_password, changed_by="admin"):
         """Change admin password with verification"""
@@ -430,7 +637,7 @@ class UserManager:
             "changed_by": changed_by
         })
         
-        if self.save_users() and self.save_analytics():
+        if self._immediate_save():
             return True, "Admin password changed successfully!"
         else:
             return False, "Error saving password change"
@@ -455,8 +662,8 @@ class UserManager:
             "revenue_today": self.analytics.get("revenue_today", 0)
         }
 
-# Initialize user manager
-user_manager = UserManager()
+# Initialize robust user manager
+user_manager = RobustUserManager()
 
 # -------------------------
 # STRATEGIES DEFINITION
@@ -563,6 +770,192 @@ class TradingAnalysisEngine:
 trading_engine = TradingAnalysisEngine()
 
 # -------------------------
+# BACKUP MANAGEMENT INTERFACE
+# -------------------------
+def render_backup_management():
+    """Comprehensive backup and data management interface"""
+    st.subheader("💾 Data Persistence & Backup Management")
+    
+    # Backup status
+    status = user_manager.get_backup_status()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        last_backup = status["last_backup"]
+        if last_backup != 'Never':
+            try:
+                backup_time = datetime.fromisoformat(last_backup)
+                time_diff = datetime.now() - backup_time
+                if time_diff.total_seconds() > 600:  # 10 minutes
+                    st.metric("Last Backup", f"{last_backup[:16]}", delta="⚠️ Old", delta_color="off")
+                else:
+                    st.metric("Last Backup", f"{last_backup[:16]}", delta="✅ Fresh", delta_color="normal")
+            except:
+                st.metric("Last Backup", "Invalid")
+        else:
+            st.metric("Last Backup", 'Never', delta="❌ None", delta_color="off")
+    
+    with col2:
+        st.metric("Total Backups", status["total_backups"])
+    
+    with col3:
+        st.metric("Backup Files", status["backup_files"])
+    
+    with col4:
+        st.metric("Recovery Events", status["recovery_events"])
+    
+    st.markdown("---")
+    
+    # Manual backup controls
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("🔄 Create Backup Now", use_container_width=True, key="create_backup"):
+            if user_manager.create_data_backup():
+                st.success("✅ Backup created successfully!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("❌ Backup creation failed")
+    
+    with col2:
+        if st.button("🧹 Cleanup Old Backups", use_container_width=True, key="cleanup_backups"):
+            user_manager.cleanup_old_backups()
+            st.success("✅ Old backups cleaned up!")
+            time.sleep(1)
+            st.rerun()
+    
+    with col3:
+        if st.button("💾 Force Save All Data", use_container_width=True, key="force_save"):
+            if user_manager._immediate_save():
+                st.success("✅ All data saved immediately!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("❌ Save failed, check emergency backups")
+    
+    st.markdown("---")
+    
+    # Backup files listing
+    st.subheader("📁 Backup Files")
+    
+    if os.path.exists(user_manager.backup_dir):
+        backup_files = []
+        for file in os.listdir(user_manager.backup_dir):
+            filepath = os.path.join(user_manager.backup_dir, file)
+            if os.path.isfile(filepath) and file.startswith(('users.json.backup.', 'analytics.json.backup.')):
+                stat = os.stat(filepath)
+                backup_files.append({
+                    "filename": file,
+                    "size": f"{stat.st_size / 1024:.1f} KB",
+                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                })
+        
+        if backup_files:
+            backup_files.sort(key=lambda x: x['modified'], reverse=True)
+            backup_df = pd.DataFrame(backup_files)
+            st.dataframe(backup_df, use_container_width=True)
+        else:
+            st.info("No backup files found")
+    else:
+        st.error("Backup directory not found!")
+    
+    st.markdown("---")
+    
+    # Data recovery section
+    st.subheader("🛡️ Data Recovery")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Recovery History**")
+        recovery_events = user_manager.analytics.get('data_recovery_events', [])
+        if recovery_events:
+            for event in reversed(recovery_events[-5:]):  # Show last 5 events
+                st.write(f"• {event['timestamp'][:16]}: {event['reason']}")
+        else:
+            st.info("No recovery events recorded")
+    
+    with col2:
+        st.write("**Emergency Recovery**")
+        st.warning("Use these options only if data is corrupted")
+        
+        if st.button("🔄 Restore from Latest Backup", type="secondary", key="restore_backup"):
+            st.info("Restore functionality would be implemented here")
+            # In a real implementation, this would:
+            # 1. List available backups
+            # 2. Let user select one
+            # 3. Restore from that backup
+        
+        if st.button("🚨 Emergency Data Reset", type="primary", key="emergency_reset"):
+            st.error("This will reset all data to defaults!")
+            st.warning("All users except admin will be deleted!")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ CONFIRM RESET", key="confirm_reset"):
+                    # Backup current state first
+                    user_manager.create_data_backup()
+                    # Reset data but keep admin
+                    admin_data = user_manager.users.get("admin", {})
+                    user_manager.users = {}
+                    user_manager.analytics = user_manager._get_default_data("analytics")
+                    if admin_data:
+                        user_manager.users["admin"] = admin_data
+                    else:
+                        user_manager.create_default_admin()
+                    user_manager._immediate_save()
+                    st.success("Data reset complete! Admin account restored.")
+                    time.sleep(2)
+                    st.rerun()
+            with col2:
+                if st.button("❌ Cancel", key="cancel_reset"):
+                    st.rerun()
+    
+    st.markdown("---")
+    
+    # System information
+    st.subheader("🔧 System Information")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**File Locations:**")
+        st.write(f"Users: `{user_manager.users_file}`")
+        st.write(f"Analytics: `{user_manager.analytics_file}`")
+        st.write(f"Backups: `{user_manager.backup_dir}`")
+        
+        # Check file existence and sizes
+        files_to_check = [
+            (user_manager.users_file, "Users database"),
+            (user_manager.analytics_file, "Analytics database")
+        ]
+        
+        for filepath, description in files_to_check:
+            if os.path.exists(filepath):
+                size = os.path.getsize(filepath) / 1024
+                st.success(f"✅ {description}: {size:.1f} KB")
+            else:
+                st.error(f"❌ {description}: Missing!")
+    
+    with col2:
+        st.write("**Auto-Save Status:**")
+        st.success("✅ Active (every 2 minutes)")
+        st.success("✅ Auto-backup (every 10 minutes)")
+        st.success("✅ Emergency backup on failure")
+        
+        st.write("**Next Actions:**")
+        st.info("• Data is automatically saved every 2 minutes")
+        st.info("• Backups created every 10 minutes")
+        st.info("• Emergency backups on save failures")
+        
+        # Show current data statistics
+        st.write("**Current Data Stats:**")
+        st.write(f"• Total Users: {len(user_manager.users)}")
+        st.write(f"• Total Logins: {user_manager.analytics.get('total_logins', 0)}")
+        st.write(f"• User Registrations: {len(user_manager.analytics.get('user_registrations', []))}")
+
+# -------------------------
 # AUTHENTICATION COMPONENTS
 # -------------------------
 def render_login():
@@ -578,9 +971,9 @@ def render_login():
             
             col1, col2 = st.columns(2)
             with col1:
-                username = st.text_input("Username", placeholder="Enter your username")
+                username = st.text_input("Username", placeholder="Enter your username", key="login_username")
             with col2:
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
+                password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_password")
             
             submitted = st.form_submit_button("🔐 Secure Login", use_container_width=True)
             
@@ -610,18 +1003,19 @@ def render_login():
             
             col1, col2 = st.columns(2)
             with col1:
-                new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only")
-                new_name = st.text_input("Full Name*")
+                new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only", key="reg_username")
+                new_name = st.text_input("Full Name*", key="reg_name")
                 plan_choice = st.selectbox(
                     "Subscription Plan*", 
                     list(Config.PLANS.keys()),
-                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month"
+                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month",
+                    key="reg_plan"
                 )
             
             with col2:
-                new_email = st.text_input("Email Address*")
-                new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters")
-                confirm_password = st.text_input("Confirm Password*", type="password")
+                new_email = st.text_input("Email Address*", key="reg_email")
+                new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters", key="reg_password")
+                confirm_password = st.text_input("Confirm Password*", type="password", key="reg_confirm_password")
             
             st.markdown("**Required fields marked with ***")
             
@@ -636,7 +1030,7 @@ def render_login():
                     if plan_choice == "trial":
                         st.info("🎁 Free trial - no payment required")
             
-            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*")
+            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="reg_agree")
             
             submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
             
@@ -672,13 +1066,13 @@ def render_password_change_interface():
         col1, col2 = st.columns(2)
         with col1:
             current_password = st.text_input("Current Password*", type="password", 
-                                           placeholder="Enter current admin password")
+                                           placeholder="Enter current admin password", key="pwd_current")
         with col2:
             new_password = st.text_input("New Password*", type="password", 
-                                       placeholder="Enter new password (min 8 chars)")
+                                       placeholder="Enter new password (min 8 chars)", key="pwd_new")
         
         confirm_password = st.text_input("Confirm New Password*", type="password", 
-                                       placeholder="Re-enter new password")
+                                       placeholder="Re-enter new password", key="pwd_confirm")
         
         # Password strength requirements
         st.markdown("**Password Requirements:**")
@@ -755,7 +1149,7 @@ def render_delete_confirmation_modal():
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("✅ Confirm Delete", type="primary", use_container_width=True):
+            if st.button("✅ Confirm Delete", type="primary", use_container_width=True, key="confirm_delete_modal"):
                 success, message = user_manager.delete_user(user_to_delete)
                 if success:
                     st.success(f"✅ {message}")
@@ -768,7 +1162,7 @@ def render_delete_confirmation_modal():
                     st.error(f"❌ {message}")
         
         with col2:
-            if st.button("❌ Cancel", use_container_width=True):
+            if st.button("❌ Cancel", use_container_width=True, key="cancel_delete_modal"):
                 st.session_state.show_delete_confirmation = False
                 st.session_state.user_to_delete = None
                 st.rerun()
@@ -900,7 +1294,8 @@ def render_plan_management_interface(username):
             "Select New Plan",
             available_plans,
             index=available_plans.index(current_plan) if current_plan in available_plans else 0,
-            format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month"
+            format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month",
+            key="plan_select"
         )
         
         # Plan comparison
@@ -978,7 +1373,7 @@ def render_plan_management_interface(username):
         st.write(f"**Expires:** {user_data['expires']}")
         
         days_left = (datetime.strptime(user_data['expires'], "%Y-%m-%d").date() - date.today()).days
-        st.metric("Days Remaining", days_left)
+        st.metric("Days Remaining", days_left, key="days_remaining_plan")
         
         st.markdown("#### Features:")
         st.write(f"• **Strategies:** {current_plan_config.get('strategies', 0)} available")
@@ -1748,7 +2143,7 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - FIXED VERSION
+# ADMIN DASHBOARD - FIXED VERSION WITH BACKUP MANAGEMENT
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management - FIXED"""
@@ -1773,13 +2168,13 @@ def render_admin_dashboard():
             user_manager.load_data()
             st.rerun()
         
-        if st.button("📊 View Analytics", use_container_width=True, key="sidebar_analytics"):
+        if st.button("📊 Business Overview", use_container_width=True, key="sidebar_overview"):
             # Clear any modal/management states first
             st.session_state.show_delete_confirmation = False
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
-            st.session_state.admin_view = "analytics"
+            st.session_state.admin_view = "overview"
             st.rerun()
         
         if st.button("👥 Manage Users", use_container_width=True, key="sidebar_users"):
@@ -1791,13 +2186,22 @@ def render_admin_dashboard():
             st.session_state.admin_view = "users"
             st.rerun()
         
-        if st.button("🗑️ Bulk Delete", use_container_width=True, key="sidebar_bulk_delete"):
+        if st.button("📈 Analytics", use_container_width=True, key="sidebar_analytics"):
             # Clear any modal/management states first
             st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
-            st.session_state.admin_view = "users"
-            st.session_state.show_bulk_delete = True
+            st.session_state.admin_view = "analytics"
+            st.rerun()
+        
+        if st.button("💾 Backup Management", use_container_width=True, key="sidebar_backup"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.admin_view = "backup"
             st.rerun()
         
         if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue"):
@@ -1841,6 +2245,8 @@ def render_admin_dashboard():
         render_admin_analytics()
     elif current_view == 'users':
         render_admin_user_management()
+    elif current_view == 'backup':
+        render_backup_management()
     elif current_view == 'revenue':
         render_admin_revenue()
 
@@ -2046,21 +2452,21 @@ def render_admin_user_management():
                 if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
                     user_manager.users[selected_user]["is_active"] = False
                     user_manager.users[selected_user]["active_sessions"] = 0
-                    user_manager.save_users()
+                    user_manager._immediate_save()
                     st.success(f"User '{selected_user}' deactivated!")
                     st.rerun()
             
             with col2:
                 if st.button("🟢 Activate User", use_container_width=True, key=f"activate_{selected_user}"):
                     user_manager.users[selected_user]["is_active"] = True
-                    user_manager.save_users()
+                    user_manager._immediate_save()
                     st.success(f"User '{selected_user}' activated!")
                     st.rerun()
             
             with col3:
                 if st.button("🔄 Reset Sessions", use_container_width=True, key=f"reset_{selected_user}"):
                     user_manager.users[selected_user]["active_sessions"] = 0
-                    user_manager.save_users()
+                    user_manager._immediate_save()
                     st.success(f"Sessions reset for '{selected_user}'!")
                     st.rerun()
             
