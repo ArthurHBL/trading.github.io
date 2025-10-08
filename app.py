@@ -1159,37 +1159,6 @@ def render_trading_dashboard(data, user):
     else:
         st.info(f"👋 Welcome, **{user['name']}**! You have access to {plan_config['strategies']} strategies. Upgrade for premium features.")
     
-    # Market overview section
-    st.subheader("🌍 Market Overview")
-    
-    # Market metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        current_price = trading_engine.market_data['Price'].iloc[-1]
-        price_change = ((current_price - trading_engine.market_data['Price'].iloc[-2]) / trading_engine.market_data['Price'].iloc[-2]) * 100
-        st.metric(
-            "BTC/USD", 
-            f"${current_price:,.0f}", 
-            f"{price_change:+.2f}%",
-            delta_color="normal" if price_change >= 0 else "inverse"
-        )
-    
-    with col2:
-        st.metric("24h Volume", "$42.8B", "+5.2%")
-    
-    with col3:
-        rsi = trading_engine.market_data['RSI'].iloc[-1]
-        st.metric(
-            "RSI", 
-            f"{rsi:.1f}", 
-            "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Neutral",
-            delta_color="inverse" if rsi > 70 else "normal" if rsi < 30 else "off"
-        )
-    
-    with col4:
-        volatility = trading_engine.market_data['Volatility'].iloc[-1] * 100
-        st.metric("Volatility", f"{volatility:.1f}%", "High" if volatility > 3 else "Low")
-    
     # Strategy progress with enhanced visuals
     st.subheader("🎯 Today's Focus Strategies")
     
