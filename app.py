@@ -1,4 +1,4 @@
-# app.py - COMPLETE WORKING VERSION WITH ORIGINAL ADMIN DASHBOARD
+# app.py - FIXED VERSION WITHOUT SESSION BLOCKING
 import streamlit as st
 import hashlib
 import json
@@ -320,7 +320,7 @@ class UserManager:
             return False, "Error saving plan change"
 
     def authenticate(self, username, password):
-        """Authenticate user with security checks"""
+        """Authenticate user WITHOUT session blocking"""
         self.analytics["total_logins"] += 1
         self.analytics["login_history"].append({
             "username": username,
@@ -344,12 +344,11 @@ class UserManager:
         if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
             return False, "Subscription expired. Please renew your plan."
         
-        if user["active_sessions"] >= user["max_sessions"]:
-            return False, "Account in use. Maximum concurrent sessions reached."
+        # REMOVED: Session blocking check - users can always login regardless of active sessions
         
         user["last_login"] = datetime.now().isoformat()
         user["login_count"] = user.get("login_count", 0) + 1
-        user["active_sessions"] += 1
+        user["active_sessions"] += 1  # Still track sessions but don't block login
         
         self.analytics["login_history"][-1]["success"] = True
         
