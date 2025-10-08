@@ -1,4 +1,4 @@
-# app.py - COMPLETE WORKING VERSION WITH ORIGINAL ADMIN DASHBOARD
+# app.py - FIXED AND IMPROVED VERSION
 import streamlit as st
 import hashlib
 import json
@@ -9,18 +9,17 @@ from typing import Dict, List, Tuple
 import re
 import time
 import os
-import atexit
 import numpy as np
 
 # -------------------------
-# SESSION MANAGEMENT
+# SESSION MANAGEMENT - FIXED
 # -------------------------
 def init_session():
-    """Initialize session state variables"""
+    """Initialize session state variables with proper structure"""
     if 'user' not in st.session_state:
         st.session_state.user = None
     if 'user_data' not in st.session_state:
-        st.session_state.user_data = {}
+        st.session_state.user_data = {}  # Main user data container
     if 'app_started' not in st.session_state:
         st.session_state.app_started = True
     if 'show_delete_confirmation' not in st.session_state:
@@ -49,7 +48,7 @@ def init_session():
 # -------------------------
 class Config:
     APP_NAME = "TradingAnalysis Pro"
-    VERSION = "2.0.0"
+    VERSION = "2.0.1"  # Updated version
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
     
@@ -62,7 +61,7 @@ class Config:
     }
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE
+# SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED
 # -------------------------
 class UserManager:
     def __init__(self):
@@ -70,16 +69,42 @@ class UserManager:
         self.analytics_file = "analytics.json"
         self._ensure_data_files()
         self.load_data()
-        atexit.register(self.cleanup_sessions)
+        # FIXED: Removed problematic atexit registration
+        # Session cleanup is now handled explicitly in logout
     
     def _ensure_data_files(self):
         """Ensure data files exist and are valid"""
-        if not os.path.exists(self.users_file):
+        try:
+            if not os.path.exists(self.users_file):
+                self.users = {}
+                self.create_default_admin()
+                self.save_users()
+            else:
+                # Validate existing file
+                with open(self.users_file, 'r') as f:
+                    json.load(f)  # Test if valid JSON
+            
+            if not os.path.exists(self.analytics_file):
+                self.analytics = {
+                    "total_logins": 0,
+                    "active_users": 0,
+                    "revenue_today": 0,
+                    "user_registrations": [],
+                    "login_history": [],
+                    "deleted_users": [],
+                    "plan_changes": [],
+                    "password_changes": []
+                }
+                self.save_analytics()
+            else:
+                # Validate existing file
+                with open(self.analytics_file, 'r') as f:
+                    json.load(f)  # Test if valid JSON
+                    
+        except Exception as e:
+            print(f"❌ Error ensuring data files: {e}")
+            # Create fresh files if corrupted
             self.users = {}
-            self.create_default_admin()
-            self.save_users()
-        
-        if not os.path.exists(self.analytics_file):
             self.analytics = {
                 "total_logins": 0,
                 "active_users": 0,
@@ -90,10 +115,12 @@ class UserManager:
                 "plan_changes": [],
                 "password_changes": []
             }
+            self.create_default_admin()
+            self.save_users()
             self.save_analytics()
     
     def load_data(self):
-        """Load users and analytics data with error handling"""
+        """Load users and analytics data with enhanced error handling"""
         try:
             with open(self.users_file, 'r') as f:
                 self.users = json.load(f)
@@ -141,17 +168,24 @@ class UserManager:
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def save_users(self):
-        """Save users to file with error handling"""
+        """Save users to file with enhanced error handling"""
         try:
+            # Create backup of existing file
+            if os.path.exists(self.users_file):
+                backup_file = f"{self.users_file}.backup.{int(time.time())}"
+                import shutil
+                shutil.copy2(self.users_file, backup_file)
+            
             with open(self.users_file, 'w') as f:
                 json.dump(self.users, f, indent=2)
             return True
         except Exception as e:
             print(f"❌ Error saving users: {e}")
+            st.error("Failed to save user data. Please try again.")
             return False
     
     def save_analytics(self):
-        """Save analytics data with error handling"""
+        """Save analytics data with enhanced error handling"""
         try:
             with open(self.analytics_file, 'w') as f:
                 json.dump(self.analytics, f, indent=2)
@@ -161,7 +195,7 @@ class UserManager:
             return False
     
     def cleanup_sessions(self):
-        """Reset all active sessions (called on app exit)"""
+        """Reset all active sessions"""
         for username in self.users:
             self.users[username]["active_sessions"] = 0
         self.save_users()
@@ -277,8 +311,8 @@ class UserManager:
         else:
             return False, "Error deleting user data"
 
-    def change_user_plan(self, username, new_plan):
-        """Change a user's subscription plan"""
+    def change_user_plan(self, username, new_plan, change_reason=None):
+        """Change a user's subscription plan - FIXED: added change_reason parameter"""
         if username not in self.users:
             return False, "User not found"
         
@@ -306,13 +340,19 @@ class UserManager:
         if 'plan_changes' not in self.analytics:
             self.analytics['plan_changes'] = []
         
-        self.analytics['plan_changes'].append({
+        change_record = {
             "username": username,
             "old_plan": old_plan,
             "new_plan": new_plan,
             "timestamp": datetime.now().isoformat(),
             "admin": self.users.get('admin', {}).get('name', 'System')
-        })
+        }
+        
+        # FIXED: Now using the change_reason parameter
+        if change_reason:
+            change_record["reason"] = change_reason
+            
+        self.analytics['plan_changes'].append(change_record)
         
         if self.save_users() and self.save_analytics():
             return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
@@ -681,68 +721,38 @@ def render_password_change_interface():
                 st.error("❌ " + message)
     
     st.markdown("---")
-    if st.button("⬅️ Back to User Management", use_container_width=True):
+    if st.button("⬅️ Back to User Management", use_container_width=True, key="pwd_back"):
         st.session_state.show_password_change = False
         st.rerun()
 
 # -------------------------
-# DELETE CONFIRMATION MODAL
+# DELETE CONFIRMATION MODAL - FIXED
 # -------------------------
 def render_delete_confirmation_modal():
-    """Modal for confirming user deletion"""
+    """Modal for confirming user deletion - FIXED: Using expander instead of HTML modal"""
     user_to_delete = st.session_state.get('user_to_delete')
     
     if not user_to_delete:
         return
     
-    # Create overlay effect
-    st.markdown("""
-        <style>
-        .delete-modal {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 2rem;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            border: 2px solid #ff6b6b;
-            min-width: 500px;
-        }
-        .modal-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 999;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Backdrop
-    st.markdown('<div class="modal-backdrop"></div>', unsafe_allow_html=True)
-    
-    # Modal content
-    with st.container():
-        st.markdown(f'<div class="delete-modal">', unsafe_allow_html=True)
-        
+    # FIXED: Using expander instead of problematic HTML modal
+    with st.expander("⚠️ CONFIRM USER DELETION", expanded=True):
         st.error("🚨 **Confirm User Deletion**")
         st.warning(f"**User to delete:** {user_to_delete}")
         
-        user_data = user_manager.users[user_to_delete]
-        st.write(f"**Name:** {user_data['name']}")
-        st.write(f"**Email:** {user_data['email']}")
-        st.write(f"**Plan:** {user_data['plan']}")
-        st.write(f"**Status:** {'Active' if user_data.get('is_active', True) else 'Inactive'}")
+        user_data = user_manager.users.get(user_to_delete, {})
+        if user_data:
+            st.write(f"**Name:** {user_data.get('name', 'N/A')}")
+            st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+            st.write(f"**Plan:** {user_data.get('plan', 'N/A')}")
+            st.write(f"**Status:** {'Active' if user_data.get('is_active', True) else 'Inactive'}")
+        else:
+            st.error("User data not found!")
         
         st.markdown("---")
         st.error("**This action cannot be undone!**")
         
-        col1, col2, col3 = st.columns([1, 1, 2])
+        col1, col2 = st.columns(2)
         
         with col1:
             if st.button("✅ Confirm Delete", type="primary", use_container_width=True):
@@ -762,11 +772,6 @@ def render_delete_confirmation_modal():
                 st.session_state.show_delete_confirmation = False
                 st.session_state.user_to_delete = None
                 st.rerun()
-        
-        with col3:
-            st.markdown("")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
 
 # -------------------------
 # BULK DELETE INTERFACE
@@ -798,7 +803,7 @@ def render_bulk_delete_interface():
     
     if not inactive_users:
         st.info("🎉 No inactive users found!")
-        if st.button("⬅️ Back to User Management", use_container_width=True):
+        if st.button("⬅️ Back to User Management", use_container_width=True, key="bulk_back_empty"):
             st.session_state.show_bulk_delete = False
             st.rerun()
         return
@@ -830,7 +835,7 @@ def render_bulk_delete_interface():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🗑️ Delete Selected Users", type="primary", use_container_width=True):
+            if st.button("🗑️ Delete Selected Users", type="primary", use_container_width=True, key="bulk_confirm"):
                 deleted_count = 0
                 errors = []
                 for username in users_to_delete:
@@ -851,11 +856,11 @@ def render_bulk_delete_interface():
                 st.rerun()
         
         with col2:
-            if st.button("❌ Cancel Bulk Delete", use_container_width=True):
+            if st.button("❌ Cancel Bulk Delete", use_container_width=True, key="bulk_cancel"):
                 st.session_state.show_bulk_delete = False
                 st.rerun()
     else:
-        if st.button("⬅️ Back to User Management", use_container_width=True):
+        if st.button("⬅️ Back to User Management", use_container_width=True, key="bulk_back"):
             st.session_state.show_bulk_delete = False
             st.rerun()
 
@@ -863,10 +868,10 @@ def render_bulk_delete_interface():
 # PLAN MANAGEMENT INTERFACE - FIXED VERSION
 # -------------------------
 def render_plan_management_interface(username):
-    """Interface for managing a specific user's plan"""
+    """Interface for managing a specific user's plan - FIXED"""
     if username not in user_manager.users:
         st.error("User not found")
-        if st.button("⬅️ Back to User Management", use_container_width=True):
+        if st.button("⬅️ Back to User Management", use_container_width=True, key="plan_back_notfound"):
             st.session_state.manage_user_plan = None
             st.rerun()
         return
@@ -876,8 +881,8 @@ def render_plan_management_interface(username):
     
     st.subheader(f"📋 Plan Management: {username}")
     
-    # ADDED: Back button at the top
-    if st.button("⬅️ Back to User Management", key="back_top"):
+    # Back button at the top
+    if st.button("⬅️ Back to User Management", key="back_top_plan"):
         st.session_state.manage_user_plan = None
         st.rerun()
     
@@ -939,16 +944,18 @@ def render_plan_management_interface(username):
             elif price_change < 0:
                 st.success(f"💵 Price decrease: ${abs(price_change)}/month")
         
-        # Change reason (optional)
+        # FIXED: Now the change_reason is actually used
         change_reason = st.text_area("Reason for plan change (optional):", 
-                                   placeholder="e.g., User requested upgrade, Payment issue, Special promotion...")
+                                   placeholder="e.g., User requested upgrade, Payment issue, Special promotion...",
+                                   key="change_reason_input")
         
         # Confirm change
-        if st.button("✅ Confirm Plan Change", type="primary", use_container_width=True):
+        if st.button("✅ Confirm Plan Change", type="primary", use_container_width=True, key="confirm_plan_change"):
             if new_plan == current_plan:
                 st.warning("User is already on this plan")
             else:
-                success, message = user_manager.change_user_plan(username, new_plan)
+                # FIXED: Now passing change_reason to the function
+                success, message = user_manager.change_user_plan(username, new_plan, change_reason)
                 if success:
                     st.success(f"✅ {message}")
                     
@@ -1009,7 +1016,7 @@ def render_plan_management_interface(username):
         for btn_text, plan in quick_plans.items():
             if plan != current_plan:
                 if st.button(btn_text, use_container_width=True, key=f"quick_{plan}_{username}"):
-                    success, message = user_manager.change_user_plan(username, plan)
+                    success, message = user_manager.change_user_plan(username, plan, f"Quick action: {btn_text}")
                     if success:
                         st.success(f"✅ {message}")
                         time.sleep(1)
@@ -1020,22 +1027,27 @@ def render_plan_management_interface(username):
     
     st.markdown("---")
     
-    # ADDED: Another back button at the bottom for convenience
+    # Another back button at the bottom for convenience
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("⬅️ Back to User Management", key="back_bottom", use_container_width=True):
+        if st.button("⬅️ Back to User Management", key="back_bottom_plan", use_container_width=True):
             st.session_state.manage_user_plan = None
             st.rerun()
 
 # -------------------------
-# ENHANCED PREMIUM USER DASHBOARD
+# ENHANCED PREMIUM USER DASHBOARD - FIXED SESSION STATE ACCESS
 # -------------------------
 def render_user_dashboard():
-    """Enhanced trading dashboard for premium users"""
+    """Enhanced trading dashboard for premium users - FIXED session state access"""
     user = st.session_state.user
     
-    # User-specific data isolation
+    # FIXED: Safe session state access with proper initialization
+    if 'user_data' not in st.session_state:
+        st.session_state.user_data = {}
+    
     user_data_key = f"{user['username']}_data"
+    
+    # FIXED: Safe access with .get() and proper initialization
     if user_data_key not in st.session_state.user_data:
         st.session_state.user_data[user_data_key] = {
             "saved_analyses": {},
@@ -1044,7 +1056,8 @@ def render_user_dashboard():
             "recent_signals": []
         }
     
-    data = st.session_state.user_data[user_data_key]
+    # FIXED: Use .get() for safe access
+    data = st.session_state.user_data.get(user_data_key, {})
     
     # Enhanced sidebar with premium features
     with st.sidebar:
@@ -1078,22 +1091,22 @@ def render_user_dashboard():
         # Quick actions - Enhanced for premium
         st.markdown("### ⚡ Quick Actions")
         
-        if st.button("🔄 Refresh Market Data", use_container_width=True):
+        if st.button("🔄 Refresh Market Data", use_container_width=True, key="refresh_market"):
             st.rerun()
             
-        if st.button("📊 Portfolio Overview", use_container_width=True):
+        if st.button("📊 Portfolio Overview", use_container_width=True, key="portfolio_quick"):
             st.session_state.dashboard_view = "portfolio"
             st.rerun()
             
-        if st.button("🎯 Trading Signals", use_container_width=True):
+        if st.button("🎯 Trading Signals", use_container_width=True, key="signals_quick"):
             st.session_state.dashboard_view = "signals"
             st.rerun()
             
-        if st.button("📈 Performance Analytics", use_container_width=True):
+        if st.button("📈 Performance Analytics", use_container_width=True, key="analytics_quick"):
             st.session_state.dashboard_view = "analytics"
             st.rerun()
             
-        if st.button("⚙️ Account Settings", use_container_width=True):
+        if st.button("⚙️ Account Settings", use_container_width=True, key="settings_quick"):
             st.session_state.dashboard_view = "settings"
             st.rerun()
         
@@ -1113,12 +1126,12 @@ def render_user_dashboard():
             st.info("• Portfolio Tools")
             st.info("• Priority Support")
             
-            if st.button("🚀 Upgrade to Premium", use_container_width=True, type="primary"):
+            if st.button("🚀 Upgrade to Premium", use_container_width=True, type="primary", key="upgrade_sidebar"):
                 st.session_state.show_upgrade = True
                 st.rerun()
         
         st.markdown("---")
-        if st.button("🚪 Secure Logout", use_container_width=True):
+        if st.button("🚪 Secure Logout", use_container_width=True, key="logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
@@ -1143,8 +1156,8 @@ def render_user_dashboard():
 
 def render_trading_dashboard(data, user):
     """Enhanced main trading dashboard with premium features"""
-    # Date handling
-    start_date = date(2024, 1, 1)
+    # FIXED: Dynamic date handling instead of hardcoded 2024
+    start_date = date.today() - timedelta(days=180)  # Last 6 months
     analysis_date = date.today()
 
     # Strategy selection based on plan
@@ -1176,7 +1189,7 @@ def render_trading_dashboard(data, user):
         )
     
     with col2:
-        st.metric("24h Volume", "$42.8B", "+5.2%")
+        st.metric("24h Volume", "$42.8B", "+5.2%", key="volume_metric")
     
     with col3:
         rsi = trading_engine.market_data['RSI'].iloc[-1]
@@ -1184,12 +1197,13 @@ def render_trading_dashboard(data, user):
             "RSI", 
             f"{rsi:.1f}", 
             "Oversold" if rsi < 30 else "Overbought" if rsi > 70 else "Neutral",
-            delta_color="inverse" if rsi > 70 else "normal" if rsi < 30 else "off"
+            delta_color="inverse" if rsi > 70 else "normal" if rsi < 30 else "off",
+            key="rsi_metric"
         )
     
     with col4:
         volatility = trading_engine.market_data['Volatility'].iloc[-1] * 100
-        st.metric("Volatility", f"{volatility:.1f}%", "High" if volatility > 3 else "Low")
+        st.metric("Volatility", f"{volatility:.1f}%", "High" if volatility > 3 else "Low", key="vol_metric")
     
     # Strategy progress with enhanced visuals
     st.subheader("🎯 Today's Focus Strategies")
@@ -1255,7 +1269,7 @@ def render_trading_dashboard(data, user):
         with col2:
             # Generate live indicators
             indicators = trading_engine.calculate_technical_indicators(selected_strategy)
-            st.metric("Strategy Score", f"{np.random.uniform(65, 95):.0f}/100")
+            st.metric("Strategy Score", f"{np.random.uniform(65, 95):.0f}/100", key="strategy_score")
         
         with col3:
             signals = trading_engine.generate_trading_signals(selected_strategy, indicators)
@@ -1264,14 +1278,15 @@ def render_trading_dashboard(data, user):
                 st.metric(
                     "Live Signal", 
                     signal_type, 
-                    f"{confidence:.0%} confidence"
+                    f"{confidence:.0%} confidence",
+                    key="live_signal"
                 )
         
         # Enhanced analysis form with tabs
         tab1, tab2, tab3 = st.tabs(["📊 Technical Analysis", "📈 Performance", "💡 Trading Signals"])
         
         with tab1:
-            render_technical_analysis(selected_strategy, indicators)
+            render_technical_analysis(selected_strategy, indicators, data)
         
         with tab2:
             if user['plan'] in ['premium', 'professional', 'admin']:
@@ -1292,10 +1307,12 @@ def render_trading_dashboard(data, user):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("🎯 Generate All Signals", use_container_width=True):
+        if st.button("🎯 Generate All Signals", use_container_width=True, key="gen_all_signals"):
             if user['plan'] in ['premium', 'professional', 'admin']:
                 st.success("✅ All trading signals generated!")
-                # Store signals in user data
+                # Store signals in user data - FIXED: safe access
+                if 'recent_signals' not in data:
+                    data['recent_signals'] = []
                 data['recent_signals'] = [
                     {"strategy": s, "signal": "BUY", "confidence": np.random.uniform(0.7, 0.9), "timestamp": datetime.now()}
                     for s in available_strategies[:3]
@@ -1304,12 +1321,12 @@ def render_trading_dashboard(data, user):
                 st.info("🔒 Premium feature - upgrade to generate bulk signals")
     
     with col2:
-        if st.button("📊 Portfolio Snapshot", use_container_width=True):
+        if st.button("📊 Portfolio Snapshot", use_container_width=True, key="portfolio_snapshot"):
             st.session_state.dashboard_view = "portfolio"
             st.rerun()
     
     with col3:
-        if st.button("📈 Market Scanner", use_container_width=True):
+        if st.button("📈 Market Scanner", use_container_width=True, key="market_scanner"):
             if user['plan'] in ['premium', 'professional', 'admin']:
                 st.info("🔄 Scanning markets for opportunities...")
                 time.sleep(1)
@@ -1318,37 +1335,39 @@ def render_trading_dashboard(data, user):
                 st.info("🔒 Premium feature - upgrade for advanced market scanning")
     
     with col4:
-        if st.button("🔄 Reset All Analysis", use_container_width=True):
+        if st.button("🔄 Reset All Analysis", use_container_width=True, key="reset_analysis"):
             st.warning("All analysis data has been reset")
             st.rerun()
 
-def render_technical_analysis(strategy, indicators):
-    """Enhanced technical analysis interface"""
+def render_technical_analysis(strategy, indicators, data):
+    """Enhanced technical analysis interface - FIXED data access"""
     st.write(f"**Technical Analysis for {strategy}**")
     
     # Display indicators in a nice layout
     col1, col2, col3 = st.columns(3)
     
+    indicator_items = list(indicators.items())
+    
     with col1:
-        for key, value in list(indicators.items())[:2]:
+        for key, value in indicator_items[:2]:
             if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
+                st.metric(key.replace('_', ' '), f"{value:.2f}", key=f"ind_{key}_1")
             else:
-                st.metric(key.replace('_', ' '), str(value))
+                st.metric(key.replace('_', ' '), str(value), key=f"ind_{key}_1")
     
     with col2:
-        for key, value in list(indicators.items())[2:4]:
+        for key, value in indicator_items[2:4] if len(indicator_items) > 2 else []:
             if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
+                st.metric(key.replace('_', ' '), f"{value:.2f}", key=f"ind_{key}_2")
             else:
-                st.metric(key.replace('_', ' '), str(value))
+                st.metric(key.replace('_', ' '), str(value), key=f"ind_{key}_2")
     
     with col3:
-        for key, value in list(indicators.items())[4:]:
+        for key, value in indicator_items[4:] if len(indicator_items) > 4 else []:
             if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
+                st.metric(key.replace('_', ' '), f"{value:.2f}", key=f"ind_{key}_3")
             else:
-                st.metric(key.replace('_', ' '), str(value))
+                st.metric(key.replace('_', ' '), str(value), key=f"ind_{key}_3")
     
     # Analysis form
     with st.form(f"analysis_{strategy}"):
@@ -1373,10 +1392,10 @@ def render_technical_analysis(strategy, indicators):
         
         if save_btn:
             st.success("✅ Analysis saved successfully!")
-            # Store in user data
-            if 'saved_analyses' not in st.session_state.user_data:
-                st.session_state.user_data['saved_analyses'] = {}
-            st.session_state.user_data['saved_analyses'][strategy] = {
+            # Store in user data - FIXED: safe access
+            if 'saved_analyses' not in data:
+                data['saved_analyses'] = {}
+            data['saved_analyses'][strategy] = {
                 "timestamp": datetime.now(),
                 "indicators": indicators
             }
@@ -1403,16 +1422,16 @@ def render_strategy_performance(strategy):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Return", "+24.5%", "+2.1%")
+        st.metric("Total Return", "+24.5%", "+2.1%", key="total_return")
     
     with col2:
-        st.metric("Win Rate", "68%", "+5%")
+        st.metric("Win Rate", "68%", "+5%", key="win_rate")
     
     with col3:
-        st.metric("Sharpe Ratio", "1.8", "+0.2")
+        st.metric("Sharpe Ratio", "1.8", "+0.2", key="sharpe")
     
     with col4:
-        st.metric("Max Drawdown", "-8.2%", "-1.1%")
+        st.metric("Max Drawdown", "-8.2%", "-1.1%", key="drawdown")
     
     # Recent trades table
     st.write("**Recent Trade History**")
@@ -1459,16 +1478,16 @@ def render_portfolio_overview(data, user):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Value", "$124,850", "+2.4%")
+            st.metric("Total Value", "$124,850", "+2.4%", key="total_value")
         
         with col2:
-            st.metric("24h Change", "+$2,950", "+2.4%")
+            st.metric("24h Change", "+$2,950", "+2.4%", key="daily_change")
         
         with col3:
-            st.metric("All Time P&L", "+$24,850", "+24.8%")
+            st.metric("All Time P&L", "+$24,850", "+24.8%", key="total_pnl")
         
         with col4:
-            st.metric("Risk Score", "Medium", "-5%")
+            st.metric("Risk Score", "Medium", "-5%", key="risk_score")
         
         # Portfolio allocation
         st.subheader("📈 Portfolio Allocation")
@@ -1508,7 +1527,7 @@ def render_portfolio_overview(data, user):
         - Risk assessment tools
         """)
         
-        if st.button("🚀 Upgrade to Premium", type="primary", use_container_width=True):
+        if st.button("🚀 Upgrade to Premium", type="primary", use_container_width=True, key="upgrade_portfolio"):
             st.session_state.show_upgrade = True
             st.rerun()
 
@@ -1521,13 +1540,13 @@ def render_trading_signals(data, user):
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Active Signals", "12", "+3")
+            st.metric("Active Signals", "12", "+3", key="active_signals")
         
         with col2:
-            st.metric("Signal Accuracy", "76%", "+4%")
+            st.metric("Signal Accuracy", "76%", "+4%", key="signal_accuracy")
         
         with col3:
-            st.metric("Avg. Return", "+2.8%", "+0.4%")
+            st.metric("Avg. Return", "+2.8%", "+0.4%", key="avg_return")
         
         # Generate sample signals
         strategies = list(STRATEGIES.keys())[:8]  # Show first 8 strategies
@@ -1563,12 +1582,12 @@ def render_trading_signals(data, user):
         # Signal actions
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🔄 Refresh All Signals", use_container_width=True):
+            if st.button("🔄 Refresh All Signals", use_container_width=True, key="refresh_signals"):
                 st.success("Signals refreshed!")
                 st.rerun()
         
         with col2:
-            if st.button("📤 Export Signals", use_container_width=True):
+            if st.button("📤 Export Signals", use_container_width=True, key="export_signals"):
                 st.info("Signals exported to CSV")
                 
     else:
@@ -1582,7 +1601,7 @@ def render_trading_signals(data, user):
         - Signal history tracking
         """)
         
-        if st.button("🚀 Upgrade for Advanced Signals", type="primary", use_container_width=True):
+        if st.button("🚀 Upgrade for Advanced Signals", type="primary", use_container_width=True, key="upgrade_signals"):
             st.session_state.show_upgrade = True
             st.rerun()
 
@@ -1595,16 +1614,16 @@ def render_performance_analytics(data, user):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Return", "+24.8%", "+2.1%")
+            st.metric("Total Return", "+24.8%", "+2.1%", key="perf_total_return")
         
         with col2:
-            st.metric("Win Rate", "68%", "+3%")
+            st.metric("Win Rate", "68%", "+3%", key="perf_win_rate")
         
         with col3:
-            st.metric("Avg. Win", "+3.2%", "+0.4%")
+            st.metric("Avg. Win", "+3.2%", "+0.4%", key="perf_avg_win")
         
         with col4:
-            st.metric("Avg. Loss", "-1.8%", "-0.2%")
+            st.metric("Avg. Loss", "-1.8%", "-0.2%", key="perf_avg_loss")
         
         # Performance chart
         st.subheader("📊 Performance Over Time")
@@ -1644,12 +1663,12 @@ def render_performance_analytics(data, user):
         - Risk-adjusted returns
         """)
         
-        if st.button("🚀 Upgrade for Advanced Analytics", type="primary", use_container_width=True):
+        if st.button("🚀 Upgrade for Advanced Analytics", type="primary", use_container_width=True, key="upgrade_analytics"):
             st.session_state.show_upgrade = True
             st.rerun()
 
 def render_account_settings():
-    """User account settings"""
+    """User account settings - FIXED back button"""
     st.title("⚙️ Account Settings")
     
     user = st.session_state.user
@@ -1658,37 +1677,39 @@ def render_account_settings():
     
     with col1:
         st.subheader("Profile Information")
-        st.text_input("Full Name", value=user['name'], disabled=True)
-        st.text_input("Email", value=user['email'], disabled=True)
-        st.text_input("Username", value=user['username'], disabled=True)
+        st.text_input("Full Name", value=user['name'], disabled=True, key="name_display")
+        st.text_input("Email", value=user['email'], disabled=True, key="email_display")
+        st.text_input("Username", value=user['username'], disabled=True, key="username_display")
         
-        if st.button("📧 Request Profile Update", use_container_width=True):
+        if st.button("📧 Request Profile Update", use_container_width=True, key="request_update"):
             st.info("Profile update requests are processed by our support team")
     
     with col2:
         st.subheader("Subscription Details")
         plan_name = Config.PLANS.get(user['plan'], {}).get('name', 'Unknown Plan')
-        st.text_input("Current Plan", value=plan_name, disabled=True)
-        st.text_input("Expiry Date", value=user['expires'], disabled=True)
+        st.text_input("Current Plan", value=plan_name, disabled=True, key="plan_display")
+        st.text_input("Expiry Date", value=user['expires'], disabled=True, key="expiry_display")
         
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
-        st.metric("Days Remaining", days_left)
+        st.metric("Days Remaining", days_left, key="days_remaining")
         
-        if st.button("💳 Manage Subscription", use_container_width=True):
+        if st.button("💳 Manage Subscription", use_container_width=True, key="manage_subscription"):
             st.session_state.show_upgrade = True
             st.session_state.dashboard_view = 'main'
             st.rerun()
     
     st.markdown("---")
     st.subheader("Security")
-    if st.button("🔐 Change Password", use_container_width=True):
+    if st.button("🔐 Change Password", use_container_width=True, key="change_pwd_user"):
         st.info("Password change requests are handled by our support team for security")
     
-    if st.button("📞 Contact Support", use_container_width=True):
+    if st.button("📞 Contact Support", use_container_width=True, key="contact_support"):
         st.info(f"Email: {Config.SUPPORT_EMAIL}")
     
-    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+    # FIXED: Properly clear show_settings when going back
+    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="back_settings"):
         st.session_state.dashboard_view = 'main'
+        st.session_state.show_settings = False  # FIXED: Added this line
         st.rerun()
 
 def render_upgrade_plans():
@@ -1702,7 +1723,7 @@ def render_upgrade_plans():
         with cols[i]:
             with st.container():
                 st.subheader(plan_config["name"])
-                st.metric("Price", f"${plan_config['price']}")
+                st.metric("Price", f"${plan_config['price']}", key=f"price_{plan_id}")
                 
                 st.write("**Features:**")
                 st.write(f"• {plan_config['strategies']} Strategies")
@@ -1722,17 +1743,16 @@ def render_upgrade_plans():
                         st.success(f"Upgrade to {plan_config['name']} selected!")
     
     st.markdown("---")
-    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="back_upgrade"):
         st.session_state.show_upgrade = False
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - ORIGINAL VERSION RESTORED
+# ADMIN DASHBOARD - FIXED VERSION
 # -------------------------
 def render_admin_dashboard():
-    """Professional admin dashboard for business management"""
+    """Professional admin dashboard for business management - FIXED"""
     
-    # FIXED: Always render the sidebar first, regardless of current view
     with st.sidebar:
         st.title("👑 Admin Panel")
         st.markdown("---")
@@ -1834,13 +1854,13 @@ def render_admin_overview():
     # Key metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Users", metrics["total_users"])
+        st.metric("Total Users", metrics["total_users"], key="total_users")
     with col2:
-        st.metric("Active Users", metrics["active_users"])
+        st.metric("Active Users", metrics["active_users"], key="active_users")
     with col3:
-        st.metric("Online Now", metrics["online_users"])
+        st.metric("Online Now", metrics["online_users"], key="online_users")
     with col4:
-        st.metric("Total Logins", metrics["total_logins"])
+        st.metric("Total Logins", metrics["total_logins"], key="total_logins")
     
     st.markdown("---")
     
@@ -1905,11 +1925,11 @@ def render_admin_analytics():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Login Attempts", total_logins)
+        st.metric("Total Login Attempts", total_logins, key="total_logins_metric")
     with col2:
-        st.metric("Successful Logins", successful_logins)
+        st.metric("Successful Logins", successful_logins, key="success_logins")
     with col3:
-        st.metric("Failed Logins", failed_logins)
+        st.metric("Failed Logins", failed_logins, key="failed_logins")
     
     # User growth
     st.markdown("---")
@@ -2057,11 +2077,11 @@ def render_admin_revenue():
     # Revenue metrics
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Estimated MRR", "$1,250")
+        st.metric("Estimated MRR", "$1,250", key="mrr_metric")
     with col2:
-        st.metric("Active Subscriptions", "28")
+        st.metric("Active Subscriptions", "28", key="active_subs")
     with col3:
-        st.metric("Trial Conversions", "12%")
+        st.metric("Trial Conversions", "12%", key="trial_conversions")
     
     st.markdown("---")
     
