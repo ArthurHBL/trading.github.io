@@ -1,4 +1,4 @@
-# app.py - COMPLETE VERSION WITH ROBUST DATA PERSISTENCE - FIXED
+# app.py - COMPLETE FIXED VERSION WITH ROBUST DATA PERSISTENCE
 import streamlit as st
 import hashlib
 import json
@@ -384,6 +384,38 @@ class RobustUserManager:
         
         return status
 
+    def get_business_metrics(self):
+        """Get business metrics for admin with enhanced error handling"""
+        try:
+            total_users = len(self.users)
+            active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
+            online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
+            
+            plan_counts = {}
+            for user in self.users.values():
+                plan = user.get('plan', 'unknown')
+                plan_counts[plan] = plan_counts.get(plan, 0) + 1
+            
+            return {
+                "total_users": total_users,
+                "active_users": active_users,
+                "online_users": online_users,
+                "plan_distribution": plan_counts,
+                "total_logins": self.analytics.get("total_logins", 0),
+                "revenue_today": self.analytics.get("revenue_today", 0)
+            }
+        except Exception as e:
+            print(f"❌ Error getting business metrics: {e}")
+            # Return safe default values
+            return {
+                "total_users": 0,
+                "active_users": 0,
+                "online_users": 0,
+                "plan_distribution": {},
+                "total_logins": 0,
+                "revenue_today": 0
+            }
+
     # Existing UserManager methods with persistence integration
     def create_default_admin(self, users_dict=None):
         """Create default admin account"""
@@ -641,26 +673,6 @@ class RobustUserManager:
             return True, "Admin password changed successfully!"
         else:
             return False, "Error saving password change"
-    
-    def get_business_metrics(self):
-        """Get business metrics for admin"""
-        total_users = len(self.users)
-        active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
-        online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
-        
-        plan_counts = {}
-        for user in self.users.values():
-            plan = user.get('plan', 'unknown')
-            plan_counts[plan] = plan_counts.get(plan, 0) + 1
-        
-        return {
-            "total_users": total_users,
-            "active_users": active_users,
-            "online_users": online_users,
-            "plan_distribution": plan_counts,
-            "total_logins": self.analytics.get("total_logins", 0),
-            "revenue_today": self.analytics.get("revenue_today", 0)
-        }
 
 # Initialize robust user manager
 user_manager = RobustUserManager()
@@ -882,10 +894,6 @@ def render_backup_management():
         
         if st.button("🔄 Restore from Latest Backup", type="secondary", key="restore_backup"):
             st.info("Restore functionality would be implemented here")
-            # In a real implementation, this would:
-            # 1. List available backups
-            # 2. Let user select one
-            # 3. Restore from that backup
         
         if st.button("🚨 Emergency Data Reset", type="primary", key="emergency_reset"):
             st.error("This will reset all data to defaults!")
@@ -2251,73 +2259,88 @@ def render_admin_dashboard():
         render_admin_revenue()
 
 def render_admin_overview():
-    """Admin overview with business metrics"""
+    """Admin overview with business metrics - FIXED VERSION"""
     st.subheader("📈 Business Overview")
     
-    # Get business metrics
-    metrics = user_manager.get_business_metrics()
-    
-    # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Users", metrics["total_users"], key="total_users")
-    with col2:
-        st.metric("Active Users", metrics["active_users"], key="active_users")
-    with col3:
-        st.metric("Online Now", metrics["online_users"], key="online_users")
-    with col4:
-        st.metric("Total Logins", metrics["total_logins"], key="total_logins")
-    
-    st.markdown("---")
-    
-    # Plan distribution
-    st.subheader("📊 Plan Distribution")
-    plan_data = metrics["plan_distribution"]
-    
-    if plan_data:
+    try:
+        # Get business metrics with error handling
+        metrics = user_manager.get_business_metrics()
+        
+        # Key metrics with safe access
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            total_users = metrics.get("total_users", 0)
+            st.metric("Total Users", total_users, key="total_users_metric")
+        with col2:
+            active_users = metrics.get("active_users", 0)
+            st.metric("Active Users", active_users, key="active_users_metric")
+        with col3:
+            online_users = metrics.get("online_users", 0)
+            st.metric("Online Now", online_users, key="online_users_metric")
+        with col4:
+            total_logins = metrics.get("total_logins", 0)
+            st.metric("Total Logins", total_logins, key="total_logins_metric")
+        
+        st.markdown("---")
+        
+        # Plan distribution with safe access
+        st.subheader("📊 Plan Distribution")
+        plan_data = metrics.get("plan_distribution", {})
+        
+        if plan_data:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("**Users by Plan:**")
+                for plan, count in plan_data.items():
+                    plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                    st.write(f"• {plan_name}: {count} users")
+            
+            with col2:
+                # Simple chart using progress bars
+                total = sum(plan_data.values())
+                for plan, count in plan_data.items():
+                    percentage = (count / total) * 100 if total > 0 else 0
+                    plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                    st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
+                    st.progress(percentage / 100)
+        else:
+            st.info("No plan distribution data available")
+        
+        st.markdown("---")
+        
+        # Recent activity
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Users by Plan:**")
-            for plan, count in plan_data.items():
-                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                st.write(f"• {plan_name}: {count} users")
+            st.subheader("🕒 Recent Registrations")
+            recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
+            if recent_registrations:
+                for reg in reversed(recent_registrations):
+                    plan_name = Config.PLANS.get(reg.get('plan', 'unknown'), {}).get('name', 'Unknown')
+                    username = reg.get('username', 'Unknown')
+                    timestamp = reg.get('timestamp', '')[:16]
+                    st.write(f"• {username} - {plan_name} - {timestamp}")
+            else:
+                st.info("No recent registrations")
         
         with col2:
-            # Simple chart using progress bars
-            total = sum(plan_data.values())
-            for plan, count in plan_data.items():
-                percentage = (count / total) * 100 if total > 0 else 0
-                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
-                st.progress(percentage / 100)
-    
-    st.markdown("---")
-    
-    # Recent activity
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🕒 Recent Registrations")
-        recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
-        if recent_registrations:
-            for reg in reversed(recent_registrations):
-                plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
-                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
-        else:
-            st.info("No recent registrations")
-    
-    with col2:
-        st.subheader("🔄 Recent Plan Changes")
-        recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
-        if recent_plan_changes:
-            for change in reversed(recent_plan_changes):
-                old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
-                new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
-                st.write(f"• {change['username']}: {old_plan} → {new_plan}")
-                st.caption(f"{change['timestamp'][:16]}")
-        else:
-            st.info("No recent plan changes")
+            st.subheader("🔄 Recent Plan Changes")
+            recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
+            if recent_plan_changes:
+                for change in reversed(recent_plan_changes):
+                    old_plan = Config.PLANS.get(change.get('old_plan', 'unknown'), {}).get('name', 'Unknown')
+                    new_plan = Config.PLANS.get(change.get('new_plan', 'unknown'), {}).get('name', 'Unknown')
+                    username = change.get('username', 'Unknown')
+                    timestamp = change.get('timestamp', '')[:16]
+                    st.write(f"• {username}: {old_plan} → {new_plan}")
+                    st.caption(f"{timestamp}")
+            else:
+                st.info("No recent plan changes")
+                
+    except Exception as e:
+        st.error(f"Error loading admin overview: {str(e)}")
+        st.info("Please try refreshing the page or check the data files.")
 
 def render_admin_analytics():
     """Detailed analytics view"""
