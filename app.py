@@ -12,6 +12,8 @@ import os
 import atexit
 import numpy as np
 import shutil
+import io
+import base64
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -48,6 +50,10 @@ def init_session():
         st.session_state.analysis_date = date.today()
     if 'last_save_time' not in st.session_state:
         st.session_state.last_save_time = time.time()
+    if 'show_user_credentials' not in st.session_state:
+        st.session_state.show_user_credentials = False
+    if 'user_to_manage' not in st.session_state:
+        st.session_state.user_to_manage = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -629,8 +635,245 @@ class UserManager:
             "revenue_today": self.analytics.get("revenue_today", 0)
         }
 
+    # NEW FUNCTION: Export all user credentials
+    def export_user_credentials(self):
+        """Export all user login credentials to CSV"""
+        try:
+            rows = []
+            for username, user_data in self.users.items():
+                # Note: We cannot decrypt passwords, but we can show account details
+                rows.append({
+                    "username": username,
+                    "name": user_data.get("name", ""),
+                    "email": user_data.get("email", ""),
+                    "plan": user_data.get("plan", ""),
+                    "expires": user_data.get("expires", ""),
+                    "created": user_data.get("created", ""),
+                    "last_login": user_data.get("last_login", ""),
+                    "login_count": user_data.get("login_count", 0),
+                    "active_sessions": user_data.get("active_sessions", 0),
+                    "is_active": user_data.get("is_active", True),
+                    "subscription_id": user_data.get("subscription_id", ""),
+                    "payment_status": user_data.get("payment_status", "")
+                })
+            
+            df = pd.DataFrame(rows)
+            csv_bytes = df.to_csv(index=False).encode('utf-8')
+            return csv_bytes, None
+        except Exception as e:
+            return None, f"Error exporting user data: {str(e)}"
+
+    # NEW FUNCTION: Change any user's username
+    def change_username(self, old_username, new_username, changed_by="admin"):
+        """Change a user's username"""
+        if old_username not in self.users:
+            return False, "User not found"
+        
+        if new_username in self.users:
+            return False, "New username already exists"
+        
+        if not re.match("^[a-zA-Z0-9_]{3,20}$", new_username):
+            return False, "New username must be 3-20 characters (letters, numbers, _)"
+        
+        # Store user data
+        user_data = self.users[old_username]
+        
+        # Remove old username and add with new username
+        del self.users[old_username]
+        self.users[new_username] = user_data
+        
+        # Update analytics
+        if 'username_changes' not in self.analytics:
+            self.analytics['username_changes'] = []
+        
+        self.analytics['username_changes'].append({
+            "old_username": old_username,
+            "new_username": new_username,
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": changed_by
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Username changed from '{old_username}' to '{new_username}'"
+        else:
+            # Rollback if save failed
+            del self.users[new_username]
+            self.users[old_username] = user_data
+            return False, "Error saving username change"
+
+    # NEW FUNCTION: Change any user's password
+    def change_user_password(self, username, new_password, changed_by="admin"):
+        """Change any user's password (admin function)"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        if len(new_password) < 8:
+            return False, "Password must be at least 8 characters"
+        
+        user_data = self.users[username]
+        
+        # Check if new password is same as current
+        if self.verify_password(new_password, user_data["password_hash"]):
+            return False, "New password cannot be the same as current password"
+        
+        user_data["password_hash"] = self.hash_password(new_password)
+        
+        # Update analytics
+        if 'password_changes' not in self.analytics:
+            self.analytics['password_changes'] = []
+        
+        self.analytics['password_changes'].append({
+            "username": username,
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": changed_by,
+            "type": "admin_forced_change"
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Password for '{username}' changed successfully!"
+        else:
+            return False, "Error saving password change"
+
+    # NEW FUNCTION: Get user credentials for display
+    def get_user_credentials_display(self):
+        """Get user credentials for display (without password hashes)"""
+        users_list = []
+        for username, user_data in self.users.items():
+            users_list.append({
+                "username": username,
+                "name": user_data.get("name", ""),
+                "email": user_data.get("email", ""),
+                "plan": user_data.get("plan", ""),
+                "expires": user_data.get("expires", ""),
+                "created": user_data.get("created", ""),
+                "last_login": user_data.get("last_login", ""),
+                "is_active": user_data.get("is_active", True),
+                "login_count": user_data.get("login_count", 0),
+                "active_sessions": user_data.get("active_sessions", 0)
+            })
+        return users_list
+
 # Initialize user manager
 user_manager = UserManager()
+
+# -------------------------
+# NEW: USER CREDENTIALS MANAGEMENT INTERFACE
+# -------------------------
+def render_user_credentials_interface():
+    """Interface for viewing and managing user credentials"""
+    st.subheader("🔐 User Credentials Management")
+    
+    # Back button
+    if st.button("⬅️ Back to User Management", key="back_credentials"):
+        st.session_state.show_user_credentials = False
+        st.rerun()
+    
+    # Export all credentials
+    st.markdown("### 📊 Export All User Data")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("📥 Download User Credentials CSV", use_container_width=True):
+            csv_bytes, error = user_manager.export_user_credentials()
+            if csv_bytes:
+                st.download_button(
+                    label="⬇️ Download CSV File",
+                    data=csv_bytes,
+                    file_name=f"user_credentials_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            else:
+                st.error(f"❌ {error}")
+    
+    with col2:
+        st.info("This export contains all user account details including usernames, emails, and subscription information.")
+    
+    st.markdown("---")
+    
+    # Display all users in a table
+    st.markdown("### 👥 All User Accounts")
+    users_display = user_manager.get_user_credentials_display()
+    
+    if users_display:
+        df = pd.DataFrame(users_display)
+        st.dataframe(df, use_container_width=True)
+    else:
+        st.info("No users found.")
+    
+    st.markdown("---")
+    
+    # Individual user management
+    st.markdown("### ⚙️ Manage Individual User")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        selected_user = st.selectbox(
+            "Select User to Manage:",
+            [""] + [user["username"] for user in users_display],
+            key="user_cred_select"
+        )
+    
+    if selected_user:
+        user_data = user_manager.users[selected_user]
+        
+        st.markdown(f"#### Managing: **{selected_user}**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Change Username**")
+            new_username = st.text_input("New Username:", value=selected_user, key=f"new_username_{selected_user}")
+            
+            if st.button("🔄 Change Username", key=f"change_username_{selected_user}"):
+                if new_username != selected_user:
+                    success, message = user_manager.change_username(selected_user, new_username, st.session_state.user['username'])
+                    if success:
+                        st.success(f"✅ {message}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+                else:
+                    st.warning("New username must be different from current username")
+        
+        with col2:
+            st.markdown("**Change Password**")
+            new_password = st.text_input("New Password:", type="password", key=f"new_password_{selected_user}")
+            confirm_password = st.text_input("Confirm Password:", type="password", key=f"confirm_password_{selected_user}")
+            
+            if st.button("🔑 Change Password", key=f"change_password_{selected_user}"):
+                if not new_password:
+                    st.error("❌ Please enter a new password")
+                elif new_password != confirm_password:
+                    st.error("❌ Passwords do not match")
+                elif len(new_password) < 8:
+                    st.error("❌ Password must be at least 8 characters")
+                else:
+                    success, message = user_manager.change_user_password(selected_user, new_password, st.session_state.user['username'])
+                    if success:
+                        st.success(f"✅ {message}")
+                    else:
+                        st.error(f"❌ {message}")
+        
+        # User details
+        st.markdown("#### 📋 User Details")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.write(f"**Name:** {user_data.get('name', 'N/A')}")
+            st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+            st.write(f"**Plan:** {user_data.get('plan', 'N/A')}")
+        
+        with col2:
+            st.write(f"**Created:** {user_data.get('created', 'N/A')[:10]}")
+            st.write(f"**Last Login:** {user_data.get('last_login', 'Never')[:19]}")
+            st.write(f"**Login Count:** {user_data.get('login_count', 0)}")
+        
+        with col3:
+            st.write(f"**Active Sessions:** {user_data.get('active_sessions', 0)}")
+            st.write(f"**Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+            st.write(f"**Expires:** {user_data.get('expires', 'N/A')}")
 
 # -------------------------
 # PASSWORD CHANGE INTERFACE
@@ -1071,6 +1314,7 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
             st.session_state.admin_view = "analytics"
             st.rerun()
         
@@ -1080,7 +1324,17 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
             st.session_state.admin_view = "users"
+            st.rerun()
+        
+        if st.button("🔐 User Credentials", use_container_width=True, key="sidebar_credentials"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = True
             st.rerun()
         
         if st.button("🗑️ Bulk Delete", use_container_width=True, key="sidebar_bulk_delete"):
@@ -1088,6 +1342,7 @@ def render_admin_dashboard():
             st.session_state.show_delete_confirmation = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
             st.session_state.admin_view = "users"
             st.session_state.show_bulk_delete = True
             st.rerun()
@@ -1098,6 +1353,7 @@ def render_admin_dashboard():
             st.session_state.show_bulk_delete = False
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
             st.session_state.admin_view = "revenue"
             st.rerun()
     
@@ -1122,6 +1378,11 @@ def render_admin_dashboard():
     # Show password change interface if needed
     if st.session_state.get('show_password_change'):
         render_password_change_interface()
+        return
+    
+    # Show user credentials interface if needed
+    if st.session_state.get('show_user_credentials'):
+        render_user_credentials_interface()
         return
     
     # Default view or selected view
@@ -1247,14 +1508,15 @@ def render_admin_user_management():
     """User management interface with delete and plan management functionality"""
     st.subheader("👥 User Management")
     
-    # User actions - UPDATED WITH PASSWORD CHANGE
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # User actions - UPDATED WITH USER CREDENTIALS
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
             st.rerun()
     with col2:
-        if st.button("📧 Export User Data", use_container_width=True, key="um_export"):
-            st.success("User data export would be implemented here")
+        if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials"):
+            st.session_state.show_user_credentials = True
+            st.rerun()
     with col3:
         if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
             created_username, msg = user_manager.create_test_user("trial")
@@ -1267,10 +1529,21 @@ def render_admin_user_management():
         if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
             st.session_state.show_bulk_delete = True
             st.rerun()
-    with col5:  # NEW PASSWORD CHANGE BUTTON
+    with col5:
         if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
             st.session_state.show_password_change = True
             st.rerun()
+    with col6:
+        # Export credentials button
+        csv_bytes, error = user_manager.export_user_credentials()
+        if csv_bytes:
+            st.download_button(
+                label="📥 Export Users",
+                data=csv_bytes,
+                file_name=f"user_credentials_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
     
     st.markdown("---")
     
