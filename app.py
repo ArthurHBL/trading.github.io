@@ -1023,10 +1023,10 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
-# SIMPLIFIED USER DASHBOARD
+# REDESIGNED USER DASHBOARD (Clean like chart reminder app)
 # -------------------------
 def render_user_dashboard():
-    """Simplified trading dashboard for users"""
+    """Redesigned trading dashboard with clean layout like chart reminder app"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -1041,52 +1041,38 @@ def render_user_dashboard():
     
     data = st.session_state.user_data[user_data_key]
     
-    # Simplified sidebar
+    # Clean sidebar like chart reminder app
     with st.sidebar:
         st.title("🎛️ Control Panel")
         
-        # User profile section
+        # User profile section - simplified
         st.markdown("---")
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            if user['plan'] == 'premium':
-                st.markdown("⭐")
-            else:
-                st.markdown("👤")
-        with col2:
-            st.write(f"**{user['name']}**")
-            plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
-            st.caption(f"🚀 {plan_display}")
+        st.write(f"**👤 {user['name']}**")
+        plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
+        st.caption(f"🚀 {plan_display}")
         
-        # Account status
-        plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
+        # Account status with progress
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
-        
-        if user['plan'] == 'premium':
-            progress_color = "#00D4AA"  # Premium green
-        else:
-            progress_color = "#1f77b4"  # Basic blue
-            
         st.progress(min(1.0, days_left / 30), text=f"📅 {days_left} days remaining")
         
-        # Navigation
-        st.markdown("### 📊 Navigation")
+        st.markdown("---")
         
-        if st.button("📈 Trading Dashboard", use_container_width=True):
-            st.session_state.dashboard_view = "main"
-            st.rerun()
-            
-        if st.button("🎯 Trading Signals", use_container_width=True):
-            st.session_state.dashboard_view = "signals"
-            st.rerun()
-            
-        if st.button("⚙️ Account Settings", use_container_width=True):
-            st.session_state.dashboard_view = "settings"
-            st.rerun()
+        # Navigation - clean and simple
+        st.subheader("📊 Navigation")
+        nav_options = {
+            "📈 Trading Dashboard": "main",
+            "🎯 Trading Signals": "signals", 
+            "⚙️ Account Settings": "settings"
+        }
+        
+        for label, view in nav_options.items():
+            if st.button(label, use_container_width=True, key=f"nav_{view}"):
+                st.session_state.dashboard_view = view
+                st.rerun()
         
         st.markdown("---")
         
-        # Plan features indicator
+        # Plan features - clean display
         if user['plan'] == 'premium':
             st.markdown("### 🎁 Premium Features")
             st.success("• Real-time Analytics")
@@ -1110,7 +1096,7 @@ def render_user_dashboard():
             st.session_state.user = None
             st.rerun()
     
-    # Main dashboard content
+    # Main dashboard content - Clean layout like chart reminder
     current_view = st.session_state.get('dashboard_view', 'main')
     
     if st.session_state.get('show_settings'):
@@ -1125,26 +1111,27 @@ def render_user_dashboard():
         render_trading_dashboard(data, user)
 
 def render_trading_dashboard(data, user):
-    """Simplified main trading dashboard"""
-    # Date handling
-    start_date = date(2024, 1, 1)
-    analysis_date = date.today()
-
-    # Strategy selection based on plan
-    plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
-    available_strategies = list(STRATEGIES.keys())[:plan_config['strategies']]
-    
-    # Dashboard header
+    """Clean trading dashboard similar to chart reminder layout"""
     st.title("📊 Professional Trading Analysis")
     
-    # Welcome message
-    if user['plan'] == 'premium':
-        st.success(f"🎉 Welcome back, **{user['name']}**! You're using our **Premium Plan** with full access to {plan_config['strategies']} advanced strategies.")
-    else:
-        st.info(f"👋 Welcome, **{user['name']}**! You have access to {plan_config['strategies']} strategies. Upgrade for premium features.")
+    # Welcome and status
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if user['plan'] == 'premium':
+            st.success(f"🎉 Welcome back, **{user['name']}**! You're using our **Premium Plan** with full access.")
+        else:
+            st.info(f"👋 Welcome, **{user['name']}**! You have access to {Config.PLANS[user['plan']]['strategies']} strategies.")
+    with col2:
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
     
-    # Strategy selector
+    st.markdown("---")
+    
+    # Strategy selection
     st.subheader("🔍 Strategy Analysis")
+    
+    plan_config = Config.PLANS.get(user['plan'], Config.PLANS['trial'])
+    available_strategies = list(STRATEGIES.keys())[:plan_config['strategies']]
     
     selected_strategy = st.selectbox(
         "Select Strategy for Analysis", 
@@ -1152,14 +1139,14 @@ def render_trading_dashboard(data, user):
         key="strategy_selector"
     )
     
-    st.markdown("---")
-    
     if selected_strategy:
-        # Strategy header with performance
+        st.markdown("---")
+        
+        # Strategy header
         col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
-            st.subheader(f"✏️ {selected_strategy} Analysis")
+            st.subheader(f"📈 {selected_strategy}")
         
         with col2:
             # Generate live indicators
@@ -1170,109 +1157,91 @@ def render_trading_dashboard(data, user):
             signals = trading_engine.generate_trading_signals(selected_strategy, indicators)
             if signals:
                 signal_type, confidence, reasoning = signals[0]
-                st.metric(
-                    "Live Signal", 
-                    signal_type, 
-                    f"{confidence:.0%} confidence"
-                )
+                st.metric("Live Signal", signal_type, f"{confidence:.0%} confidence")
         
-        # Analysis form
-        render_technical_analysis(selected_strategy, indicators)
+        # Technical indicators display
+        st.markdown("#### Technical Indicators")
+        cols = st.columns(3)
+        indicator_items = list(indicators.items())
+        
+        for i, (key, value) in enumerate(indicator_items):
+            with cols[i % 3]:
+                if isinstance(value, float):
+                    st.metric(key.replace('_', ' '), f"{value:.2f}")
+                else:
+                    st.metric(key.replace('_', ' '), str(value))
+        
+        # Analysis form - Clean and organized
+        st.markdown("---")
+        st.subheader("📝 Manual Analysis")
+        
+        with st.form(f"analysis_{selected_strategy}"):
+            # Strategy-level settings
+            col1, col2 = st.columns(2)
+            with col1:
+                strategy_tag = st.selectbox("Strategy Tag:", ["Neutral", "Buy", "Sell"])
+            with col2:
+                strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"])
+            
+            st.markdown("---")
+            
+            # Indicator analysis in columns
+            indicators_list = STRATEGIES[selected_strategy]
+            col_objs = st.columns(3)
+            
+            for i, indicator in enumerate(indicators_list):
+                col = col_objs[i % 3]
+                with col.expander(f"**{indicator}**", expanded=False):
+                    status = st.selectbox("Status", ["Open", "In Progress", "Done", "Skipped"], 
+                                        key=f"status_{indicator}")
+                    confidence = st.slider("Confidence", 50, 100, 75, 
+                                         key=f"conf_{indicator}")
+                    note = st.text_area("Analysis Notes", height=100, 
+                                      key=f"note_{indicator}",
+                                      placeholder="Enter your technical analysis...")
+            
+            # Save button
+            if st.form_submit_button("💾 Save Analysis", use_container_width=True):
+                st.success("✅ Analysis saved successfully!")
+                # Store in user data
+                if 'saved_analyses' not in st.session_state.user_data:
+                    st.session_state.user_data['saved_analyses'] = {}
+                st.session_state.user_data['saved_analyses'][selected_strategy] = {
+                    "timestamp": datetime.now(),
+                    "indicators": indicators,
+                    "tag": strategy_tag,
+                    "type": strategy_type
+                }
     
-    # Simple actions section
+    # Quick actions at bottom
     st.markdown("---")
     st.subheader("⚡ Quick Actions")
     
     col1, col2 = st.columns(2)
-    
     with col1:
         if st.button("🔄 Refresh Market Data", use_container_width=True):
             st.rerun()
-    
     with col2:
-        if st.button("🎯 Generate Signals", use_container_width=True):
-            if user['plan'] == 'premium':
-                st.success("✅ All trading signals generated!")
-                # Store signals in user data
-                data['recent_signals'] = [
-                    {"strategy": s, "signal": "BUY", "confidence": np.random.uniform(0.7, 0.9), "timestamp": datetime.now()}
-                    for s in available_strategies[:3]
-                ]
-            else:
-                st.info("🔒 Premium feature - upgrade to generate bulk signals")
-
-def render_technical_analysis(strategy, indicators):
-    """Technical analysis interface"""
-    st.write(f"**Technical Analysis for {strategy}**")
-    
-    # Display indicators in a nice layout
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        for key, value in list(indicators.items())[:2]:
-            if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
-            else:
-                st.metric(key.replace('_', ' '), str(value))
-    
-    with col2:
-        for key, value in list(indicators.items())[2:4]:
-            if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
-            else:
-                st.metric(key.replace('_', ' '), str(value))
-    
-    with col3:
-        for key, value in list(indicators.items())[4:]:
-            if isinstance(value, float):
-                st.metric(key.replace('_', ' '), f"{value:.2f}")
-            else:
-                st.metric(key.replace('_', ' '), str(value))
-    
-    # Analysis form
-    with st.form(f"analysis_{strategy}"):
-        st.write("**Manual Analysis Input**")
-        
-        for indicator in STRATEGIES[strategy]:
-            with st.expander(f"**{indicator}**", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    status = st.selectbox("Status", ["Open", "In Progress", "Done", "Skipped"], key=f"status_{indicator}")
-                    confidence = st.slider("Confidence", 50, 100, 75, key=f"conf_{indicator}")
-                with col2:
-                    note = st.text_area("Analysis Notes", height=100, key=f"note_{indicator}", 
-                                      placeholder="Enter your technical analysis...")
-        
-        # Save options
-        if st.form_submit_button("💾 Save Analysis", use_container_width=True):
-            st.success("✅ Analysis saved successfully!")
-            # Store in user data
-            if 'saved_analyses' not in st.session_state.user_data:
-                st.session_state.user_data['saved_analyses'] = {}
-            st.session_state.user_data['saved_analyses'][strategy] = {
-                "timestamp": datetime.now(),
-                "indicators": indicators
-            }
+        if st.button("📊 View Saved Analyses", use_container_width=True):
+            st.session_state.dashboard_view = 'signals'
+            st.rerun()
 
 def render_trading_signals(data, user):
-    """Trading signals dashboard"""
+    """Clean trading signals interface"""
     st.title("🎯 Trading Signals Center")
     
     if user['plan'] == 'premium':
-        # Signal overview
+        # Signal overview metrics
         col1, col2, col3 = st.columns(3)
-        
         with col1:
             st.metric("Active Signals", "12", "+3")
-        
         with col2:
             st.metric("Signal Accuracy", "76%", "+4%")
-        
         with col3:
             st.metric("Avg. Return", "+2.8%", "+0.4%")
         
         # Generate sample signals
-        strategies = list(STRATEGIES.keys())[:8]  # Show first 8 strategies
+        strategies = list(STRATEGIES.keys())[:8]
         signals = []
         
         for strategy in strategies:
@@ -1288,19 +1257,20 @@ def render_trading_signals(data, user):
                     "Timestamp": datetime.now().strftime("%H:%M")
                 })
         
-        signals_df = pd.DataFrame(signals)
-        
-        # Color code the signals
-        def color_strength(val):
-            if val == 'High':
-                return 'background-color: #d4edda'
-            elif val == 'Medium':
-                return 'background-color: #fff3cd'
-            else:
-                return 'background-color: #f8d7da'
-        
-        st.dataframe(signals_df.style.applymap(color_strength, subset=['Strength']), 
-                    use_container_width=True)
+        # Display signals in clean table
+        if signals:
+            signals_df = pd.DataFrame(signals)
+            
+            # Color coding function
+            def color_strength(val):
+                if val == 'High': return 'background-color: #d4edda'
+                elif val == 'Medium': return 'background-color: #fff3cd'
+                else: return 'background-color: #f8d7da'
+            
+            st.dataframe(signals_df.style.applymap(color_strength, subset=['Strength']), 
+                        use_container_width=True)
+        else:
+            st.info("No signals generated yet. Refresh to generate new signals.")
         
         # Signal actions
         if st.button("🔄 Refresh All Signals", use_container_width=True):
@@ -1321,9 +1291,14 @@ def render_trading_signals(data, user):
         if st.button("🚀 Upgrade for Advanced Signals", type="primary", use_container_width=True):
             st.session_state.show_upgrade = True
             st.rerun()
+    
+    # Back button
+    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        st.session_state.dashboard_view = 'main'
+        st.rerun()
 
 def render_account_settings():
-    """User account settings"""
+    """Clean account settings interface"""
     st.title("⚙️ Account Settings")
     
     user = st.session_state.user
@@ -1350,7 +1325,6 @@ def render_account_settings():
         
         if st.button("💳 Manage Subscription", use_container_width=True):
             st.session_state.show_upgrade = True
-            st.session_state.dashboard_view = 'main'
             st.rerun()
     
     st.markdown("---")
@@ -1366,7 +1340,7 @@ def render_account_settings():
         st.rerun()
 
 def render_upgrade_plans():
-    """Plan upgrade interface"""
+    """Clean plan upgrade interface"""
     st.title("💳 Upgrade Your Plan")
     st.write("Choose the plan that fits your trading needs")
     
