@@ -1,4 +1,4 @@
-# app.py - COMPLETE FUNCTIONAL VERSION WITH FULL ADMIN DASHBOARD
+# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE
 import streamlit as st
 import hashlib
 import json
@@ -11,6 +11,7 @@ import time
 import os
 import atexit
 import numpy as np
+import shutil
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -45,6 +46,28 @@ def init_session():
         st.session_state.selected_strategy = None
     if 'analysis_date' not in st.session_state:
         st.session_state.analysis_date = date.today()
+    if 'last_save_time' not in st.session_state:
+        st.session_state.last_save_time = time.time()
+
+# -------------------------
+# DATA PERSISTENCE SETUP
+# -------------------------
+def setup_data_persistence():
+    """Set up periodic data saving to prevent data loss"""
+    current_time = time.time()
+    if current_time - st.session_state.last_save_time > 300:  # 5 minutes
+        print("💾 Periodic data save...")
+        user_manager.save_users()
+        user_manager.save_analytics()
+        
+        # Save strategy analyses data
+        try:
+            strategy_data = load_data()
+            save_data(strategy_data)
+        except Exception as e:
+            print(f"⚠️ Error saving strategy data: {e}")
+            
+        st.session_state.last_save_time = current_time
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -122,15 +145,39 @@ def load_data():
     if os.path.exists(SAVE_FILE):
         with open(SAVE_FILE, "r", encoding="utf-8") as f:
             try:
-                return json.load(f)
-            except Exception:
+                data = json.load(f)
+                print(f"✅ Loaded strategy data from {SAVE_FILE}")
+                return data
+            except Exception as e:
+                print(f"❌ Error loading strategy data: {e}")
+                # Create backup of corrupted file
+                backup_name = f"{SAVE_FILE}.backup.{int(time.time())}"
+                os.rename(SAVE_FILE, backup_name)
+                print(f"⚠️ Strategy data corrupted. Backed up to {backup_name}")
                 return {}
     return {}
 
 def save_data(data):
     """Save strategy analyses data"""
-    with open(SAVE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    try:
+        # Create backup before saving
+        if os.path.exists(SAVE_FILE):
+            backup_file = f"{SAVE_FILE}.backup"
+            shutil.copy2(SAVE_FILE, backup_file)
+        
+        with open(SAVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved strategy data to {SAVE_FILE}")
+    except Exception as e:
+        print(f"❌ Error saving strategy data: {e}")
+        # Try to save to temporary file
+        try:
+            temp_file = f"{SAVE_FILE}.temp.{int(time.time())}"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            print(f"⚠️ Saved strategy backup to {temp_file}")
+        except Exception as e2:
+            print(f"❌ Failed to save strategy backup: {e2}")
 
 def generate_filtered_csv_bytes(data, target_date):
     """Generate CSV data filtered by date"""
@@ -153,7 +200,7 @@ def generate_filtered_csv_bytes(data, target_date):
     return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE
+# SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED VERSION
 # -------------------------
 class UserManager:
     def __init__(self):
@@ -161,14 +208,28 @@ class UserManager:
         self.analytics_file = "analytics.json"
         self._ensure_data_files()
         self.load_data()
-        atexit.register(self.cleanup_sessions)
+        # REMOVED: atexit.register(self.cleanup_sessions) - This was causing issues
     
     def _ensure_data_files(self):
         """Ensure data files exist and are valid"""
+        # Create files if they don't exist
         if not os.path.exists(self.users_file):
             self.users = {}
             self.create_default_admin()
             self.save_users()
+        else:
+            # Verify file is valid JSON
+            try:
+                with open(self.users_file, 'r') as f:
+                    json.load(f)
+            except json.JSONDecodeError:
+                # Backup corrupted file and create new one
+                backup_name = f"{self.users_file}.backup.{int(time.time())}"
+                os.rename(self.users_file, backup_name)
+                print(f"⚠️ Users file corrupted. Backed up to {backup_name}")
+                self.users = {}
+                self.create_default_admin()
+                self.save_users()
         
         if not os.path.exists(self.analytics_file):
             self.analytics = {
@@ -182,20 +243,45 @@ class UserManager:
                 "password_changes": []
             }
             self.save_analytics()
+        else:
+            # Verify analytics file is valid JSON
+            try:
+                with open(self.analytics_file, 'r') as f:
+                    json.load(f)
+            except json.JSONDecodeError:
+                # Backup corrupted file and create new one
+                backup_name = f"{self.analytics_file}.backup.{int(time.time())}"
+                os.rename(self.analytics_file, backup_name)
+                print(f"⚠️ Analytics file corrupted. Backed up to {backup_name}")
+                self.analytics = {
+                    "total_logins": 0,
+                    "active_users": 0,
+                    "revenue_today": 0,
+                    "user_registrations": [],
+                    "login_history": [],
+                    "deleted_users": [],
+                    "plan_changes": [],
+                    "password_changes": []
+                }
+                self.save_analytics()
     
     def load_data(self):
-        """Load users and analytics data with error handling"""
+        """Load users and analytics data with robust error handling"""
         try:
-            with open(self.users_file, 'r') as f:
+            with open(self.users_file, 'r', encoding='utf-8') as f:
                 self.users = json.load(f)
+            print(f"✅ Loaded {len(self.users)} users from {self.users_file}")
         except Exception as e:
             print(f"❌ Error loading users: {e}")
+            # Try to recover by creating default data
             self.users = {}
             self.create_default_admin()
+            self.save_users()
         
         try:
-            with open(self.analytics_file, 'r') as f:
+            with open(self.analytics_file, 'r', encoding='utf-8') as f:
                 self.analytics = json.load(f)
+            print(f"✅ Loaded analytics data")
         except Exception as e:
             print(f"❌ Error loading analytics: {e}")
             self.analytics = {
@@ -208,6 +294,7 @@ class UserManager:
                 "plan_changes": [],
                 "password_changes": []
             }
+            self.save_analytics()
     
     def create_default_admin(self):
         """Create default admin account"""
@@ -225,6 +312,7 @@ class UserManager:
             "email": "admin@tradinganalysis.com",
             "subscription_id": "admin_account"
         }
+        print("✅ Created default admin account")
     
     def hash_password(self, password):
         """Secure password hashing"""
@@ -232,33 +320,57 @@ class UserManager:
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def save_users(self):
-        """Save users to file with error handling"""
+        """Save users to file with robust error handling"""
         try:
-            with open(self.users_file, 'w') as f:
-                json.dump(self.users, f, indent=2)
+            # Create backup before saving
+            if os.path.exists(self.users_file):
+                backup_file = f"{self.users_file}.backup"
+                shutil.copy2(self.users_file, backup_file)
+            
+            with open(self.users_file, 'w', encoding='utf-8') as f:
+                json.dump(self.users, f, indent=2, ensure_ascii=False)
+            print(f"✅ Saved {len(self.users)} users to {self.users_file}")
             return True
         except Exception as e:
             print(f"❌ Error saving users: {e}")
+            # Try to save to temporary file as last resort
+            try:
+                temp_file = f"{self.users_file}.temp.{int(time.time())}"
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.users, f, indent=2, ensure_ascii=False)
+                print(f"⚠️ Saved backup to {temp_file}")
+            except Exception as e2:
+                print(f"❌ Failed to save backup: {e2}")
             return False
     
     def save_analytics(self):
-        """Save analytics data with error handling"""
+        """Save analytics data with robust error handling"""
         try:
-            with open(self.analytics_file, 'w') as f:
-                json.dump(self.analytics, f, indent=2)
+            with open(self.analytics_file, 'w', encoding='utf-8') as f:
+                json.dump(self.analytics, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
             print(f"❌ Error saving analytics: {e}")
             return False
     
-    def cleanup_sessions(self):
-        """Reset all active sessions (called on app exit)"""
+    def periodic_cleanup(self):
+        """Periodic cleanup that doesn't delete user data"""
+        # Only reset session counts, don't delete users
+        session_reset_count = 0
         for username in self.users:
-            self.users[username]["active_sessions"] = 0
-        self.save_users()
+            if self.users[username].get('active_sessions', 0) > 0:
+                self.users[username]['active_sessions'] = 0
+                session_reset_count += 1
+        
+        if session_reset_count > 0:
+            print(f"🔄 Reset {session_reset_count} user sessions")
+            self.save_users()
     
     def register_user(self, username, password, name, email, plan="trial"):
-        """Register new user with proper validation"""
+        """Register new user with proper validation and persistence"""
+        # Reload data first to ensure we have latest
+        self.load_data()
+        
         if username in self.users:
             return False, "Username already exists"
         
@@ -290,15 +402,27 @@ class UserManager:
             "payment_status": "active" if plan == "trial" else "pending"
         }
         
+        # Update analytics
+        if 'user_registrations' not in self.analytics:
+            self.analytics['user_registrations'] = []
+        
         self.analytics["user_registrations"].append({
             "username": username,
             "plan": plan,
             "timestamp": datetime.now().isoformat()
         })
         
-        if self.save_users() and self.save_analytics():
+        # Save both files
+        users_saved = self.save_users()
+        analytics_saved = self.save_analytics()
+        
+        if users_saved and analytics_saved:
+            print(f"✅ Successfully registered user: {username}")
             return True, f"Account created successfully! {plan_config['name']} activated."
         else:
+            # Remove the user if save failed
+            if username in self.users:
+                del self.users[username]
             return False, "Error saving user data. Please try again."
 
     def create_test_user(self, plan="trial"):
@@ -1795,6 +1919,9 @@ st.set_page_config(
 # -------------------------
 def main():
     init_session()
+    
+    # Setup data persistence
+    setup_data_persistence()
     
     # Enhanced CSS for premium appearance
     st.markdown("""
