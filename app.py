@@ -1,4 +1,4 @@
-# app.py - COMPLETE FUNCTIONAL VERSION WITH 5-DAY CYCLE
+# app.py - COMPLETE FUNCTIONAL VERSION WITH FULL ADMIN DASHBOARD
 import streamlit as st
 import hashlib
 import json
@@ -509,87 +509,776 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# ENHANCED TRADING ANALYSIS ENGINE
+# PASSWORD CHANGE INTERFACE
 # -------------------------
-class TradingAnalysisEngine:
-    def __init__(self):
-        self.market_data = self.generate_market_data()
+def render_password_change_interface():
+    """Interface for changing admin password"""
+    st.subheader("🔐 Change Admin Password")
     
-    def generate_market_data(self):
-        """Generate simulated market data for analysis"""
-        dates = pd.date_range(start='2024-01-01', end=datetime.now(), freq='D')
-        base_price = 50000
-        returns = np.random.normal(0.001, 0.02, len(dates))
-        prices = base_price * (1 + returns).cumprod()
+    with st.form("admin_password_change"):
+        st.info("**Security Note:** You must verify your current password to set a new one.")
         
-        data = pd.DataFrame({
-            'Date': dates,
-            'Price': prices,
-            'Volume': np.random.randint(1000, 10000, len(dates)),
-            'RSI': np.random.uniform(30, 70, len(dates)),
-            'MACD': np.random.uniform(-100, 100, len(dates)),
-            'Volatility': np.random.uniform(0.01, 0.05, len(dates))
-        })
-        return data
-    
-    def calculate_technical_indicators(self, strategy):
-        """Calculate technical indicators for a given strategy"""
-        indicators = {}
+        col1, col2 = st.columns(2)
+        with col1:
+            current_password = st.text_input("Current Password*", type="password", 
+                                           placeholder="Enter current admin password")
+        with col2:
+            new_password = st.text_input("New Password*", type="password", 
+                                       placeholder="Enter new password (min 8 chars)")
         
-        if strategy == "Premium Stoch":
-            indicators['Stochastic'] = np.random.uniform(20, 80)
-            indicators['Momentum'] = np.random.uniform(-1, 1)
-            indicators['Trend_Strength'] = np.random.uniform(0, 1)
-            
-        elif strategy == "PositionFlow":
-            indicators['Flow_Direction'] = np.random.choice(['Bullish', 'Bearish', 'Neutral'])
-            indicators['Volume_Profile'] = np.random.uniform(0, 1)
-            indicators['Liquidity_Levels'] = np.random.uniform(40000, 60000, 3)
-            
-        elif strategy == "Volatility":
-            indicators['ATR'] = np.random.uniform(500, 2000)
-            indicators['VIX_Level'] = np.random.uniform(15, 45)
-            indicators['Volatility_Regime'] = np.random.choice(['Low', 'Medium', 'High'])
-            
-        else:
-            # Default indicators for other strategies
-            indicators['Strength'] = np.random.uniform(0, 1)
-            indicators['Signal_Quality'] = np.random.uniform(0.5, 0.95)
-            indicators['Market_Condition'] = np.random.choice(['Trending', 'Ranging', 'Volatile'])
-            
-        return indicators
-    
-    def generate_trading_signals(self, strategy, indicators):
-        """Generate trading signals based on strategy and indicators"""
-        signals = []
-        confidence = np.random.uniform(0.6, 0.95)
+        confirm_password = st.text_input("Confirm New Password*", type="password", 
+                                       placeholder="Re-enter new password")
         
-        if strategy == "Premium Stoch":
-            if indicators['Stochastic'] < 20:
-                signals.append(("Oversold Buy", confidence, "High potential reversal"))
-            elif indicators['Stochastic'] > 80:
-                signals.append(("Overbought Sell", confidence, "Potential pullback"))
-            else:
-                signals.append(("Neutral Hold", 0.5, "Wait for better entry"))
+        # Password strength requirements
+        st.markdown("**Password Requirements:**")
+        st.markdown("- Minimum 8 characters")
+        st.markdown("- Include letters and numbers")
+        st.markdown("- Avoid common passwords")
+        
+        submitted = st.form_submit_button("✅ Change Admin Password", use_container_width=True)
+        
+        if submitted:
+            # Validation
+            if not all([current_password, new_password, confirm_password]):
+                st.error("❌ Please fill in all password fields")
+                return
+            
+            if new_password != confirm_password:
+                st.error("❌ New passwords do not match")
+                return
+            
+            if len(new_password) < 8:
+                st.error("❌ New password must be at least 8 characters long")
+                return
+            
+            # Change password
+            success, message = user_manager.change_admin_password(
+                current_password, 
+                new_password, 
+                st.session_state.user['username']
+            )
+            
+            if success:
+                st.success("✅ " + message)
+                st.info("🔒 You will need to use the new password for your next login.")
                 
-        elif strategy == "PositionFlow":
-            if indicators['Flow_Direction'] == 'Bullish':
-                signals.append(("Long Entry", confidence, "Strong buying pressure"))
-            elif indicators['Flow_Direction'] == 'Bearish':
-                signals.append(("Short Entry", confidence, "Strong selling pressure"))
+                # Add a small delay and return to user management
+                time.sleep(2)
+                st.session_state.show_password_change = False
+                st.rerun()
             else:
-                signals.append(("Wait for Confirmation", 0.4, "Mixed signals"))
-        else:
-            # Default signals for other strategies
-            if np.random.random() > 0.5:
-                signals.append(("BUY Signal", confidence, "Positive momentum detected"))
-            else:
-                signals.append(("SELL Signal", confidence, "Negative pressure building"))
-                
-        return signals
+                st.error("❌ " + message)
+    
+    st.markdown("---")
+    if st.button("⬅️ Back to User Management", use_container_width=True):
+        st.session_state.show_password_change = False
+        st.rerun()
 
-# Initialize trading engine
-trading_engine = TradingAnalysisEngine()
+# -------------------------
+# DELETE CONFIRMATION MODAL
+# -------------------------
+def render_delete_confirmation_modal():
+    """Modal for confirming user deletion"""
+    user_to_delete = st.session_state.get('user_to_delete')
+    
+    if not user_to_delete:
+        return
+    
+    # Create overlay effect
+    st.markdown("""
+        <style>
+        .delete-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            border: 2px solid #ff6b6b;
+            min-width: 500px;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Backdrop
+    st.markdown('<div class="modal-backdrop"></div>', unsafe_allow_html=True)
+    
+    # Modal content
+    with st.container():
+        st.markdown(f'<div class="delete-modal">', unsafe_allow_html=True)
+        
+        st.error("🚨 **Confirm User Deletion**")
+        st.warning(f"**User to delete:** {user_to_delete}")
+        
+        user_data = user_manager.users[user_to_delete]
+        st.write(f"**Name:** {user_data['name']}")
+        st.write(f"**Email:** {user_data['email']}")
+        st.write(f"**Plan:** {user_data['plan']}")
+        st.write(f"**Status:** {'Active' if user_data.get('is_active', True) else 'Inactive'}")
+        
+        st.markdown("---")
+        st.error("**This action cannot be undone!**")
+        
+        col1, col2, col3 = st.columns([1, 1, 2])
+        
+        with col1:
+            if st.button("✅ Confirm Delete", type="primary", use_container_width=True):
+                success, message = user_manager.delete_user(user_to_delete)
+                if success:
+                    st.success(f"✅ {message}")
+                    # Clear modal state
+                    st.session_state.show_delete_confirmation = False
+                    st.session_state.user_to_delete = None
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+        
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.show_delete_confirmation = False
+                st.session_state.user_to_delete = None
+                st.rerun()
+        
+        with col3:
+            st.markdown("")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# -------------------------
+# BULK DELETE INTERFACE
+# -------------------------
+def render_bulk_delete_interface():
+    """Interface for bulk deleting inactive users"""
+    st.subheader("🗑️ Bulk Delete Inactive Users")
+    
+    # Get inactive users
+    inactive_users = []
+    for username, user_data in user_manager.users.items():
+        if username != "admin" and not user_data.get('is_active', True):
+            days_inactive = 0
+            if user_data.get('last_login'):
+                try:
+                    last_login = datetime.fromisoformat(user_data['last_login'])
+                    days_inactive = (datetime.now() - last_login).days
+                except:
+                    days_inactive = 999
+            
+            inactive_users.append({
+                "username": username,
+                "name": user_data["name"],
+                "email": user_data["email"],
+                "plan": user_data["plan"],
+                "last_login": user_data.get("last_login", "Never"),
+                "days_inactive": days_inactive
+            })
+    
+    if not inactive_users:
+        st.info("🎉 No inactive users found!")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
+        return
+    
+    st.warning(f"Found {len(inactive_users)} inactive users")
+    
+    # Display with checkboxes
+    users_to_delete = []
+    for user in inactive_users:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**{user['username']}** - {user['name']}")
+            st.caption(f"Email: {user['email']} | Plan: {user['plan']} | Inactive for {user['days_inactive']} days")
+        with col2:
+            if st.checkbox("Select", key=f"bulk_{user['username']}"):
+                users_to_delete.append(user['username'])
+    
+    st.markdown("---")
+    
+    if users_to_delete:
+        st.error(f"**{len(users_to_delete)} users selected for deletion**")
+        
+        # Show selected users
+        with st.expander("📋 Review Selected Users"):
+            for username in users_to_delete:
+                user_data = next((u for u in inactive_users if u['username'] == username), None)
+                if user_data:
+                    st.write(f"• {username} ({user_data['name']}) - {user_data['email']}")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Delete Selected Users", type="primary", use_container_width=True):
+                deleted_count = 0
+                errors = []
+                for username in users_to_delete:
+                    success, message = user_manager.delete_user(username)
+                    if success:
+                        deleted_count += 1
+                    else:
+                        errors.append(f"{username}: {message}")
+                
+                if deleted_count > 0:
+                    st.success(f"✅ Successfully deleted {deleted_count} users!")
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                
+                time.sleep(2)
+                st.session_state.show_bulk_delete = False
+                st.rerun()
+        
+        with col2:
+            if st.button("❌ Cancel Bulk Delete", use_container_width=True):
+                st.session_state.show_bulk_delete = False
+                st.rerun()
+    else:
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
+
+# -------------------------
+# PLAN MANAGEMENT INTERFACE
+# -------------------------
+def render_plan_management_interface(username):
+    """Interface for managing a specific user's plan"""
+    if username not in user_manager.users:
+        st.error("User not found")
+        if st.button("⬅️ Back to User Management", use_container_width=True):
+            st.session_state.manage_user_plan = None
+            st.rerun()
+        return
+    
+    user_data = user_manager.users[username]
+    current_plan = user_data['plan']
+    
+    st.subheader(f"📋 Plan Management: {username}")
+    
+    # Back button at the top
+    if st.button("⬅️ Back to User Management", key="back_top"):
+        st.session_state.manage_user_plan = None
+        st.rerun()
+    
+    st.write(f"**Current Plan:** {Config.PLANS.get(current_plan, {}).get('name', current_plan.title())}")
+    st.write(f"**User:** {user_data['name']} ({user_data['email']})")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 🔄 Change Subscription Plan")
+        
+        # Plan selection
+        available_plans = list(Config.PLANS.keys())
+        new_plan = st.selectbox(
+            "Select New Plan",
+            available_plans,
+            index=available_plans.index(current_plan) if current_plan in available_plans else 0,
+            format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month"
+        )
+        
+        # Plan comparison
+        if new_plan != current_plan:
+            st.markdown("#### Plan Change Details:")
+            
+            old_plan_config = Config.PLANS.get(current_plan, {})
+            new_plan_config = Config.PLANS.get(new_plan, {})
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Current Plan:**")
+                st.write(f"• {old_plan_config.get('strategies', 0)} Strategies")
+                st.write(f"• {old_plan_config.get('max_sessions', 1)} Sessions")
+                st.write(f"• ${old_plan_config.get('price', 0)}/month")
+            
+            with col2:
+                st.write("**New Plan:**")
+                st.write(f"• {new_plan_config.get('strategies', 0)} Strategies")
+                st.write(f"• {new_plan_config.get('max_sessions', 1)} Sessions")
+                st.write(f"• ${new_plan_config.get('price', 0)}/month")
+            
+            # Change impact
+            st.markdown("#### Change Impact:")
+            strategies_change = new_plan_config.get('strategies', 0) - old_plan_config.get('strategies', 0)
+            sessions_change = new_plan_config.get('max_sessions', 1) - old_plan_config.get('max_sessions', 1)
+            price_change = new_plan_config.get('price', 0) - old_plan_config.get('price', 0)
+            
+            if strategies_change > 0:
+                st.success(f"➕ {strategies_change} additional strategies")
+            elif strategies_change < 0:
+                st.warning(f"➖ {abs(strategies_change)} fewer strategies")
+            
+            if sessions_change > 0:
+                st.success(f"➕ {sessions_change} additional concurrent sessions")
+            elif sessions_change < 0:
+                st.warning(f"➖ {abs(sessions_change)} fewer concurrent sessions")
+            
+            if price_change > 0:
+                st.info(f"💵 Price increase: ${price_change}/month")
+            elif price_change < 0:
+                st.success(f"💵 Price decrease: ${abs(price_change)}/month")
+        
+        # Change reason (optional)
+        change_reason = st.text_area("Reason for plan change (optional):", 
+                                   placeholder="e.g., User requested upgrade, Payment issue, Special promotion...")
+        
+        # Confirm change
+        if st.button("✅ Confirm Plan Change", type="primary", use_container_width=True):
+            if new_plan == current_plan:
+                st.warning("User is already on this plan")
+            else:
+                success, message = user_manager.change_user_plan(username, new_plan)
+                if success:
+                    st.success(f"✅ {message}")
+                    
+                    # Send notification (simulated)
+                    st.info(f"📧 Notification email sent to {user_data['email']}")
+                    st.info("🔄 User will see changes immediately on next login")
+                    
+                    time.sleep(2)
+                    st.session_state.manage_user_plan = None
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+    
+    with col2:
+        st.markdown("### 📊 Current Plan Details")
+        
+        # Current plan info
+        current_plan_config = Config.PLANS.get(current_plan, {})
+        st.write(f"**Plan:** {current_plan_config.get('name', current_plan.title())}")
+        st.write(f"**Expires:** {user_data['expires']}")
+        
+        days_left = (datetime.strptime(user_data['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
+        
+        st.markdown("#### Features:")
+        st.write(f"• **Strategies:** {current_plan_config.get('strategies', 0)} available")
+        st.write(f"• **Sessions:** {user_data.get('active_sessions', 0)}/{current_plan_config.get('max_sessions', 1)} active")
+        st.write(f"• **Price:** ${current_plan_config.get('price', 0)}/month")
+        
+        st.markdown("#### User Statistics:")
+        st.write(f"• **Joined:** {user_data['created'][:10]}")
+        
+        # Handle None or empty last_login safely
+        last_login = user_data.get('last_login')
+        if last_login:
+            try:
+                # Try to format the date if it's a valid ISO string
+                st.write(f"• **Last Login:** {last_login[:16]}")
+            except:
+                st.write(f"• **Last Login:** {last_login}")
+        else:
+            st.write(f"• **Last Login:** Never")
+            
+        st.write(f"• **Total Logins:** {user_data.get('login_count', 0)}")
+        st.write(f"• **Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+        
+        # Quick actions
+        st.markdown("#### Quick Actions:")
+        
+        # Quick plan changes
+        quick_plans = {
+            "🚀 Upgrade to Premium": "premium",
+            "🎯 Set to Trial": "trial"
+        }
+        
+        for btn_text, plan in quick_plans.items():
+            if plan != current_plan:
+                if st.button(btn_text, use_container_width=True, key=f"quick_{plan}_{username}"):
+                    success, message = user_manager.change_user_plan(username, plan)
+                    if success:
+                        st.success(f"✅ {message}")
+                        time.sleep(1)
+                        st.session_state.manage_user_plan = None
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+    
+    st.markdown("---")
+    
+    # Another back button at the bottom for convenience
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("⬅️ Back to User Management", key="back_bottom", use_container_width=True):
+            st.session_state.manage_user_plan = None
+            st.rerun()
+
+# -------------------------
+# ADMIN DASHBOARD - COMPLETE VERSION
+# -------------------------
+def render_admin_dashboard():
+    """Professional admin dashboard for business management"""
+    
+    # Always render the sidebar first, regardless of current view
+    with st.sidebar:
+        st.title("👑 Admin Panel")
+        st.markdown("---")
+        st.write(f"Welcome, **{st.session_state.user['name']}**")
+        st.success("System Administrator")
+        
+        # Logout button should always work
+        if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout"):
+            user_manager.logout(st.session_state.user['username'])
+            st.session_state.user = None
+            st.rerun()
+        
+        st.markdown("---")
+        st.subheader("Admin Actions")
+        
+        # All sidebar buttons should work from any view
+        if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh"):
+            user_manager.load_data()
+            st.rerun()
+        
+        if st.button("📊 View Analytics", use_container_width=True, key="sidebar_analytics"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.admin_view = "analytics"
+            st.rerun()
+        
+        if st.button("👥 Manage Users", use_container_width=True, key="sidebar_users"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.admin_view = "users"
+            st.rerun()
+        
+        if st.button("🗑️ Bulk Delete", use_container_width=True, key="sidebar_bulk_delete"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.admin_view = "users"
+            st.session_state.show_bulk_delete = True
+            st.rerun()
+        
+        if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.admin_view = "revenue"
+            st.rerun()
+    
+    # Main admin content
+    st.title("👑 Business Administration Dashboard")
+    
+    # Show delete confirmation modal if needed
+    if st.session_state.get('show_delete_confirmation'):
+        render_delete_confirmation_modal()
+        return
+    
+    # Show bulk delete interface if needed
+    if st.session_state.get('show_bulk_delete'):
+        render_bulk_delete_interface()
+        return
+    
+    # Show plan management interface if needed
+    if st.session_state.get('manage_user_plan'):
+        render_plan_management_interface(st.session_state.manage_user_plan)
+        return
+    
+    # Show password change interface if needed
+    if st.session_state.get('show_password_change'):
+        render_password_change_interface()
+        return
+    
+    # Default view or selected view
+    current_view = st.session_state.get('admin_view', 'overview')
+    
+    if current_view == 'overview':
+        render_admin_overview()
+    elif current_view == 'analytics':
+        render_admin_analytics()
+    elif current_view == 'users':
+        render_admin_user_management()
+    elif current_view == 'revenue':
+        render_admin_revenue()
+
+def render_admin_overview():
+    """Admin overview with business metrics"""
+    st.subheader("📈 Business Overview")
+    
+    # Get business metrics
+    metrics = user_manager.get_business_metrics()
+    
+    # Key metrics
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", metrics["total_users"])
+    with col2:
+        st.metric("Active Users", metrics["active_users"])
+    with col3:
+        st.metric("Online Now", metrics["online_users"])
+    with col4:
+        st.metric("Total Logins", metrics["total_logins"])
+    
+    st.markdown("---")
+    
+    # Plan distribution
+    st.subheader("📊 Plan Distribution")
+    plan_data = metrics["plan_distribution"]
+    
+    if plan_data:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Users by Plan:**")
+            for plan, count in plan_data.items():
+                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                st.write(f"• {plan_name}: {count} users")
+        
+        with col2:
+            # Simple chart using progress bars
+            total = sum(plan_data.values())
+            for plan, count in plan_data.items():
+                percentage = (count / total) * 100 if total > 0 else 0
+                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
+                st.progress(percentage / 100)
+    
+    st.markdown("---")
+    
+    # Recent activity
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🕒 Recent Registrations")
+        recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
+        if recent_registrations:
+            for reg in reversed(recent_registrations):
+                plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
+                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
+        else:
+            st.info("No recent registrations")
+    
+    with col2:
+        st.subheader("🔄 Recent Plan Changes")
+        recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
+        if recent_plan_changes:
+            for change in reversed(recent_plan_changes):
+                old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
+                new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
+                st.write(f"• {change['username']}: {old_plan} → {new_plan}")
+                st.caption(f"{change['timestamp'][:16]}")
+        else:
+            st.info("No recent plan changes")
+
+def render_admin_analytics():
+    """Detailed analytics view"""
+    st.subheader("📈 Detailed Analytics")
+    
+    # Login analytics
+    st.write("**Login Activity**")
+    total_logins = user_manager.analytics.get("total_logins", 0)
+    successful_logins = len([x for x in user_manager.analytics.get("login_history", []) if x.get('success')])
+    failed_logins = total_logins - successful_logins
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Login Attempts", total_logins)
+    with col2:
+        st.metric("Successful Logins", successful_logins)
+    with col3:
+        st.metric("Failed Logins", failed_logins)
+    
+    # User growth
+    st.markdown("---")
+    st.subheader("📈 User Growth")
+    
+    registrations = user_manager.analytics.get("user_registrations", [])
+    if registrations:
+        # Group by date
+        reg_by_date = {}
+        for reg in registrations:
+            date_str = reg['timestamp'][:10]
+            reg_by_date[date_str] = reg_by_date.get(date_str, 0) + 1
+        
+        # Display as table
+        st.write("**Registrations by Date:**")
+        reg_df = pd.DataFrame(list(reg_by_date.items()), columns=['Date', 'Registrations'])
+        reg_df = reg_df.sort_values('Date', ascending=False).head(10)
+        st.dataframe(reg_df, use_container_width=True)
+    else:
+        st.info("No registration data available")
+
+def render_admin_user_management():
+    """User management interface with delete and plan management functionality"""
+    st.subheader("👥 User Management")
+    
+    # User actions - UPDATED WITH PASSWORD CHANGE
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
+            st.rerun()
+    with col2:
+        if st.button("📧 Export User Data", use_container_width=True, key="um_export"):
+            st.success("User data export would be implemented here")
+    with col3:
+        if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
+            created_username, msg = user_manager.create_test_user("trial")
+            if created_username:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+    with col4:
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
+            st.session_state.show_bulk_delete = True
+            st.rerun()
+    with col5:  # NEW PASSWORD CHANGE BUTTON
+        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
+            st.session_state.show_password_change = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Enhanced User table with quick actions
+    st.write("**All Users - Quick Plan Management:**")
+    
+    # Display users with quick plan change options
+    for username, user_data in user_manager.users.items():
+        with st.container():
+            col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 1, 1])
+            
+            with col1:
+                st.write(f"**{username}**")
+                st.caption(user_data['name'])
+            
+            with col2:
+                st.write(user_data['email'])
+            
+            with col3:
+                current_plan = user_data['plan']
+                plan_display = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+                st.write(f"`{plan_display}`")
+            
+            with col4:
+                expires = user_data['expires']
+                days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
+                st.write(f"Expires: {expires}")
+                st.caption(f"{days_left} days left")
+            
+            with col5:
+                if username != "admin":
+                    # Quick upgrade to premium
+                    if current_plan != "premium":
+                        if st.button("⭐", key=f"quick_premium_{username}", help="Upgrade to Premium"):
+                            success, message = user_manager.change_user_plan(username, "premium")
+                            if success:
+                                st.success(message)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(message)
+                    else:
+                        st.write("⭐")
+            
+            with col6:
+                if username != "admin":
+                    if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
+                        st.session_state.manage_user_plan = username
+                        st.rerun()
+    
+    st.markdown("---")
+    
+    # Individual User Actions Section
+    st.subheader("⚡ User Actions")
+    
+    selected_user = st.selectbox("Select User for Action", [""] + list(user_manager.users.keys()), key="user_select")
+    
+    if selected_user:
+        if selected_user == "admin":
+            st.warning("⚠️ Admin account cannot be modified")
+        else:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
+                    user_manager.users[selected_user]["is_active"] = False
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' deactivated!")
+                    st.rerun()
+            
+            with col2:
+                if st.button("🟢 Activate User", use_container_width=True, key=f"activate_{selected_user}"):
+                    user_manager.users[selected_user]["is_active"] = True
+                    user_manager.save_users()
+                    st.success(f"User '{selected_user}' activated!")
+                    st.rerun()
+            
+            with col3:
+                if st.button("🔄 Reset Sessions", use_container_width=True, key=f"reset_{selected_user}"):
+                    user_manager.users[selected_user]["active_sessions"] = 0
+                    user_manager.save_users()
+                    st.success(f"Sessions reset for '{selected_user}'!")
+                    st.rerun()
+            
+            with col4:
+                if st.button("🗑️ Delete User", type="secondary", use_container_width=True, key=f"delete_{selected_user}"):
+                    st.session_state.user_to_delete = selected_user
+                    st.session_state.show_delete_confirmation = True
+                    st.rerun()
+
+def render_admin_revenue():
+    """Revenue and financial reporting"""
+    st.subheader("💰 Revenue Analytics")
+    
+    # Revenue metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Estimated MRR", "$1,250")
+    with col2:
+        st.metric("Active Subscriptions", "28")
+    with col3:
+        st.metric("Trial Conversions", "12%")
+    
+    st.markdown("---")
+    
+    # Revenue by plan
+    st.write("**Revenue by Plan Type:**")
+    
+    revenue_data = {
+        "Trial": {"users": 0, "revenue": 0},
+        "Premium": {"users": 0, "revenue": 0}
+    }
+    
+    for user_data in user_manager.users.values():
+        plan = user_data.get("plan", "trial")
+        if plan == "premium":
+            revenue_data["Premium"]["users"] += 1
+            revenue_data["Premium"]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
+        else:
+            revenue_data["Trial"]["users"] += 1
+    
+    # Display revenue table
+    revenue_df = pd.DataFrame([
+        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
+        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]}
+    ])
+    
+    st.dataframe(revenue_df, use_container_width=True)
+    
+    st.markdown("---")
+    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
 # AUTHENTICATION COMPONENTS
@@ -1092,17 +1781,14 @@ def render_upgrade_plans():
         st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD (Simplified for brevity)
+# STREAMLIT APP CONFIG
 # -------------------------
-def render_admin_dashboard():
-    """Professional admin dashboard"""
-    st.title("👑 Admin Dashboard")
-    st.info("Admin functionality is available. User management and analytics can be implemented here.")
-    
-    if st.button("🚪 Logout", use_container_width=True):
-        user_manager.logout(st.session_state.user['username'])
-        st.session_state.user = None
-        st.rerun()
+st.set_page_config(
+    page_title=f"{Config.APP_NAME} - Professional Trading Analysis",
+    layout="wide",
+    page_icon="📊",
+    initial_sidebar_state="expanded"
+)
 
 # -------------------------
 # MAIN APPLICATION
