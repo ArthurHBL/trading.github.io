@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND EMAIL VERIFICATION
+# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND ADMIN-ONLY EMAIL VERIFICATION
 import streamlit as st
 import hashlib
 import json
@@ -208,6 +208,49 @@ def generate_filtered_csv_bytes(data, target_date):
     return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
+# EMAIL VALIDATION TOOLS
+# -------------------------
+def validate_email_syntax(email):
+    """Simple email syntax validation"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def check_email_quality(email):
+    """Check email quality indicators"""
+    issues = []
+    
+    # Common disposable email domains
+    disposable_domains = [
+        'tempmail.com', 'throwaway.com', 'fake.com', 'guerrillamail.com',
+        'mailinator.com', '10minutemail.com', 'yopmail.com', 'trashmail.com',
+        'temp-mail.org', 'disposable.com', 'fakeinbox.com', 'getairmail.com'
+    ]
+    
+    # Check syntax
+    if not validate_email_syntax(email):
+        issues.append("❌ Invalid email syntax")
+        return issues
+    
+    # Check for disposable domains
+    domain = email.split('@')[-1].lower()
+    if domain in disposable_domains:
+        issues.append("⚠️ Possible disposable email")
+    
+    # Check for common patterns in fake emails
+    if 'fake' in email.lower() or 'test' in email.lower() or 'temp' in email.lower():
+        issues.append("⚠️ Contains suspicious keywords")
+    
+    # Check for very short local part
+    local_part = email.split('@')[0]
+    if len(local_part) < 2:
+        issues.append("⚠️ Very short username")
+    
+    if not issues:
+        issues.append("✅ Email appears valid")
+    
+    return issues
+
+# -------------------------
 # SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED VERSION
 # -------------------------
 class UserManager:
@@ -216,7 +259,6 @@ class UserManager:
         self.analytics_file = "analytics.json"
         self._ensure_data_files()
         self.load_data()
-        # REMOVED: atexit.register(self.cleanup_sessions) - This was causing issues
     
     def _ensure_data_files(self):
         """Ensure data files exist and are valid"""
@@ -556,7 +598,7 @@ class UserManager:
             return False, "Error saving plan change"
 
     def authenticate(self, username, password):
-        """Authenticate user WITHOUT session blocking"""
+        """Authenticate user WITHOUT email verification blocking"""
         self.analytics["total_logins"] += 1
         self.analytics["login_history"].append({
             "username": username,
@@ -573,9 +615,8 @@ class UserManager:
         if not user.get("is_active", True):
             return False, "Account deactivated. Please contact support."
         
-        # NEW: Check if email is verified (only for non-admin users)
-        if username != "admin" and not user.get("email_verified", False):
-            return False, "Email not verified. Please wait for admin verification."
+        # REMOVED: Email verification check - users can login immediately
+        # Email verification status is only for admin monitoring
         
         if not self.verify_password(password, user["password_hash"]):
             return False, "Invalid username or password"
@@ -584,11 +625,9 @@ class UserManager:
         if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
             return False, "Subscription expired. Please renew your plan."
         
-        # REMOVED: Session blocking check - users can always login regardless of active sessions
-        
         user["last_login"] = datetime.now().isoformat()
         user["login_count"] = user.get("login_count", 0) + 1
-        user["active_sessions"] += 1  # Still track sessions but don't block login
+        user["active_sessions"] += 1
         
         self.analytics["login_history"][-1]["success"] = True
         
@@ -910,10 +949,10 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# NEW: EMAIL VERIFICATION INTERFACE
+# NEW: EMAIL VERIFICATION INTERFACE WITH VALIDATION TOOLS
 # -------------------------
 def render_email_verification_interface():
-    """Interface for manual email verification by admin"""
+    """Interface for manual email verification by admin with validation tools"""
     st.subheader("📧 Email Verification Management")
     
     # Back button
@@ -931,9 +970,34 @@ def render_email_verification_interface():
     with col2:
         st.metric("Verified Users", stats["verified_count"])
     with col3:
-        st.metric("Pending Verification", stats["unverified_count"])
+        st.metric("Unverified Users", stats["unverified_count"])
     with col4:
         st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
+    
+    st.markdown("---")
+    
+    # NEW: Email Validation Tool
+    st.subheader("🔍 Email Validation Tool")
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        email_to_check = st.text_input("Check email validity:", placeholder="Enter email to validate")
+    
+    with col2:
+        st.markdown("")
+        st.markdown("")
+        if st.button("Validate Email", use_container_width=True):
+            if email_to_check:
+                issues = check_email_quality(email_to_check)
+                for issue in issues:
+                    if "✅" in issue:
+                        st.success(issue)
+                    elif "⚠️" in issue:
+                        st.warning(issue)
+                    else:
+                        st.error(issue)
+            else:
+                st.error("Please enter an email address")
     
     st.markdown("---")
     
@@ -950,7 +1014,7 @@ def render_email_verification_interface():
         render_verification_history_tab()
 
 def render_pending_verification_tab(stats):
-    """Tab showing users pending email verification"""
+    """Tab showing users pending email verification with quality indicators"""
     st.subheader("⏳ Users Pending Email Verification")
     
     pending_users = stats["pending_verification"]
@@ -964,7 +1028,7 @@ def render_pending_verification_tab(stats):
     # Display pending users in a table with action buttons
     for user in pending_users:
         with st.container():
-            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 1, 1])
+            col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 1, 1, 1])
             
             with col1:
                 st.write(f"**{user['username']}**")
@@ -972,6 +1036,11 @@ def render_pending_verification_tab(stats):
             
             with col2:
                 st.write(user['email'])
+                # Show email quality indicators
+                email_issues = check_email_quality(user['email'])
+                for issue in email_issues:
+                    if "⚠️" in issue:
+                        st.caption(f"`{issue}`")
             
             with col3:
                 plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
@@ -996,6 +1065,18 @@ def render_pending_verification_tab(stats):
                     st.session_state.user_to_manage = user['username']
                     st.session_state.manage_user_plan = user['username']
                     st.rerun()
+            
+            with col6:
+                # Quick email validation
+                if st.button("🔍", key=f"check_{user['username']}", help="Check email quality"):
+                    email_issues = check_email_quality(user['email'])
+                    for issue in email_issues:
+                        if "✅" in issue:
+                            st.success(issue)
+                        elif "⚠️" in issue:
+                            st.warning(issue)
+                        else:
+                            st.error(issue)
     
     st.markdown("---")
     
@@ -1829,7 +1910,7 @@ def render_admin_overview():
     with col4:
         st.metric("Verified Users", metrics["verified_users"])
     with col5:
-        st.metric("Pending Verification", metrics["unverified_users"])
+        st.metric("Unverified Users", metrics["unverified_users"])
     
     st.markdown("---")
     
@@ -1914,7 +1995,7 @@ def render_admin_analytics():
     with col2:
         st.metric("Verified", stats["verified_count"])
     with col3:
-        st.metric("Pending", stats["unverified_count"])
+        st.metric("Unverified", stats["unverified_count"])
     with col4:
         st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
     
@@ -2142,7 +2223,7 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# AUTHENTICATION COMPONENTS
+# AUTHENTICATION COMPONENTS - UPDATED WITH SIMPLIFIED REGISTRATION
 # -------------------------
 def render_login():
     """Professional login/registration interface"""
@@ -2215,8 +2296,7 @@ def render_login():
                     if plan_choice == "trial":
                         st.info("🎁 Free trial - no payment required")
             
-            # Email verification notice
-            st.info("📧 **Email Verification:** Your account will be activated after admin verification. This usually takes less than 24 hours.")
+            # REMOVED: Email verification notice - users can login immediately
             
             agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*")
             
@@ -2237,7 +2317,8 @@ def render_login():
                         if success:
                             st.success(f"✅ {message}")
                             st.balloons()
-                            st.info("📧 Your account has been created! Please wait for email verification by admin before logging in.")
+                            # SIMPLIFIED: Just tell them they can login
+                            st.success("🎉 Congratulations! Your account has been created. You can now login!")
                         else:
                             st.error(f"❌ {message}")
 
