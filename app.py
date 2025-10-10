@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH IMPROVED EMAIL VERIFICATION BADGES AND DATE NAVIGATION
+# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION
 import streamlit as st
 import hashlib
 import json
@@ -2368,10 +2368,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND DATE NAVIGATION
+# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND WORKING DATE NAVIGATION
 # -------------------------
 def render_user_dashboard():
-    """Redesigned trading dashboard with 5-day cycle system and date navigation"""
+    """Redesigned trading dashboard with 5-day cycle system and working date navigation"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -2389,6 +2389,27 @@ def render_user_dashboard():
     # Load strategy analyses data
     strategy_data = load_data()
     
+    # FIX: SIMPLER Date navigation with URL parameters
+    start_date = date(2025, 8, 9)
+    
+    # Get date from URL parameters or session state
+    query_params = st.query_params
+    current_date_str = query_params.get("date", "")
+    
+    if current_date_str:
+        try:
+            analysis_date = datetime.strptime(current_date_str, "%Y-%m-%d").date()
+            st.session_state.analysis_date = analysis_date
+        except ValueError:
+            analysis_date = st.session_state.get('analysis_date', date.today())
+    else:
+        analysis_date = st.session_state.get('analysis_date', date.today())
+    
+    # Ensure analysis_date is not before start_date
+    if analysis_date < start_date:
+        analysis_date = start_date
+        st.session_state.analysis_date = start_date
+    
     # Clean sidebar with 5-day cycle system
     with st.sidebar:
         st.title("🎛️ Control Panel")
@@ -2405,31 +2426,32 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # 5-Day Cycle System with Date Navigation
+        # 5-Day Cycle System with Date Navigation - FIXED VERSION
         st.subheader("📅 5-Day Cycle")
         
-        # Analysis Date Selector
-        analysis_date = st.date_input(
-            "Analysis Date:",
-            value=st.session_state.get('analysis_date', date.today()),
-            min_value=date(2025, 8, 9),  # Start of the cycle
-            key="analysis_date_selector"
-        )
-        st.session_state.analysis_date = analysis_date
+        # Display current date
+        st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
         
-        # NEW: Date Navigation Buttons
+        # FIX: DIRECT Date navigation with immediate parameter update
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("◀️ Previous Day", use_container_width=True, key="prev_day"):
+            if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
                 new_date = analysis_date - timedelta(days=1)
-                if new_date >= date(2025, 8, 9):  # Don't go before cycle start
-                    st.session_state.analysis_date = new_date
+                if new_date >= start_date:
+                    st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                     st.rerun()
+                else:
+                    st.warning("Cannot go before start date")
         with col2:
             if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
                 new_date = analysis_date + timedelta(days=1)
-                st.session_state.analysis_date = new_date
+                st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                 st.rerun()
+        
+        # Quick date reset button
+        if st.button("🔄 Today", use_container_width=True, key="today_btn"):
+            st.query_params["date"] = date.today().strftime("%Y-%m-%d")
+            st.rerun()
         
         # Cycle information
         daily_strategies, cycle_day = get_daily_strategies(analysis_date)
