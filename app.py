@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH IMPROVED EMAIL VERIFICATION BADGES
+# app.py - COMPLETE FIXED VERSION WITH IMPROVED EMAIL VERIFICATION BADGES AND DATE NAVIGATION
 import streamlit as st
 import hashlib
 import json
@@ -2368,10 +2368,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE
+# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND DATE NAVIGATION
 # -------------------------
 def render_user_dashboard():
-    """Redesigned trading dashboard with 5-day cycle system"""
+    """Redesigned trading dashboard with 5-day cycle system and date navigation"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -2405,17 +2405,33 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # 5-Day Cycle System
+        # 5-Day Cycle System with Date Navigation
         st.subheader("📅 5-Day Cycle")
-        start_date = date(2025, 8, 9)
+        
+        # Analysis Date Selector
         analysis_date = st.date_input(
             "Analysis Date:",
             value=st.session_state.get('analysis_date', date.today()),
-            min_value=start_date,
+            min_value=date(2025, 8, 9),  # Start of the cycle
             key="analysis_date_selector"
         )
         st.session_state.analysis_date = analysis_date
         
+        # NEW: Date Navigation Buttons
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("◀️ Previous Day", use_container_width=True, key="prev_day"):
+                new_date = analysis_date - timedelta(days=1)
+                if new_date >= date(2025, 8, 9):  # Don't go before cycle start
+                    st.session_state.analysis_date = new_date
+                    st.rerun()
+        with col2:
+            if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
+                new_date = analysis_date + timedelta(days=1)
+                st.session_state.analysis_date = new_date
+                st.rerun()
+        
+        # Cycle information
         daily_strategies, cycle_day = get_daily_strategies(analysis_date)
         st.info(f"**Day {cycle_day} of 5-day cycle**")
         
