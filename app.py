@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND EMAIL VERIFICATION
+# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE
 import streamlit as st
 import hashlib
 import json
@@ -14,11 +14,6 @@ import numpy as np
 import shutil
 import io
 import base64
-import smtplib
-from email.mime.text import MIMEText  # ✅ FIXED
-from email.mime.multipart import MIMEMultipart  # ✅ FIXED
-import random
-import string
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -59,12 +54,6 @@ def init_session():
         st.session_state.show_user_credentials = False
     if 'user_to_manage' not in st.session_state:
         st.session_state.user_to_manage = None
-    if 'pending_verification' not in st.session_state:
-        st.session_state.pending_verification = {}
-    if 'show_verification_sent' not in st.session_state:
-        st.session_state.show_verification_sent = False
-    if 'verification_code_input' not in st.session_state:
-        st.session_state.verification_code_input = ""
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -100,229 +89,6 @@ class Config:
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
         "premium": {"name": "Premium Plan", "price": 79, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
-    
-    # SMTP Configuration for Email Verification
-    SMTP_SERVER = "smtp.gmail.com"  # Change to your SMTP server
-    SMTP_PORT = 587
-    SMTP_USERNAME = "your-email@gmail.com"  # Change to your email
-    SMTP_PASSWORD = "your-app-password"  # Change to your app password
-    FROM_EMAIL = "your-email@gmail.com"  # Change to your email
-    FROM_NAME = "TradingAnalysis Pro"
-
-# -------------------------
-# EMAIL VERIFICATION SYSTEM
-# -------------------------
-class EmailVerification:
-    def __init__(self):
-        self.verification_codes = {}
-        self.code_expiry_minutes = 30
-    
-    def generate_verification_code(self):
-        """Generate a 6-digit verification code"""
-        return ''.join(random.choices(string.digits, k=6))
-    
-    def send_verification_email(self, to_email, username, verification_code):
-        """Send verification email using SMTP"""
-        try:
-            # Create message
-            msg = MIMEMultipart()  # ✅ FIXED
-            msg['From'] = f"{Config.FROM_NAME} <{Config.FROM_EMAIL}>"
-            msg['To'] = to_email
-            msg['Subject'] = "Verify Your TradingAnalysis Pro Account"
-            
-            # Email body
-            body = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                    <div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
-                        <h1 style="margin: 0;">🔐 Verify Your Account</h1>
-                    </div>
-                    
-                    <div style="padding: 30px;">
-                        <h2 style="color: #667eea;">Welcome to TradingAnalysis Pro!</h2>
-                        
-                        <p>Hello <strong>{username}</strong>,</p>
-                        
-                        <p>Thank you for registering with TradingAnalysis Pro. To complete your account setup and start using our professional trading analysis tools, please verify your email address using the code below:</p>
-                        
-                        <div style="text-align: center; margin: 30px 0;">
-                            <div style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #667eea; background: #f8f9fa; padding: 20px; border-radius: 10px; border: 2px dashed #667eea;">
-                                {verification_code}
-                            </div>
-                        </div>
-                        
-                        <p><strong>Verification Code:</strong> {verification_code}</p>
-                        
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
-                            <strong>⚠️ Important:</strong> 
-                            <ul>
-                                <li>This code will expire in {self.code_expiry_minutes} minutes</li>
-                                <li>Do not share this code with anyone</li>
-                                <li>If you didn't create this account, please ignore this email</li>
-                            </ul>
-                        </div>
-                        
-                        <p>Enter this code in the verification form to activate your account and get started with your trading analysis.</p>
-                        
-                        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-                            <p style="font-size: 12px; color: #666;">
-                                If you're having trouble with the verification code, you can:<br>
-                                • Reply to this email for support<br>
-                                • Visit our help center<br>
-                                • Contact support at {Config.SUPPORT_EMAIL}
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div style="background: #f8f9fa; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; color: #666;">
-                        <p>&copy; 2024 {Config.BUSINESS_NAME}. All rights reserved.<br>
-                        This email was sent to {to_email}</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))  # ✅ FIXED
-            
-            # Send email
-            with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT) as server:
-                server.starttls()
-                server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
-                server.send_message(msg)
-            
-            print(f"✅ Verification email sent to {to_email}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Failed to send verification email to {to_email}: {str(e)}")
-            return False
-    
-    def send_welcome_email(self, to_email, username, plan_name):
-        """Send welcome email after successful verification"""
-        try:
-            msg = MIMEMultipart()  # ✅ FIXED
-            msg['From'] = f"{Config.FROM_NAME} <{Config.FROM_EMAIL}>"
-            msg['To'] = to_email
-            msg['Subject'] = f"Welcome to TradingAnalysis Pro - {plan_name} Activated!"
-            
-            body = f"""
-            <html>
-            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-                    <div style="text-align: center; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); padding: 20px; border-radius: 10px 10px 0 0; color: white;">
-                        <h1 style="margin: 0;">🎉 Welcome to TradingAnalysis Pro!</h1>
-                    </div>
-                    
-                    <div style="padding: 30px;">
-                        <h2 style="color: #28a745;">Your Account is Ready!</h2>
-                        
-                        <p>Hello <strong>{username}</strong>,</p>
-                        
-                        <p>Congratulations! Your TradingAnalysis Pro account has been successfully verified and your <strong>{plan_name}</strong> is now active.</p>
-                        
-                        <div style="background: #d4edda; padding: 20px; border-radius: 10px; border-left: 4px solid #28a745;">
-                            <h3 style="color: #155724; margin-top: 0;">What's Next?</h3>
-                            <ul style="color: #155724;">
-                                <li>Access your personalized trading dashboard</li>
-                                <li>Explore our 15 professional trading strategies</li>
-                                <li>Start analyzing with our 5-day cycle system</li>
-                                <li>Save and export your analysis notes</li>
-                            </ul>
-                        </div>
-                        
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="#" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">
-                                🚀 Launch Your Dashboard
-                            </a>
-                        </div>
-                        
-                        <div style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
-                            <strong>💡 Pro Tip:</strong> Make sure to complete your daily strategy analysis to get the most out of our 5-day cycle system!
-                        </div>
-                        
-                        <p>If you have any questions or need assistance, our support team is here to help at {Config.SUPPORT_EMAIL}.</p>
-                        
-                        <p>Happy trading!<br>
-                        <strong>The {Config.BUSINESS_NAME} Team</strong></p>
-                    </div>
-                    
-                    <div style="background: #f8f9fa; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; color: #666;">
-                        <p>&copy; 2024 {Config.BUSINESS_NAME}. All rights reserved.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            msg.attach(MIMEText(body, 'html'))  # ✅ FIXED
-            
-            with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT) as server:
-                server.starttls()
-                server.login(Config.SMTP_USERNAME, Config.SMTP_PASSWORD)
-                server.send_message(msg)
-            
-            print(f"✅ Welcome email sent to {to_email}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Failed to send welcome email to {to_email}: {str(e)}")
-            return False
-    
-    def store_verification_code(self, username, email, verification_code):
-        """Store verification code with expiry"""
-        expiry_time = datetime.now() + timedelta(minutes=self.code_expiry_minutes)
-        self.verification_codes[username] = {
-            'code': verification_code,
-            'email': email,
-            'expires': expiry_time.isoformat(),
-            'attempts': 0
-        }
-    
-    def verify_code(self, username, code):
-        """Verify the code and check expiry"""
-        if username not in self.verification_codes:
-            return False, "No pending verification found"
-        
-        verification_data = self.verification_codes[username]
-        
-        # Check expiry
-        expiry_time = datetime.fromisoformat(verification_data['expires'])
-        if datetime.now() > expiry_time:
-            del self.verification_codes[username]
-            return False, "Verification code has expired"
-        
-        # Check attempts
-        if verification_data['attempts'] >= 3:
-            del self.verification_codes[username]
-            return False, "Too many failed attempts. Please request a new code"
-        
-        # Verify code
-        if verification_data['code'] == code:
-            del self.verification_codes[username]
-            return True, "Email verified successfully"
-        else:
-            verification_data['attempts'] += 1
-            return False, f"Invalid code. {3 - verification_data['attempts']} attempts remaining"
-    
-    def cleanup_expired_codes(self):
-        """Clean up expired verification codes"""
-        current_time = datetime.now()
-        expired_users = []
-        
-        for username, data in self.verification_codes.items():
-            if current_time > datetime.fromisoformat(data['expires']):
-                expired_users.append(username)
-        
-        for username in expired_users:
-            del self.verification_codes[username]
-        
-        if expired_users:
-            print(f"🧹 Cleaned up {len(expired_users)} expired verification codes")
-
-# Initialize email verification system
-email_verifier = EmailVerification()
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -440,7 +206,7 @@ def generate_filtered_csv_bytes(data, target_date):
     return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE & EMAIL VERIFICATION
+# SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED VERSION
 # -------------------------
 class UserManager:
     def __init__(self):
@@ -480,9 +246,7 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": [],
-                "email_verifications": [],
-                "test_users_created": []
+                "password_changes": []
             }
             self.save_analytics()
         else:
@@ -503,9 +267,7 @@ class UserManager:
                     "login_history": [],
                     "deleted_users": [],
                     "plan_changes": [],
-                    "password_changes": [],
-                    "email_verifications": [],
-                    "test_users_created": []
+                    "password_changes": []
                 }
                 self.save_analytics()
     
@@ -536,9 +298,7 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": [],
-                "email_verifications": [],
-                "test_users_created": []
+                "password_changes": []
             }
             self.save_analytics()
     
@@ -556,9 +316,7 @@ class UserManager:
             "max_sessions": 3,
             "is_active": True,
             "email": "admin@tradinganalysis.com",
-            "subscription_id": "admin_account",
-            "email_verified": True,  # Admin doesn't need email verification
-            "is_test_user": False
+            "subscription_id": "admin_account"
         }
         print("✅ Created default admin account")
     
@@ -614,7 +372,7 @@ class UserManager:
             print(f"🔄 Reset {session_reset_count} user sessions")
             self.save_users()
     
-    def register_user(self, username, password, name, email, plan="trial", is_test_user=False):
+    def register_user(self, username, password, name, email, plan="trial"):
         """Register new user with proper validation and persistence"""
         # Reload data first to ensure we have latest
         self.load_data()
@@ -634,9 +392,6 @@ class UserManager:
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
         
-        # For test users and admin, skip email verification
-        email_verified = is_test_user or username == "admin"
-        
         self.users[username] = {
             "password_hash": self.hash_password(password),
             "name": name,
@@ -650,9 +405,7 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"sub_{username}_{int(time.time())}",
-            "payment_status": "active" if plan == "trial" else "pending",
-            "email_verified": email_verified,
-            "is_test_user": is_test_user
+            "payment_status": "active" if plan == "trial" else "pending"
         }
         
         # Update analytics
@@ -662,9 +415,7 @@ class UserManager:
         self.analytics["user_registrations"].append({
             "username": username,
             "plan": plan,
-            "timestamp": datetime.now().isoformat(),
-            "is_test_user": is_test_user,
-            "email_verified": email_verified
+            "timestamp": datetime.now().isoformat()
         })
         
         # Save both files
@@ -672,12 +423,8 @@ class UserManager:
         analytics_saved = self.save_analytics()
         
         if users_saved and analytics_saved:
-            print(f"✅ Successfully registered user: {username} (Test: {is_test_user}, Verified: {email_verified})")
-            
-            if is_test_user:
-                return True, f"Test account created successfully! {plan_config['name']} activated."
-            else:
-                return True, f"Account created successfully! Please check your email for verification."
+            print(f"✅ Successfully registered user: {username}")
+            return True, f"Account created successfully! {plan_config['name']} activated."
         else:
             # Remove the user if save failed
             if username in self.users:
@@ -685,7 +432,7 @@ class UserManager:
             return False, "Error saving user data. Please try again."
 
     def create_test_user(self, plan="trial"):
-        """Create a test user for admin purposes (no email verification needed)"""
+        """Create a test user for admin purposes"""
         test_username = f"test_{int(time.time())}"
         test_email = f"test{int(time.time())}@example.com"
         
@@ -705,31 +452,17 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"test_{test_username}",
-            "payment_status": "active",
-            "email_verified": True,  # Test users don't need email verification
-            "is_test_user": True
+            "payment_status": "active"
         }
         
         self.analytics["user_registrations"].append({
             "username": test_username,
             "plan": plan,
-            "timestamp": datetime.now().isoformat(),
-            "is_test_user": True,
-            "email_verified": True
-        })
-        
-        # Track test user creation
-        if 'test_users_created' not in self.analytics:
-            self.analytics['test_users_created'] = []
-        
-        self.analytics['test_users_created'].append({
-            "username": test_username,
-            "created_by": "admin",
             "timestamp": datetime.now().isoformat()
         })
         
         if self.save_users() and self.save_analytics():
-            return test_username, f"Test user '{test_username}' created with {plan} plan! (No email verification needed)"
+            return test_username, f"Test user '{test_username}' created with {plan} plan!"
         else:
             return None, "Error creating test user"
 
@@ -747,7 +480,6 @@ class UserManager:
         
         user_plan = user_data.get('plan', 'unknown')
         user_created = user_data.get('created', 'unknown')
-        is_test_user = user_data.get('is_test_user', False)
         
         del self.users[username]
         
@@ -758,8 +490,7 @@ class UserManager:
             "username": username,
             "plan": user_plan,
             "created": user_created,
-            "deleted_at": datetime.now().isoformat(),
-            "was_test_user": is_test_user
+            "deleted_at": datetime.now().isoformat()
         })
         
         if self.save_users() and self.save_analytics():
@@ -810,7 +541,7 @@ class UserManager:
             return False, "Error saving plan change"
 
     def authenticate(self, username, password):
-        """Authenticate user WITH email verification check"""
+        """Authenticate user WITHOUT session blocking"""
         self.analytics["total_logins"] += 1
         self.analytics["login_history"].append({
             "username": username,
@@ -829,10 +560,6 @@ class UserManager:
         
         if not self.verify_password(password, user["password_hash"]):
             return False, "Invalid username or password"
-        
-        # Check email verification (skip for admin and test users)
-        if not user.get("email_verified", False) and not user.get("is_test_user", False) and username != "admin":
-            return False, "Email not verified. Please check your email for verification instructions."
         
         expires = user.get("expires")
         if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
@@ -895,25 +622,15 @@ class UserManager:
         online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
         
         plan_counts = {}
-        verified_counts = {"verified": 0, "unverified": 0, "test_users": 0}
-        
         for user in self.users.values():
             plan = user.get('plan', 'unknown')
             plan_counts[plan] = plan_counts.get(plan, 0) + 1
-            
-            if user.get('is_test_user', False):
-                verified_counts["test_users"] += 1
-            elif user.get('email_verified', False):
-                verified_counts["verified"] += 1
-            else:
-                verified_counts["unverified"] += 1
         
         return {
             "total_users": total_users,
             "active_users": active_users,
             "online_users": online_users,
             "plan_distribution": plan_counts,
-            "verification_status": verified_counts,
             "total_logins": self.analytics.get("total_logins", 0),
             "revenue_today": self.analytics.get("revenue_today", 0)
         }
@@ -937,9 +654,7 @@ class UserManager:
                     "active_sessions": user_data.get("active_sessions", 0),
                     "is_active": user_data.get("is_active", True),
                     "subscription_id": user_data.get("subscription_id", ""),
-                    "payment_status": user_data.get("payment_status", ""),
-                    "email_verified": user_data.get("email_verified", False),
-                    "is_test_user": user_data.get("is_test_user", False)
+                    "payment_status": user_data.get("payment_status", "")
                 })
             
             df = pd.DataFrame(rows)
@@ -1034,149 +749,12 @@ class UserManager:
                 "last_login": user_data.get("last_login", ""),
                 "is_active": user_data.get("is_active", True),
                 "login_count": user_data.get("login_count", 0),
-                "active_sessions": user_data.get("active_sessions", 0),
-                "email_verified": user_data.get("email_verified", False),
-                "is_test_user": user_data.get("is_test_user", False)
+                "active_sessions": user_data.get("active_sessions", 0)
             })
         return users_list
 
-    # NEW FUNCTION: Manually verify user email (admin function)
-    def manually_verify_email(self, username, verified_by="admin"):
-        """Manually verify a user's email address (admin function)"""
-        if username not in self.users:
-            return False, "User not found"
-        
-        if username == "admin":
-            return False, "Admin account is already verified"
-        
-        user_data = self.users[username]
-        
-        if user_data.get('email_verified', False):
-            return False, "User email is already verified"
-        
-        user_data['email_verified'] = True
-        
-        # Update analytics
-        if 'email_verifications' not in self.analytics:
-            self.analytics['email_verifications'] = []
-        
-        self.analytics['email_verifications'].append({
-            "username": username,
-            "timestamp": datetime.now().isoformat(),
-            "verified_by": verified_by,
-            "method": "manual_admin"
-        })
-        
-        if self.save_users() and self.save_analytics():
-            return True, f"Email for '{username}' manually verified by admin"
-        else:
-            return False, "Error saving verification status"
-
 # Initialize user manager
 user_manager = UserManager()
-
-# -------------------------
-# EMAIL VERIFICATION INTERFACE
-# -------------------------
-def render_email_verification_interface(username, email, plan_name):
-    """Interface for email verification"""
-    st.title("📧 Verify Your Email Address")
-    
-    st.markdown("---")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("🔐 Account Verification Required")
-        st.info(f"""
-        **Hello {username}!** 
-        
-        We've sent a verification code to **{email}**.
-        
-        Please check your inbox and enter the 6-digit code below to activate your account and start using TradingAnalysis Pro.
-        """)
-        
-        # Verification code input
-        st.markdown("### Enter Verification Code")
-        verification_code = st.text_input(
-            "6-Digit Verification Code:",
-            placeholder="Enter the code from your email",
-            max_chars=6,
-            key="verification_code_input"
-        )
-        
-        col1, col2, col3 = st.columns([1, 1, 2])
-        
-        with col1:
-            if st.button("✅ Verify Code", use_container_width=True):
-                if not verification_code or len(verification_code) != 6:
-                    st.error("❌ Please enter a valid 6-digit code")
-                else:
-                    success, message = email_verifier.verify_code(username, verification_code)
-                    if success:
-                        # Mark user as verified
-                        user_manager.users[username]['email_verified'] = True
-                        user_manager.save_users()
-                        
-                        # Send welcome email
-                        email_verifier.send_welcome_email(email, username, plan_name)
-                        
-                        # Update analytics
-                        if 'email_verifications' not in user_manager.analytics:
-                            user_manager.analytics['email_verifications'] = []
-                        
-                        user_manager.analytics['email_verifications'].append({
-                            "username": username,
-                            "timestamp": datetime.now().isoformat(),
-                            "method": "email_code"
-                        })
-                        user_manager.save_analytics()
-                        
-                        st.success("🎉 " + message)
-                        st.balloons()
-                        st.info("📧 Welcome email sent! You can now login to your account.")
-                        
-                        time.sleep(3)
-                        st.session_state.show_verification_sent = False
-                        st.rerun()
-                    else:
-                        st.error("❌ " + message)
-        
-        with col2:
-            if st.button("🔄 Resend Code", use_container_width=True):
-                new_code = email_verifier.generate_verification_code()
-                email_verifier.store_verification_code(username, email, new_code)
-                if email_verifier.send_verification_email(email, username, new_code):
-                    st.success("✅ New verification code sent!")
-                else:
-                    st.error("❌ Failed to send verification email. Please try again.")
-        
-        with col3:
-            st.markdown("")
-    
-    with col2:
-        st.markdown("### 💡 Need Help?")
-        st.info("""
-        **Didn't receive the email?**
-        - Check your spam folder
-        - Verify your email address is correct
-        - Wait a few minutes and try again
-        - Contact support if issues persist
-        """)
-        
-        st.markdown("---")
-        st.markdown(f"**Support Email:** {Config.SUPPORT_EMAIL}")
-    
-    st.markdown("---")
-    
-    # Debug information (only show in development)
-    if st.secrets.get("ENVIRONMENT") == "development":
-        with st.expander("🔧 Debug Information"):
-            st.write(f"Username: {username}")
-            st.write(f"Email: {email}")
-            st.write(f"Pending verifications: {list(email_verifier.verification_codes.keys())}")
-            if username in email_verifier.verification_codes:
-                st.write(f"Stored code: {email_verifier.verification_codes[username]}")
 
 # -------------------------
 # NEW: USER CREDENTIALS MANAGEMENT INTERFACE
@@ -1242,7 +820,7 @@ def render_user_credentials_interface():
         
         st.markdown(f"#### Managing: **{selected_user}**")
         
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("**Change Username**")
@@ -1278,20 +856,6 @@ def render_user_credentials_interface():
                     else:
                         st.error(f"❌ {message}")
         
-        with col3:
-            st.markdown("**Email Verification**")
-            if user_data.get('email_verified', False):
-                st.success("✅ Email Verified")
-            else:
-                st.error("❌ Email Not Verified")
-                if st.button("✅ Manually Verify", key=f"verify_{selected_user}"):
-                    success, message = user_manager.manually_verify_email(selected_user, st.session_state.user['username'])
-                    if success:
-                        st.success(f"✅ {message}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {message}")
-        
         # User details
         st.markdown("#### 📋 User Details")
         col1, col2, col3 = st.columns(3)
@@ -1310,7 +874,6 @@ def render_user_credentials_interface():
             st.write(f"**Active Sessions:** {user_data.get('active_sessions', 0)}")
             st.write(f"**Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
             st.write(f"**Expires:** {user_data.get('expires', 'N/A')}")
-            st.write(f"**Test User:** {'✅ Yes' if user_data.get('is_test_user', False) else '❌ No'}")
 
 # -------------------------
 # PASSWORD CHANGE INTERFACE
@@ -1687,8 +1250,6 @@ def render_plan_management_interface(username):
             
         st.write(f"• **Total Logins:** {user_data.get('login_count', 0)}")
         st.write(f"• **Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
-        st.write(f"• **Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
-        st.write(f"• **Test User:** {'✅ Yes' if user_data.get('is_test_user', False) else '❌ No'}")
         
         # Quick actions
         st.markdown("#### Quick Actions:")
@@ -1856,20 +1417,6 @@ def render_admin_overview():
     
     st.markdown("---")
     
-    # Email verification status
-    st.subheader("📧 Email Verification Status")
-    verification_data = metrics["verification_status"]
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Verified Users", verification_data["verified"])
-    with col2:
-        st.metric("Unverified Users", verification_data["unverified"])
-    with col3:
-        st.metric("Test Users", verification_data["test_users"])
-    
-    st.markdown("---")
-    
     # Plan distribution
     st.subheader("📊 Plan Distribution")
     plan_data = metrics["plan_distribution"]
@@ -1903,9 +1450,7 @@ def render_admin_overview():
         if recent_registrations:
             for reg in reversed(recent_registrations):
                 plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
-                verified_status = "✅" if reg.get('email_verified') or reg.get('is_test_user') else "❌"
-                test_status = "🧪" if reg.get('is_test_user') else ""
-                st.write(f"• {reg['username']} - {plan_name} {verified_status}{test_status} - {reg['timestamp'][:16]}")
+                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
         else:
             st.info("No recent registrations")
     
@@ -1938,23 +1483,6 @@ def render_admin_analytics():
         st.metric("Successful Logins", successful_logins)
     with col3:
         st.metric("Failed Logins", failed_logins)
-    
-    # Email verification analytics
-    st.markdown("---")
-    st.subheader("📧 Email Verification Analytics")
-    
-    email_verifications = user_manager.analytics.get("email_verifications", [])
-    if email_verifications:
-        manual_verifications = [v for v in email_verifications if v.get('method') == 'manual_admin']
-        email_verifications_count = len(email_verifications) - len(manual_verifications)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Total Verifications", len(email_verifications))
-        with col2:
-            st.metric("Manual Admin Verifications", len(manual_verifications))
-    else:
-        st.info("No email verification data available")
     
     # User growth
     st.markdown("---")
@@ -2025,13 +1553,11 @@ def render_admin_user_management():
     # Display users with quick plan change options
     for username, user_data in user_manager.users.items():
         with st.container():
-            col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 2, 2, 1, 1, 1])
+            col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 1, 1])
             
             with col1:
                 st.write(f"**{username}**")
                 st.caption(user_data['name'])
-                if user_data.get('is_test_user', False):
-                    st.caption("🧪 Test User")
             
             with col2:
                 st.write(user_data['email'])
@@ -2044,8 +1570,7 @@ def render_admin_user_management():
             with col4:
                 expires = user_data['expires']
                 days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
-                email_status = "✅" if user_data.get('email_verified', False) else "❌"
-                st.write(f"Expires: {expires} {email_status}")
+                st.write(f"Expires: {expires}")
                 st.caption(f"{days_left} days left")
             
             with col5:
@@ -2064,17 +1589,6 @@ def render_admin_user_management():
                         st.write("⭐")
             
             with col6:
-                if username != "admin" and not user_data.get('email_verified', False):
-                    if st.button("✅", key=f"verify_{username}", help="Verify Email"):
-                        success, message = user_manager.manually_verify_email(username, st.session_state.user['username'])
-                        if success:
-                            st.success(message)
-                            time.sleep(1)
-                            st.rerun()
-                        else:
-                            st.error(message)
-            
-            with col7:
                 if username != "admin":
                     if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
                         st.session_state.manage_user_plan = username
@@ -2164,23 +1678,12 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# AUTHENTICATION COMPONENTS WITH EMAIL VERIFICATION
+# AUTHENTICATION COMPONENTS
 # -------------------------
 def render_login():
-    """Professional login/registration interface with email verification"""
+    """Professional login/registration interface"""
     st.title(f"🔐 Welcome to {Config.APP_NAME}")
     st.markdown("---")
-    
-    # Check if we need to show email verification interface
-    if st.session_state.get('show_verification_sent'):
-        pending_user = st.session_state.get('pending_verification', {})
-        if pending_user:
-            render_email_verification_interface(
-                pending_user.get('username'), 
-                pending_user.get('email'),
-                pending_user.get('plan_name')
-            )
-        return
     
     tab1, tab2 = st.tabs(["🚀 Login", "📝 Register"])
     
@@ -2265,24 +1768,9 @@ def render_login():
                             new_username, new_password, new_name, new_email, plan_choice
                         )
                         if success:
-                            # Generate and send verification code
-                            verification_code = email_verifier.generate_verification_code()
-                            email_verifier.store_verification_code(new_username, new_email, verification_code)
-                            
-                            if email_verifier.send_verification_email(new_email, new_username, verification_code):
-                                st.success(f"✅ {message}")
-                                st.balloons()
-                                
-                                # Store pending verification and show verification interface
-                                st.session_state.pending_verification = {
-                                    'username': new_username,
-                                    'email': new_email,
-                                    'plan_name': Config.PLANS[plan_choice]['name']
-                                }
-                                st.session_state.show_verification_sent = True
-                                st.rerun()
-                            else:
-                                st.error("❌ Account created but failed to send verification email. Please contact support.")
+                            st.success(f"✅ {message}")
+                            st.balloons()
+                            st.info("📧 Welcome email sent with login instructions")
                         else:
                             st.error(f"❌ {message}")
 
@@ -2708,9 +2196,6 @@ def main():
     # Setup data persistence
     setup_data_persistence()
     
-    # Clean up expired verification codes periodically
-    email_verifier.cleanup_expired_codes()
-    
     # Enhanced CSS for premium appearance
     st.markdown("""
     <style>
@@ -2734,18 +2219,6 @@ def main():
         border-radius: 15px;
         font-size: 0.8rem;
         font-weight: bold;
-    }
-    .verification-code {
-        font-family: 'Courier New', monospace;
-        font-size: 1.5rem;
-        font-weight: bold;
-        letter-spacing: 0.5rem;
-        text-align: center;
-        background: #f8f9fa;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 2px dashed #667eea;
-        margin: 1rem 0;
     }
     </style>
     """, unsafe_allow_html=True)
