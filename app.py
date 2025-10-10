@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION AND CRYPTO CHARTS
+# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION AND PROPER CRYPTO CHARTS
 import streamlit as st
 import hashlib
 import json
@@ -61,6 +61,8 @@ def init_session():
         st.session_state.admin_email_verification_view = 'pending'
     if 'crypto_chart_period' not in st.session_state:
         st.session_state.crypto_chart_period = '1D'
+    if 'crypto_data_available' not in st.session_state:
+        st.session_state.crypto_data_available = {}
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -83,12 +85,12 @@ def setup_data_persistence():
         st.session_state.last_save_time = current_time
 
 # -------------------------
-# CRYPTO CHART DATA FUNCTIONS
+# CRYPTO CHART DATA FUNCTIONS - ETHICAL VERSION
 # -------------------------
 def get_crypto_data(symbol='BTC', period='1D', limit=100):
     """
     Get cryptocurrency price data from Binance API
-    Returns: DataFrame with OHLC data
+    Returns: DataFrame with OHLC data or None if API fails
     """
     try:
         # Map symbols to Binance format
@@ -116,8 +118,20 @@ def get_crypto_data(symbol='BTC', period='1D', limit=100):
             'limit': limit
         }
         
-        response = requests.get(url, params=params, timeout=10)
+        # Add timeout and headers for better reliability
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; TradingApp/1.0)'
+        }
+        
+        response = requests.get(url, params=params, headers=headers, timeout=15)
+        response.raise_for_status()  # Raise exception for bad status codes
+        
         data = response.json()
+        
+        # Validate response data
+        if not data or not isinstance(data, list) or len(data) == 0:
+            st.session_state.crypto_data_available[symbol] = False
+            return None
         
         # Convert to DataFrame
         df = pd.DataFrame(data, columns=[
@@ -131,104 +145,95 @@ def get_crypto_data(symbol='BTC', period='1D', limit=100):
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = pd.to_numeric(df[col])
         
+        st.session_state.crypto_data_available[symbol] = True
+        print(f"✅ Successfully fetched {len(df)} {symbol} records for {period}")
         return df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
         
     except Exception as e:
-        print(f"Error fetching crypto data: {e}")
-        # Return mock data if API fails
-        return create_mock_crypto_data(symbol, period, limit)
-
-def create_mock_crypto_data(symbol, period, limit):
-    """Create realistic mock crypto data when API is unavailable"""
-    base_price = 45000 if symbol == 'BTC' else 3000
-    volatility = 0.02 if period == '1D' else 0.08
-    
-    dates = pd.date_range(end=datetime.now(), periods=limit, freq='D' if period == '1D' else 'H')
-    
-    prices = [base_price]
-    for i in range(1, limit):
-        change = np.random.normal(0, volatility)
-        new_price = prices[-1] * (1 + change)
-        prices.append(new_price)
-    
-    df = pd.DataFrame({
-        'timestamp': dates,
-        'open': prices,
-        'high': [p * (1 + abs(np.random.normal(0, 0.01))) for p in prices],
-        'low': [p * (1 - abs(np.random.normal(0, 0.01))) for p in prices],
-        'close': [p * (1 + np.random.normal(0, 0.005)) for p in prices],
-        'volume': [abs(np.random.normal(1000, 200)) for _ in prices]
-    })
-    
-    return df
+        print(f"❌ Error fetching {symbol} data: {e}")
+        st.session_state.crypto_data_available[symbol] = False
+        return None
 
 def create_crypto_chart(df, symbol, period):
     """Create interactive candlestick chart with volume"""
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.1,
-        subplot_titles=(f'{symbol} Price', 'Volume'),
-        row_width=[0.7, 0.3]
-    )
-    
-    # Candlestick chart
-    fig.add_trace(
-        go.Candlestick(
-            x=df['timestamp'],
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
-            name=f'{symbol} Price'
-        ),
-        row=1, col=1
-    )
-    
-    # Volume chart
-    colors = ['red' if close < open else 'green' 
-              for close, open in zip(df['close'], df['open'])]
-    
-    fig.add_trace(
-        go.Bar(
-            x=df['timestamp'],
-            y=df['volume'],
-            name='Volume',
-            marker_color=colors,
-            opacity=0.7
-        ),
-        row=2, col=1
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title=f'{symbol} Price Chart - {period}',
-        xaxis_title='Date',
-        yaxis_title='Price (USD)',
-        height=600,
-        showlegend=False,
-        template='plotly_dark',
-        xaxis_rangeslider_visible=False
-    )
-    
-    # Format axes
-    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
-    
-    return fig
+    if df is None or df.empty:
+        return None
+        
+    try:
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            subplot_titles=(f'{symbol} Price Chart - {period}', 'Volume'),
+            row_width=[0.7, 0.3]
+        )
+        
+        # Candlestick chart
+        fig.add_trace(
+            go.Candlestick(
+                x=df['timestamp'],
+                open=df['open'],
+                high=df['high'],
+                low=df['low'],
+                close=df['close'],
+                name=f'{symbol} Price'
+            ),
+            row=1, col=1
+        )
+        
+        # Volume chart with color coding
+        colors = ['#ef5350' if close < open else '#26a69a' 
+                 for close, open in zip(df['close'], df['open'])]
+        
+        fig.add_trace(
+            go.Bar(
+                x=df['timestamp'],
+                y=df['volume'],
+                name='Volume',
+                marker_color=colors,
+                opacity=0.7
+            ),
+            row=2, col=1
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=f'{symbol} Price Analysis - {period}',
+            xaxis_title='Date & Time',
+            yaxis_title='Price (USD)',
+            height=600,
+            showlegend=False,
+            template='plotly_dark',
+            xaxis_rangeslider_visible=False,
+            font=dict(size=12)
+        )
+        
+        # Format axes
+        fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_xaxes(title_text="Date", row=2, col=1)
+        
+        return fig
+        
+    except Exception as e:
+        print(f"❌ Error creating chart for {symbol}: {e}")
+        return None
 
 def get_crypto_price_change(df):
     """Calculate price change percentage"""
-    if len(df) < 2:
+    if df is None or len(df) < 2:
         return 0, 0
     
-    current_price = df['close'].iloc[-1]
-    previous_price = df['close'].iloc[-2]
-    
-    change = current_price - previous_price
-    change_percent = (change / previous_price) * 100
-    
-    return change, change_percent
+    try:
+        current_price = df['close'].iloc[-1]
+        previous_price = df['close'].iloc[-2]
+        
+        change = current_price - previous_price
+        change_percent = (change / previous_price) * 100
+        
+        return change, change_percent
+    except:
+        return 0, 0
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -2673,7 +2678,7 @@ def render_user_dashboard():
         render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Clean trading dashboard with 5-day cycle"""
+    """Clean trading dashboard with 5-day cycle and proper crypto chart handling"""
     st.title("📊 Professional Trading Analysis")
     
     # Welcome and cycle info
@@ -2715,136 +2720,139 @@ def render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_d
     
     st.markdown("---")
     
-    # NEW: REAL-TIME CRYPTO CHARTS SECTION
-    st.subheader("📈 Live Crypto Charts")
+    # ETHICAL CRYPTO CHARTS SECTION - Only shows real data
+    st.subheader("📈 Live Crypto Market Data")
     
-    # Chart period selection
+    # Chart period selection with visual feedback
+    st.write("**Select Timeframe:**")
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        if st.button("1H", key="1h_chart", use_container_width=True):
-            st.session_state.crypto_chart_period = '1H'
-            st.rerun()
-    with col2:
-        if st.button("4H", key="4h_chart", use_container_width=True):
-            st.session_state.crypto_chart_period = '4H'
-            st.rerun()
-    with col3:
-        if st.button("1D", key="1d_chart", use_container_width=True):
-            st.session_state.crypto_chart_period = '1D'
-            st.rerun()
-    with col4:
-        if st.button("1W", key="1w_chart", use_container_width=True):
-            st.session_state.crypto_chart_period = '1W'
-            st.rerun()
     
-    # Display current period
-    st.caption(f"📊 Showing {st.session_state.crypto_chart_period} charts")
+    period_buttons = {
+        "1H": "1H",
+        "4H": "4H", 
+        "1D": "1D",
+        "1W": "1W"
+    }
     
-    # Fetch and display crypto data
-    period = st.session_state.crypto_chart_period
+    current_period = st.session_state.crypto_chart_period
     
-    # BTC Chart
-    st.markdown("### ₿ Bitcoin (BTC)")
-    with st.spinner("Loading BTC chart..."):
-        try:
-            btc_data = get_crypto_data('BTC', period, 100)
-            if not btc_data.empty:
-                btc_change, btc_change_percent = get_crypto_price_change(btc_data)
-                
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    btc_fig = create_crypto_chart(btc_data, 'BTC', period)
-                    st.plotly_chart(btc_fig, use_container_width=True)
-                with col2:
-                    current_price = btc_data['close'].iloc[-1]
-                    st.metric(
-                        "BTC Price", 
-                        f"${current_price:,.2f}",
-                        f"{btc_change_percent:+.2f}%"
-                    )
-                    st.write(f"**24h Change:** ${btc_change:+.2f}")
-                    st.write(f"**Period:** {period}")
-            else:
-                st.error("Failed to load BTC data")
-        except Exception as e:
-            st.error(f"Error loading BTC chart: {str(e)}")
+    for i, (label, period_key) in enumerate(period_buttons.items()):
+        with [col1, col2, col3, col4][i]:
+            is_active = current_period == period_key
+            button_type = "primary" if is_active else "secondary"
+            if st.button(label, type=button_type, use_container_width=True, key=f"period_{period_key}"):
+                st.session_state.crypto_chart_period = period_key
+                st.rerun()
     
-    st.markdown("---")
+    # Crypto symbols to display
+    crypto_symbols = ['BTC', 'ETH']
     
-    # Ethereum Chart
-    st.markdown("### 🔷 Ethereum (ETH)")
-    with st.spinner("Loading ETH chart..."):
-        try:
-            eth_data = get_crypto_data('ETH', period, 100)
-            if not eth_data.empty:
-                eth_change, eth_change_percent = get_crypto_price_change(eth_data)
-                
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    eth_fig = create_crypto_chart(eth_data, 'ETH', period)
-                    st.plotly_chart(eth_fig, use_container_width=True)
-                with col2:
-                    current_price = eth_data['close'].iloc[-1]
-                    st.metric(
-                        "ETH Price", 
-                        f"${current_price:,.2f}",
-                        f"{eth_change_percent:+.2f}%"
-                    )
-                    st.write(f"**24h Change:** ${eth_change:+.2f}")
-                    st.write(f"**Period:** {period}")
-            else:
-                st.error("Failed to load ETH data")
-        except Exception as e:
-            st.error(f"Error loading ETH chart: {str(e)}")
-    
-    st.markdown("---")
-    
-    # Selected strategy analysis
-    st.subheader(f"🔍 {selected_strategy} Analysis")
-    
-    # Quick analysis form
-    with st.form(f"quick_analysis_{selected_strategy}"):
-        col1, col2 = st.columns(2)
-        with col1:
-            strategy_tag = st.selectbox("Strategy Tag:", ["Neutral", "Buy", "Sell"], key=f"tag_{selected_strategy}")
-        with col2:
-            strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], key=f"type_{selected_strategy}")
+    for symbol in crypto_symbols:
+        st.markdown(f"### {get_crypto_emoji(symbol)} {get_crypto_name(symbol)} ({symbol})")
         
-        # Quick notes
-        quick_note = st.text_area(
-            "Quick Analysis Notes:", 
-            height=100,
-            placeholder=f"Enter your analysis notes for {selected_strategy}...",
-            key=f"quick_note_{selected_strategy}"
-        )
+        # Create a container for each crypto
+        with st.container():
+            try:
+                with st.spinner(f"Loading {symbol} market data..."):
+                    # Fetch real data only - no mock data
+                    crypto_data = get_crypto_data(symbol, current_period, 100)
+                    
+                    if crypto_data is None or crypto_data.empty:
+                        st.error(f"❌ Live market data for {symbol} is currently unavailable")
+                        st.info("""
+                        **Possible reasons:**
+                        - Market data API is temporarily down
+                        - Network connectivity issues
+                        - Data source maintenance
+                        
+                        Please try again in a few moments or check the status of the data provider.
+                        """)
+                        continue
+                    
+                    # Calculate metrics
+                    price_change, price_change_percent = get_crypto_price_change(crypto_data)
+                    current_price = crypto_data['close'].iloc[-1]
+                    volume = crypto_data['volume'].iloc[-1]
+                    
+                    # Display metrics and chart in columns
+                    col_metric, col_chart = st.columns([1, 3])
+                    
+                    with col_metric:
+                        st.metric(
+                            label=f"Current Price",
+                            value=f"${current_price:,.2f}",
+                            delta=f"{price_change_percent:+.2f}%",
+                            delta_color="normal" if price_change_percent >= 0 else "inverse"
+                        )
+                        
+                        st.write(f"**24h Change:** ${price_change:+.2f}")
+                        st.write(f"**Volume:** {volume:,.0f}")
+                        st.write(f"**Period:** {current_period}")
+                        st.write(f"**Data Points:** {len(crypto_data)}")
+                        
+                        # Data source indicator
+                        st.success("✅ Live Market Data")
+                    
+                    with col_chart:
+                        # Create and display chart
+                        chart_fig = create_crypto_chart(crypto_data, symbol, current_period)
+                        if chart_fig:
+                            st.plotly_chart(chart_fig, use_container_width=True, key=f"chart_{symbol}")
+                        else:
+                            st.error(f"❌ Could not generate chart for {symbol}")
+                            
+            except Exception as e:
+                st.error(f"❌ Error loading {symbol} market data: {str(e)}")
+                st.info("🔄 Please try refreshing or select a different timeframe")
         
-        if st.form_submit_button("💾 Save Quick Analysis", use_container_width=True):
-            # Save quick analysis
-            if 'saved_analyses' not in data:
-                data['saved_analyses'] = {}
-            data['saved_analyses'][selected_strategy] = {
-                "timestamp": datetime.now(),
-                "tag": strategy_tag,
-                "type": strategy_type,
-                "note": quick_note
-            }
-            st.success("✅ Quick analysis saved!")
-    
-    st.markdown("---")
-    
-    # Detailed analysis button
-    if st.button("📝 Open Detailed Analysis", use_container_width=True):
-        st.session_state.dashboard_view = 'notes'
-        st.rerun()
-    
-    # Recent activity
-    if data.get('saved_analyses'):
         st.markdown("---")
-        st.subheader("📜 Recent Analyses")
-        for strategy, analysis in list(data['saved_analyses'].items())[-3:]:
-            with st.expander(f"{strategy} - {analysis['timestamp'].strftime('%H:%M')}"):
-                st.write(f"**Tag:** {analysis['tag']} | **Type:** {analysis['type']}")
-                st.write(analysis.get('note', 'No notes'))
+    
+    # Add crypto market overview only if data is available
+    st.subheader("🌐 Crypto Market Overview")
+    
+    try:
+        # Quick market stats - only with real data
+        market_data = []
+        for symbol in crypto_symbols:
+            data = get_crypto_data(symbol, '1D', 2)  # Just need current and previous price
+            if data is not None and not data.empty and len(data) >= 2:
+                current_price = data['close'].iloc[-1]
+                prev_price = data['close'].iloc[-2]
+                change_percent = ((current_price - prev_price) / prev_price) * 100
+                
+                market_data.append({
+                    'Symbol': symbol,
+                    'Price': f"${current_price:,.2f}",
+                    '24h Change': f"{change_percent:+.2f}%",
+                    'Trend': '📈' if change_percent >= 0 else '📉'
+                })
+        
+        if market_data:
+            market_df = pd.DataFrame(market_data)
+            st.dataframe(market_df, use_container_width=True, hide_index=True)
+        else:
+            st.warning("⚠️ Live market data is currently unavailable")
+            st.info("Real-time cryptocurrency prices will be displayed when the market data service is available.")
+            
+    except Exception as e:
+        st.warning("Market overview temporarily unavailable")
+
+# Helper functions for crypto display
+def get_crypto_emoji(symbol):
+    """Get emoji for crypto symbol"""
+    emoji_map = {
+        'BTC': '₿',
+        'ETH': '🔷'
+    }
+    return emoji_map.get(symbol, '💰')
+
+def get_crypto_name(symbol):
+    """Get full name for crypto symbol"""
+    name_map = {
+        'BTC': 'Bitcoin',
+        'ETH': 'Ethereum'
+    }
+    return name_map.get(symbol, 'Cryptocurrency')
 
 def render_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
     """Detailed strategy notes interface with 5-day cycle"""
