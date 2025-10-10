@@ -15,8 +15,8 @@ import shutil
 import io
 import base64
 import smtplib
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText  # ✅ FIXED
+from email.mime.multipart import MIMEMultipart  # ✅ FIXED
 import random
 import string
 
@@ -125,7 +125,7 @@ class EmailVerification:
         """Send verification email using SMTP"""
         try:
             # Create message
-            msg = MimeMultipart()
+            msg = MIMEMultipart()  # ✅ FIXED
             msg['From'] = f"{Config.FROM_NAME} <{Config.FROM_EMAIL}>"
             msg['To'] = to_email
             msg['Subject'] = "Verify Your TradingAnalysis Pro Account"
@@ -184,7 +184,7 @@ class EmailVerification:
             </html>
             """
             
-            msg.attach(MimeText(body, 'html'))
+            msg.attach(MIMEText(body, 'html'))  # ✅ FIXED
             
             # Send email
             with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT) as server:
@@ -202,7 +202,7 @@ class EmailVerification:
     def send_welcome_email(self, to_email, username, plan_name):
         """Send welcome email after successful verification"""
         try:
-            msg = MimeMultipart()
+            msg = MIMEMultipart()  # ✅ FIXED
             msg['From'] = f"{Config.FROM_NAME} <{Config.FROM_EMAIL}>"
             msg['To'] = to_email
             msg['Subject'] = f"Welcome to TradingAnalysis Pro - {plan_name} Activated!"
@@ -256,7 +256,7 @@ class EmailVerification:
             </html>
             """
             
-            msg.attach(MimeText(body, 'html'))
+            msg.attach(MIMEText(body, 'html'))  # ✅ FIXED
             
             with smtplib.SMTP(Config.SMTP_SERVER, Config.SMTP_PORT) as server:
                 server.starttls()
