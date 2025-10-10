@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE
+# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND SMTP EMAIL VERIFICATION
 import streamlit as st
 import hashlib
 import json
@@ -14,6 +14,11 @@ import numpy as np
 import shutil
 import io
 import base64
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+import ssl
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -54,6 +59,12 @@ def init_session():
         st.session_state.show_user_credentials = False
     if 'user_to_manage' not in st.session_state:
         st.session_state.user_to_manage = None
+    if 'email_verification_pending' not in st.session_state:
+        st.session_state.email_verification_pending = False
+    if 'pending_verification_user' not in st.session_state:
+        st.session_state.pending_verification_user = None
+    if 'show_email_settings' not in st.session_state:
+        st.session_state.show_email_settings = False
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -89,6 +100,306 @@ class Config:
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
         "premium": {"name": "Premium Plan", "price": 79, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
+    
+    # SMTP Configuration - UPDATE THESE WITH YOUR ACTUAL SMTP SETTINGS
+    SMTP_SERVER = "smtp.gmail.com"  # Change to your SMTP server
+    SMTP_PORT = 587  # 587 for TLS, 465 for SSL
+    SMTP_USERNAME = "your-email@gmail.com"  # Change to your email
+    SMTP_PASSWORD = "your-app-password"  # Change to your app password
+    USE_TLS = True  # Set to False if using SSL
+    
+    # Email Templates
+    EMAIL_TEMPLATES = {
+        "welcome": {
+            "subject": "Welcome to TradingAnalysis Pro - Verify Your Email",
+            "template": """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .verification-code { background: #667eea; color: white; padding: 15px; border-radius: 5px; font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Welcome to TradingAnalysis Pro! 🚀</h1>
+                    </div>
+                    <div class="content">
+                        <h2>Hello {name}!</h2>
+                        <p>Thank you for registering with TradingAnalysis Pro. To complete your registration and start using our professional trading analysis platform, please verify your email address.</p>
+                        
+                        <div class="verification-code">
+                            Your Verification Code: {verification_code}
+                        </div>
+                        
+                        <p><strong>Instructions:</strong></p>
+                        <ol>
+                            <li>Return to the TradingAnalysis Pro application</li>
+                            <li>Enter the verification code above when prompted</li>
+                            <li>Start analyzing trading strategies immediately!</li>
+                        </ol>
+                        
+                        <p><strong>Account Details:</strong></p>
+                        <ul>
+                            <li><strong>Username:</strong> {username}</li>
+                            <li><strong>Plan:</strong> {plan_name}</li>
+                            <li><strong>Expires:</strong> {expires_date}</li>
+                        </ul>
+                        
+                        <p>If you didn't create this account, please ignore this email.</p>
+                        
+                        <p>Happy Trading!<br>The TradingAnalysis Pro Team</p>
+                    </div>
+                    <div class="footer">
+                        <p>&copy; 2024 TradingAnalysis Inc. All rights reserved.</p>
+                        <p>This is an automated message, please do not reply to this email.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        },
+        "password_reset": {
+            "subject": "TradingAnalysis Pro - Password Reset Request",
+            "template": """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .reset-code { background: #ff6b6b; color: white; padding: 15px; border-radius: 5px; font-size: 24px; font-weight: bold; text-align: center; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Password Reset Request 🔒</h1>
+                    </div>
+                    <div class="content">
+                        <h2>Hello {name}!</h2>
+                        <p>We received a request to reset your password for your TradingAnalysis Pro account.</p>
+                        
+                        <div class="reset-code">
+                            Your Reset Code: {reset_code}
+                        </div>
+                        
+                        <p><strong>Instructions:</strong></p>
+                        <ol>
+                            <li>Return to the TradingAnalysis Pro application</li>
+                            <li>Enter the reset code above when prompted</li>
+                            <li>Create your new secure password</li>
+                        </ol>
+                        
+                        <p><strong>Security Note:</strong></p>
+                        <ul>
+                            <li>This code will expire in 1 hour</li>
+                            <li>If you didn't request this reset, please ignore this email</li>
+                            <li>For security, never share your verification codes</li>
+                        </ul>
+                        
+                        <p>If you need assistance, contact our support team at {support_email}.</p>
+                    </div>
+                    <div class="footer">
+                        <p>&copy; 2024 TradingAnalysis Inc. All rights reserved.</p>
+                        <p>This is an automated security message.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        },
+        "plan_upgrade": {
+            "subject": "TradingAnalysis Pro - Plan Upgrade Confirmation",
+            "template": """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                    .header { background: linear-gradient(135deg, #00D4AA 0%, #009975 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                    .feature-list { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+                    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #666; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>Plan Upgrade Successful! 🎉</h1>
+                    </div>
+                    <div class="content">
+                        <h2>Congratulations, {name}!</h2>
+                        <p>Your TradingAnalysis Pro account has been successfully upgraded to the <strong>{new_plan}</strong> plan.</p>
+                        
+                        <div class="feature-list">
+                            <h3>🎯 New Features Available:</h3>
+                            <ul>
+                                <li><strong>{strategies_count} Trading Strategies</strong> - Full access to our complete strategy library</li>
+                                <li><strong>{sessions_count} Concurrent Sessions</strong> - Use multiple devices simultaneously</li>
+                                <li><strong>Priority Support</strong> - Faster response times</li>
+                                <li><strong>Advanced Analytics</strong> - Deeper insights and metrics</li>
+                            </ul>
+                        </div>
+                        
+                        <p><strong>Account Summary:</strong></p>
+                        <ul>
+                            <li><strong>Username:</strong> {username}</li>
+                            <li><strong>New Plan:</strong> {new_plan}</li>
+                            <li><strong>Plan Expires:</strong> {expires_date}</li>
+                            <li><strong>Upgrade Date:</strong> {upgrade_date}</li>
+                        </ul>
+                        
+                        <p>You can start using all your new features immediately by logging into your account.</p>
+                        
+                        <p>Thank you for upgrading!<br>The TradingAnalysis Pro Team</p>
+                    </div>
+                    <div class="footer">
+                        <p>&copy; 2024 TradingAnalysis Inc. All rights reserved.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+        }
+    }
+
+# -------------------------
+# SMTP EMAIL SERVICE
+# -------------------------
+class EmailService:
+    def __init__(self):
+        self.smtp_server = Config.SMTP_SERVER
+        self.smtp_port = Config.SMTP_PORT
+        self.smtp_username = Config.SMTP_USERNAME
+        self.smtp_password = Config.SMTP_PASSWORD
+        self.use_tls = Config.USE_TLS
+        self.test_mode = False  # Set to True to simulate emails without sending
+    
+    def test_connection(self):
+        """Test SMTP connection"""
+        try:
+            if self.test_mode:
+                return True, "Test mode enabled - emails will be simulated"
+                
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            if self.use_tls:
+                server.starttls()
+            server.login(self.smtp_username, self.smtp_password)
+            server.quit()
+            return True, "SMTP connection successful"
+        except Exception as e:
+            return False, f"SMTP connection failed: {str(e)}"
+    
+    def send_email(self, to_email, subject, html_content, text_content=None):
+        """Send email using SMTP"""
+        try:
+            if self.test_mode:
+                # In test mode, just log the email instead of sending
+                print(f"📧 TEST MODE - Would send email to: {to_email}")
+                print(f"   Subject: {subject}")
+                print(f"   Content: {text_content or html_content[:100]}...")
+                return True, "Email sent successfully (test mode)"
+            
+            # Create message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = self.smtp_username
+            msg['To'] = to_email
+            
+            # Create plain text version
+            if text_content is None:
+                # Create simple text version from HTML
+                text_content = re.sub('<[^<]+?>', '', html_content)
+            
+            part1 = MIMEText(text_content, 'plain')
+            part2 = MIMEText(html_content, 'html')
+            
+            msg.attach(part1)
+            msg.attach(part2)
+            
+            # Connect to server and send
+            server = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            if self.use_tls:
+                server.starttls()
+            server.login(self.smtp_username, self.smtp_password)
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"✅ Email sent successfully to: {to_email}")
+            return True, "Email sent successfully"
+            
+        except Exception as e:
+            error_msg = f"Failed to send email: {str(e)}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+    
+    def send_verification_email(self, user_data, verification_code):
+        """Send email verification code"""
+        template = Config.EMAIL_TEMPLATES["welcome"]
+        html_content = template["template"].format(
+            name=user_data["name"],
+            verification_code=verification_code,
+            username=user_data["username"],
+            plan_name=Config.PLANS.get(user_data["plan"], {}).get("name", "Trial"),
+            expires_date=user_data["expires"]
+        )
+        
+        return self.send_email(
+            user_data["email"],
+            template["subject"],
+            html_content
+        )
+    
+    def send_password_reset_email(self, user_data, reset_code):
+        """Send password reset code"""
+        template = Config.EMAIL_TEMPLATES["password_reset"]
+        html_content = template["template"].format(
+            name=user_data["name"],
+            reset_code=reset_code,
+            support_email=Config.SUPPORT_EMAIL
+        )
+        
+        return self.send_email(
+            user_data["email"],
+            template["subject"],
+            html_content
+        )
+    
+    def send_plan_upgrade_email(self, user_data, old_plan, new_plan):
+        """Send plan upgrade confirmation"""
+        template = Config.EMAIL_TEMPLATES["plan_upgrade"]
+        new_plan_config = Config.PLANS.get(new_plan, {})
+        
+        html_content = template["template"].format(
+            name=user_data["name"],
+            username=user_data["username"],
+            old_plan=Config.PLANS.get(old_plan, {}).get("name", old_plan),
+            new_plan=new_plan_config.get("name", new_plan),
+            strategies_count=new_plan_config.get("strategies", 0),
+            sessions_count=new_plan_config.get("max_sessions", 1),
+            expires_date=user_data["expires"],
+            upgrade_date=datetime.now().strftime("%Y-%m-%d")
+        )
+        
+        return self.send_email(
+            user_data["email"],
+            template["subject"],
+            html_content
+        )
+
+# Initialize email service
+email_service = EmailService()
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -206,15 +517,15 @@ def generate_filtered_csv_bytes(data, target_date):
     return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE - FIXED VERSION
+# SECURE USER MANAGEMENT WITH PERSISTENCE AND EMAIL VERIFICATION
 # -------------------------
 class UserManager:
     def __init__(self):
         self.users_file = "users.json"
         self.analytics_file = "analytics.json"
+        self.verification_codes_file = "verification_codes.json"
         self._ensure_data_files()
         self.load_data()
-        # REMOVED: atexit.register(self.cleanup_sessions) - This was causing issues
     
     def _ensure_data_files(self):
         """Ensure data files exist and are valid"""
@@ -246,7 +557,9 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "email_verifications": [],
+                "password_resets": []
             }
             self.save_analytics()
         else:
@@ -267,9 +580,26 @@ class UserManager:
                     "login_history": [],
                     "deleted_users": [],
                     "plan_changes": [],
-                    "password_changes": []
+                    "password_changes": [],
+                    "email_verifications": [],
+                    "password_resets": []
                 }
                 self.save_analytics()
+        
+        # Verification codes file
+        if not os.path.exists(self.verification_codes_file):
+            self.verification_codes = {}
+            self.save_verification_codes()
+        else:
+            try:
+                with open(self.verification_codes_file, 'r') as f:
+                    self.verification_codes = json.load(f)
+            except json.JSONDecodeError:
+                backup_name = f"{self.verification_codes_file}.backup.{int(time.time())}"
+                os.rename(self.verification_codes_file, backup_name)
+                print(f"⚠️ Verification codes file corrupted. Backed up to {backup_name}")
+                self.verification_codes = {}
+                self.save_verification_codes()
     
     def load_data(self):
         """Load users and analytics data with robust error handling"""
@@ -298,9 +628,30 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "email_verifications": [],
+                "password_resets": []
             }
             self.save_analytics()
+        
+        try:
+            with open(self.verification_codes_file, 'r', encoding='utf-8') as f:
+                self.verification_codes = json.load(f)
+            print(f"✅ Loaded verification codes")
+        except Exception as e:
+            print(f"❌ Error loading verification codes: {e}")
+            self.verification_codes = {}
+            self.save_verification_codes()
+    
+    def save_verification_codes(self):
+        """Save verification codes to file"""
+        try:
+            with open(self.verification_codes_file, 'w', encoding='utf-8') as f:
+                json.dump(self.verification_codes, f, indent=2, ensure_ascii=False)
+            return True
+        except Exception as e:
+            print(f"❌ Error saving verification codes: {e}")
+            return False
     
     def create_default_admin(self):
         """Create default admin account"""
@@ -316,7 +667,8 @@ class UserManager:
             "max_sessions": 3,
             "is_active": True,
             "email": "admin@tradinganalysis.com",
-            "subscription_id": "admin_account"
+            "subscription_id": "admin_account",
+            "email_verified": True  # Admin email is pre-verified
         }
         print("✅ Created default admin account")
     
@@ -359,21 +711,51 @@ class UserManager:
             print(f"❌ Error saving analytics: {e}")
             return False
     
-    def periodic_cleanup(self):
-        """Periodic cleanup that doesn't delete user data"""
-        # Only reset session counts, don't delete users
-        session_reset_count = 0
-        for username in self.users:
-            if self.users[username].get('active_sessions', 0) > 0:
-                self.users[username]['active_sessions'] = 0
-                session_reset_count += 1
+    def generate_verification_code(self, username, purpose="email_verification"):
+        """Generate and store a verification code"""
+        code = str(uuid.uuid4())[:8].upper()  # 8-character code
+        expires = datetime.now() + timedelta(hours=1)  # 1 hour expiry
         
-        if session_reset_count > 0:
-            print(f"🔄 Reset {session_reset_count} user sessions")
-            self.save_users()
+        self.verification_codes[code] = {
+            "username": username,
+            "purpose": purpose,
+            "expires": expires.isoformat(),
+            "used": False
+        }
+        
+        self.save_verification_codes()
+        return code
+    
+    def verify_code(self, code, username, purpose="email_verification"):
+        """Verify a verification code"""
+        if code not in self.verification_codes:
+            return False, "Invalid verification code"
+        
+        code_data = self.verification_codes[code]
+        
+        # Check if code is expired
+        expires = datetime.fromisoformat(code_data["expires"])
+        if datetime.now() > expires:
+            del self.verification_codes[code]
+            self.save_verification_codes()
+            return False, "Verification code has expired"
+        
+        # Check if code is already used
+        if code_data["used"]:
+            return False, "Verification code has already been used"
+        
+        # Check if code matches username and purpose
+        if code_data["username"] != username or code_data["purpose"] != purpose:
+            return False, "Invalid verification code"
+        
+        # Mark code as used
+        self.verification_codes[code]["used"] = True
+        self.save_verification_codes()
+        
+        return True, "Verification successful"
     
     def register_user(self, username, password, name, email, plan="trial"):
-        """Register new user with proper validation and persistence"""
+        """Register new user with email verification"""
         # Reload data first to ensure we have latest
         self.load_data()
         
@@ -392,6 +774,7 @@ class UserManager:
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
         
+        # Create user with email not verified
         self.users[username] = {
             "password_hash": self.hash_password(password),
             "name": name,
@@ -405,8 +788,21 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"sub_{username}_{int(time.time())}",
-            "payment_status": "active" if plan == "trial" else "pending"
+            "payment_status": "active" if plan == "trial" else "pending",
+            "email_verified": False  # Email not verified yet
         }
+        
+        # Generate verification code
+        verification_code = self.generate_verification_code(username, "email_verification")
+        
+        # Send verification email
+        user_data = self.users[username]
+        email_sent, email_message = email_service.send_verification_email(user_data, verification_code)
+        
+        if not email_sent:
+            # Remove user if email sending failed
+            del self.users[username]
+            return False, f"Failed to send verification email: {email_message}"
         
         # Update analytics
         if 'user_registrations' not in self.analytics:
@@ -415,7 +811,8 @@ class UserManager:
         self.analytics["user_registrations"].append({
             "username": username,
             "plan": plan,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "email_verification_sent": True
         })
         
         # Save both files
@@ -424,12 +821,58 @@ class UserManager:
         
         if users_saved and analytics_saved:
             print(f"✅ Successfully registered user: {username}")
-            return True, f"Account created successfully! {plan_config['name']} activated."
+            return True, f"Account created successfully! Verification email sent to {email}. Please check your inbox."
         else:
             # Remove the user if save failed
             if username in self.users:
                 del self.users[username]
             return False, "Error saving user data. Please try again."
+
+    def verify_email(self, username, verification_code):
+        """Verify user's email address"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        success, message = self.verify_code(verification_code, username, "email_verification")
+        
+        if success:
+            self.users[username]["email_verified"] = True
+            
+            # Update analytics
+            if 'email_verifications' not in self.analytics:
+                self.analytics['email_verifications'] = []
+            
+            self.analytics['email_verifications'].append({
+                "username": username,
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            if self.save_users() and self.save_analytics():
+                return True, "Email verified successfully! You can now login."
+            else:
+                return False, "Error saving verification status"
+        
+        return False, message
+
+    def resend_verification_email(self, username):
+        """Resend verification email"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        if self.users[username]["email_verified"]:
+            return False, "Email is already verified"
+        
+        # Generate new verification code
+        verification_code = self.generate_verification_code(username, "email_verification")
+        
+        # Send verification email
+        user_data = self.users[username]
+        email_sent, email_message = email_service.send_verification_email(user_data, verification_code)
+        
+        if email_sent:
+            return True, f"Verification email resent to {user_data['email']}"
+        else:
+            return False, f"Failed to resend verification email: {email_message}"
 
     def create_test_user(self, plan="trial"):
         """Create a test user for admin purposes"""
@@ -452,7 +895,8 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"test_{test_username}",
-            "payment_status": "active"
+            "payment_status": "active",
+            "email_verified": True  # Test users are auto-verified
         }
         
         self.analytics["user_registrations"].append({
@@ -524,6 +968,10 @@ class UserManager:
         user_data['expires'] = expires
         user_data['max_sessions'] = new_plan_config.get('max_sessions', 1) if new_plan != "admin" else 3
         
+        # Send upgrade email if upgrading to premium
+        if new_plan == "premium" and old_plan != "premium":
+            email_service.send_plan_upgrade_email(user_data, old_plan, new_plan)
+        
         if 'plan_changes' not in self.analytics:
             self.analytics['plan_changes'] = []
         
@@ -541,7 +989,7 @@ class UserManager:
             return False, "Error saving plan change"
 
     def authenticate(self, username, password):
-        """Authenticate user WITHOUT session blocking"""
+        """Authenticate user with email verification check"""
         self.analytics["total_logins"] += 1
         self.analytics["login_history"].append({
             "username": username,
@@ -560,6 +1008,10 @@ class UserManager:
         
         if not self.verify_password(password, user["password_hash"]):
             return False, "Invalid username or password"
+        
+        # Check if email is verified
+        if not user.get("email_verified", False):
+            return False, "Email not verified. Please check your inbox for verification email."
         
         expires = user.get("expires")
         if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
@@ -620,6 +1072,7 @@ class UserManager:
         total_users = len(self.users)
         active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
         online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
+        verified_users = sum(1 for u in self.users.values() if u.get('email_verified', False))
         
         plan_counts = {}
         for user in self.users.values():
@@ -630,6 +1083,7 @@ class UserManager:
             "total_users": total_users,
             "active_users": active_users,
             "online_users": online_users,
+            "verified_users": verified_users,
             "plan_distribution": plan_counts,
             "total_logins": self.analytics.get("total_logins", 0),
             "revenue_today": self.analytics.get("revenue_today", 0)
@@ -654,7 +1108,8 @@ class UserManager:
                     "active_sessions": user_data.get("active_sessions", 0),
                     "is_active": user_data.get("is_active", True),
                     "subscription_id": user_data.get("subscription_id", ""),
-                    "payment_status": user_data.get("payment_status", "")
+                    "payment_status": user_data.get("payment_status", ""),
+                    "email_verified": user_data.get("email_verified", False)
                 })
             
             df = pd.DataFrame(rows)
@@ -749,7 +1204,8 @@ class UserManager:
                 "last_login": user_data.get("last_login", ""),
                 "is_active": user_data.get("is_active", True),
                 "login_count": user_data.get("login_count", 0),
-                "active_sessions": user_data.get("active_sessions", 0)
+                "active_sessions": user_data.get("active_sessions", 0),
+                "email_verified": user_data.get("email_verified", False)
             })
         return users_list
 
@@ -757,7 +1213,233 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# NEW: USER CREDENTIALS MANAGEMENT INTERFACE
+# EMAIL VERIFICATION INTERFACE
+# -------------------------
+def render_email_verification():
+    """Email verification interface for new users"""
+    st.title("📧 Verify Your Email Address")
+    st.markdown("---")
+    
+    if not st.session_state.pending_verification_user:
+        st.error("No pending verification found. Please register again.")
+        if st.button("⬅️ Back to Login"):
+            st.session_state.email_verification_pending = False
+            st.session_state.pending_verification_user = None
+            st.rerun()
+        return
+    
+    username = st.session_state.pending_verification_user
+    user_data = user_manager.users.get(username, {})
+    
+    st.info(f"**Verification required for:** {user_data.get('name', username)}")
+    st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+    st.write(f"**Username:** {username}")
+    
+    st.markdown("---")
+    
+    # Verification code input
+    with st.form("email_verification_form"):
+        st.subheader("Enter Verification Code")
+        st.write("Check your email for the verification code we sent you.")
+        
+        verification_code = st.text_input(
+            "Verification Code*",
+            placeholder="Enter the 8-digit code from your email",
+            help="The code is case-sensitive and expires in 1 hour"
+        ).strip().upper()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            verify_submitted = st.form_submit_button("✅ Verify Email", use_container_width=True)
+        with col2:
+            resend_submitted = st.form_submit_button("🔄 Resend Code", use_container_width=True)
+        
+        if verify_submitted:
+            if not verification_code:
+                st.error("❌ Please enter the verification code")
+            else:
+                with st.spinner("Verifying..."):
+                    success, message = user_manager.verify_email(username, verification_code)
+                    if success:
+                        st.success(f"✅ {message}")
+                        st.balloons()
+                        time.sleep(2)
+                        st.session_state.email_verification_pending = False
+                        st.session_state.pending_verification_user = None
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+        
+        if resend_submitted:
+            with st.spinner("Resending verification code..."):
+                success, message = user_manager.resend_verification_email(username)
+                if success:
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ {message}")
+    
+    st.markdown("---")
+    
+    # Troubleshooting section
+    with st.expander("❓ Having trouble receiving the email?"):
+        st.markdown("""
+        **Common issues and solutions:**
+        
+        1. **Check spam/junk folder** - Sometimes verification emails get filtered
+        2. **Wait a few minutes** - Email delivery can take 1-5 minutes
+        3. **Verify email address** - Make sure you entered the correct email: `{}`
+        4. **Resend the code** - Use the 'Resend Code' button above
+        5. **Contact support** - If problems persist, email: `{}`
+        """.format(user_data.get('email', 'N/A'), Config.SUPPORT_EMAIL))
+    
+    if st.button("⬅️ Back to Login", key="back_from_verification"):
+        st.session_state.email_verification_pending = False
+        st.session_state.pending_verification_user = None
+        st.rerun()
+
+# -------------------------
+# EMAIL SETTINGS INTERFACE (ADMIN)
+# -------------------------
+def render_email_settings():
+    """Admin interface for email/SMTP settings"""
+    st.subheader("📧 Email & SMTP Configuration")
+    
+    # Back button
+    if st.button("⬅️ Back to Admin Dashboard", key="back_email_settings"):
+        st.session_state.show_email_settings = False
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # SMTP Configuration Form
+    with st.form("smtp_config_form"):
+        st.subheader("SMTP Server Settings")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            smtp_server = st.text_input(
+                "SMTP Server*",
+                value=Config.SMTP_SERVER,
+                placeholder="smtp.gmail.com"
+            )
+            smtp_username = st.text_input(
+                "SMTP Username/Email*",
+                value=Config.SMTP_USERNAME,
+                placeholder="your-email@gmail.com"
+            )
+        with col2:
+            smtp_port = st.number_input(
+                "SMTP Port*",
+                value=Config.SMTP_PORT,
+                min_value=1,
+                max_value=65535
+            )
+            smtp_password = st.text_input(
+                "SMTP Password*",
+                type="password",
+                value=Config.SMTP_PASSWORD,
+                placeholder="Your app password"
+            )
+        
+        use_tls = st.checkbox("Use TLS (recommended)", value=Config.USE_TLS)
+        test_mode = st.checkbox("Test Mode (simulate emails without sending)", value=email_service.test_mode)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            test_connection = st.form_submit_button("🔍 Test SMTP Connection", use_container_width=True)
+        with col2:
+            save_config = st.form_submit_button("💾 Save SMTP Settings", use_container_width=True)
+        
+        if test_connection:
+            # Update service with current form values for testing
+            temp_service = EmailService()
+            temp_service.smtp_server = smtp_server
+            temp_service.smtp_port = smtp_port
+            temp_service.smtp_username = smtp_username
+            temp_service.smtp_password = smtp_password
+            temp_service.use_tls = use_tls
+            temp_service.test_mode = test_mode
+            
+            success, message = temp_service.test_connection()
+            if success:
+                st.success(f"✅ {message}")
+            else:
+                st.error(f"❌ {message}")
+        
+        if save_config:
+            # In a real application, you would save these to a config file
+            st.warning("⚠️ SMTP configuration changes require application restart to take effect.")
+            st.info("""
+            **To update SMTP settings permanently:**
+            1. Update the SMTP configuration in the Config class
+            2. Restart the application
+            3. Test the connection
+            """)
+    
+    st.markdown("---")
+    
+    # Email Statistics
+    st.subheader("📊 Email Statistics")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_verifications = len(user_manager.analytics.get("email_verifications", []))
+        st.metric("Email Verifications", total_verifications)
+    with col2:
+        verified_users = sum(1 for u in user_manager.users.values() if u.get('email_verified', False))
+        st.metric("Verified Users", verified_users)
+    with col3:
+        pending_verifications = sum(1 for u in user_manager.users.values() if not u.get('email_verified', False) and u.get('is_active', True))
+        st.metric("Pending Verifications", pending_verifications)
+    
+    # Recent email activity
+    st.markdown("#### Recent Email Activity")
+    recent_verifications = user_manager.analytics.get("email_verifications", [])[-10:]
+    if recent_verifications:
+        for verification in reversed(recent_verifications):
+            st.write(f"• {verification['username']} - {verification['timestamp'][:16]}")
+    else:
+        st.info("No email verification activity yet")
+    
+    st.markdown("---")
+    
+    # Manual email sending (admin tool)
+    st.subheader("🛠️ Manual Email Tool")
+    
+    with st.form("manual_email_form"):
+        st.write("Send a custom email to any user")
+        
+        user_emails = {user['email']: user['username'] for user in user_manager.users.values() if user.get('email')}
+        selected_email = st.selectbox("Recipient Email", [""] + list(user_emails.keys()))
+        
+        subject = st.text_input("Subject", placeholder="Email subject...")
+        message = st.text_area("Message", height=150, placeholder="Email content...")
+        
+        if st.form_submit_button("📤 Send Manual Email", use_container_width=True):
+            if not all([selected_email, subject, message]):
+                st.error("❌ Please fill all fields")
+            else:
+                # Create simple HTML email
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <body>
+                    <h2>{subject}</h2>
+                    <p>{message.replace(chr(10), '<br>')}</p>
+                    <hr>
+                    <p><em>Sent from {Config.APP_NAME} Admin Panel</em></p>
+                </body>
+                </html>
+                """
+                
+                success, msg = email_service.send_email(selected_email, subject, html_content, message)
+                if success:
+                    st.success(f"✅ Email sent to {selected_email}")
+                else:
+                    st.error(f"❌ {msg}")
+
+# -------------------------
+# USER CREDENTIALS MANAGEMENT INTERFACE
 # -------------------------
 def render_user_credentials_interface():
     """Interface for viewing and managing user credentials"""
@@ -873,6 +1555,7 @@ def render_user_credentials_interface():
         with col3:
             st.write(f"**Active Sessions:** {user_data.get('active_sessions', 0)}")
             st.write(f"**Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+            st.write(f"**Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
             st.write(f"**Expires:** {user_data.get('expires', 'N/A')}")
 
 # -------------------------
@@ -1250,6 +1933,7 @@ def render_plan_management_interface(username):
             
         st.write(f"• **Total Logins:** {user_data.get('login_count', 0)}")
         st.write(f"• **Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+        st.write(f"• **Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
         
         # Quick actions
         st.markdown("#### Quick Actions:")
@@ -1282,7 +1966,7 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - COMPLETE VERSION
+# ADMIN DASHBOARD - COMPLETE VERSION WITH EMAIL SETTINGS
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -1315,6 +1999,7 @@ def render_admin_dashboard():
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = False
+            st.session_state.show_email_settings = False
             st.session_state.admin_view = "analytics"
             st.rerun()
         
@@ -1325,6 +2010,7 @@ def render_admin_dashboard():
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = False
+            st.session_state.show_email_settings = False
             st.session_state.admin_view = "users"
             st.rerun()
         
@@ -1335,6 +2021,17 @@ def render_admin_dashboard():
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = True
+            st.session_state.show_email_settings = False
+            st.rerun()
+        
+        if st.button("📧 Email Settings", use_container_width=True, key="sidebar_email"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
+            st.session_state.show_email_settings = True
             st.rerun()
         
         if st.button("🗑️ Bulk Delete", use_container_width=True, key="sidebar_bulk_delete"):
@@ -1343,6 +2040,7 @@ def render_admin_dashboard():
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = False
+            st.session_state.show_email_settings = False
             st.session_state.admin_view = "users"
             st.session_state.show_bulk_delete = True
             st.rerun()
@@ -1354,6 +2052,7 @@ def render_admin_dashboard():
             st.session_state.manage_user_plan = None
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = False
+            st.session_state.show_email_settings = False
             st.session_state.admin_view = "revenue"
             st.rerun()
     
@@ -1385,6 +2084,11 @@ def render_admin_dashboard():
         render_user_credentials_interface()
         return
     
+    # Show email settings interface if needed
+    if st.session_state.get('show_email_settings'):
+        render_email_settings()
+        return
+    
     # Default view or selected view
     current_view = st.session_state.get('admin_view', 'overview')
     
@@ -1413,7 +2117,7 @@ def render_admin_overview():
     with col3:
         st.metric("Online Now", metrics["online_users"])
     with col4:
-        st.metric("Total Logins", metrics["total_logins"])
+        st.metric("Verified Users", metrics["verified_users"])
     
     st.markdown("---")
     
@@ -1450,7 +2154,8 @@ def render_admin_overview():
         if recent_registrations:
             for reg in reversed(recent_registrations):
                 plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
-                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
+                verification_status = "✅" if reg.get('email_verification_sent') else "❌"
+                st.write(f"• {reg['username']} - {plan_name} {verification_status}")
         else:
             st.info("No recent registrations")
     
@@ -1484,6 +2189,21 @@ def render_admin_analytics():
     with col3:
         st.metric("Failed Logins", failed_logins)
     
+    # Email verification analytics
+    st.markdown("---")
+    st.subheader("📧 Email Verification Analytics")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_verifications = len(user_manager.analytics.get("email_verifications", []))
+        st.metric("Total Verifications", total_verifications)
+    with col2:
+        verified_users = sum(1 for u in user_manager.users.values() if u.get('email_verified', False))
+        st.metric("Verified Users", verified_users)
+    with col3:
+        pending_verifications = sum(1 for u in user_manager.users.values() if not u.get('email_verified', False) and u.get('is_active', True))
+        st.metric("Pending Verifications", pending_verifications)
+    
     # User growth
     st.markdown("---")
     st.subheader("📈 User Growth")
@@ -1508,7 +2228,7 @@ def render_admin_user_management():
     """User management interface with delete and plan management functionality"""
     st.subheader("👥 User Management")
     
-    # User actions - UPDATED WITH USER CREDENTIALS
+    # User actions - UPDATED WITH EMAIL SETTINGS
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
@@ -1518,6 +2238,10 @@ def render_admin_user_management():
             st.session_state.show_user_credentials = True
             st.rerun()
     with col3:
+        if st.button("📧 Email Settings", use_container_width=True, key="um_email"):
+            st.session_state.show_email_settings = True
+            st.rerun()
+    with col4:
         if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
             created_username, msg = user_manager.create_test_user("trial")
             if created_username:
@@ -1525,25 +2249,14 @@ def render_admin_user_management():
             else:
                 st.error(msg)
             st.rerun()
-    with col4:
+    with col5:
         if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
             st.session_state.show_bulk_delete = True
             st.rerun()
-    with col5:
+    with col6:
         if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
             st.session_state.show_password_change = True
             st.rerun()
-    with col6:
-        # Export credentials button
-        csv_bytes, error = user_manager.export_user_credentials()
-        if csv_bytes:
-            st.download_button(
-                label="📥 Export Users",
-                data=csv_bytes,
-                file_name=f"user_credentials_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
     
     st.markdown("---")
     
@@ -1561,6 +2274,7 @@ def render_admin_user_management():
             
             with col2:
                 st.write(user_data['email'])
+                st.caption("✅ Verified" if user_data.get('email_verified') else "❌ Unverified")
             
             with col3:
                 current_plan = user_data['plan']
@@ -1678,12 +2392,17 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# AUTHENTICATION COMPONENTS
+# AUTHENTICATION COMPONENTS WITH EMAIL VERIFICATION
 # -------------------------
 def render_login():
-    """Professional login/registration interface"""
+    """Professional login/registration interface with email verification"""
     st.title(f"🔐 Welcome to {Config.APP_NAME}")
     st.markdown("---")
+    
+    # Show email verification interface if pending
+    if st.session_state.email_verification_pending:
+        render_email_verification()
+        return
     
     tab1, tab2 = st.tabs(["🚀 Login", "📝 Register"])
     
@@ -1769,8 +2488,10 @@ def render_login():
                         )
                         if success:
                             st.success(f"✅ {message}")
-                            st.balloons()
-                            st.info("📧 Welcome email sent with login instructions")
+                            # Set verification pending state
+                            st.session_state.email_verification_pending = True
+                            st.session_state.pending_verification_user = new_username
+                            st.rerun()
                         else:
                             st.error(f"❌ {message}")
 
