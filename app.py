@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND ADMIN-ONLY EMAIL VERIFICATION
+# app.py - COMPLETE FIXED VERSION WITH IMPROVED EMAIL VERIFICATION BADGES
 import streamlit as st
 import hashlib
 import json
@@ -1704,7 +1704,20 @@ def render_plan_management_interface(username):
             
         st.write(f"• **Total Logins:** {user_data.get('login_count', 0)}")
         st.write(f"• **Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
-        st.write(f"• **Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
+        
+        # IMPROVED: Email verification badge in plan management
+        if user_data.get('email_verified', False):
+            st.markdown(
+                '<div style="background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-align: center; border: 1px solid #047857; min-width: 60px; display: inline-block;">✅ Verified</div>', 
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                '<div style="background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; text-align: center; border: 1px solid #B91C1C; min-width: 60px; display: inline-block;">❌ Unverified</div>', 
+                unsafe_allow_html=True
+            )
+        
+        st.write(f"• **Expires:** {user_data.get('expires', 'N/A')}")
         
         # Quick actions
         st.markdown("#### Quick Actions:")
@@ -1765,7 +1778,7 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - COMPLETE VERSION WITH EMAIL VERIFICATION
+# ADMIN DASHBOARD - COMPLETE VERSION WITH IMPROVED EMAIL VERIFICATION BADGES
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -2082,11 +2095,43 @@ def render_admin_user_management():
                 st.caption(f"{days_left} days left")
             
             with col5:
-                # Email verification status
+                # IMPROVED: Email verification status with better visual design
                 if user_data.get('email_verified', False):
-                    st.success("✅")
+                    st.markdown(
+                        """
+                        <div style="
+                            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                            color: white;
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-align: center;
+                            border: 1px solid #047857;
+                            min-width: 60px;
+                            display: inline-block;
+                        ">✅ Verified</div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
                 else:
-                    st.error("❌")
+                    st.markdown(
+                        """
+                        <div style="
+                            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+                            color: white;
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-align: center;
+                            border: 1px solid #B91C1C;
+                            min-width: 60px;
+                            display: inline-block;
+                        ">❌ Unverified</div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
             
             with col6:
                 if username != "admin":
@@ -2744,7 +2789,7 @@ def main():
     # Setup data persistence
     setup_data_persistence()
     
-    # Enhanced CSS for premium appearance
+    # Enhanced CSS for premium appearance with improved badge styling
     st.markdown("""
     <style>
     .main-header {
@@ -2767,6 +2812,26 @@ def main():
         border-radius: 15px;
         font-size: 0.8rem;
         font-weight: bold;
+    }
+    .verification-badge {
+        font-size: 0.7rem !important;
+        padding: 2px 8px !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        min-width: 60px !important;
+        display: inline-block !important;
+        text-align: center !important;
+        border: 1px solid !important;
+    }
+    .verified-badge {
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+        border-color: #047857 !important;
+    }
+    .unverified-badge {
+        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+        color: white;
+        border-color: #B91C1C !important;
     }
     </style>
     """, unsafe_allow_html=True)
