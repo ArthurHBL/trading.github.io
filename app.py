@@ -1770,7 +1770,7 @@ def render_login():
                         if success:
                             st.success(f"✅ {message}")
                             st.balloons()
-                            st.info("📧 Welcome email sent with login instructions")
+                            st.info("📧 Welcome, you can now login")
                         else:
                             st.error(f"❌ {message}")
 
