@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE
+# app.py - COMPLETE FIXED VERSION WITH PERSISTENT DATABASE AND EMAIL VERIFICATION
 import streamlit as st
 import hashlib
 import json
@@ -54,6 +54,8 @@ def init_session():
         st.session_state.show_user_credentials = False
     if 'user_to_manage' not in st.session_state:
         st.session_state.user_to_manage = None
+    if 'admin_email_verification_view' not in st.session_state:
+        st.session_state.admin_email_verification_view = 'pending'
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -246,7 +248,8 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "email_verifications": []
             }
             self.save_analytics()
         else:
@@ -267,7 +270,8 @@ class UserManager:
                     "login_history": [],
                     "deleted_users": [],
                     "plan_changes": [],
-                    "password_changes": []
+                    "password_changes": [],
+                    "email_verifications": []
                 }
                 self.save_analytics()
     
@@ -298,7 +302,8 @@ class UserManager:
                 "login_history": [],
                 "deleted_users": [],
                 "plan_changes": [],
-                "password_changes": []
+                "password_changes": [],
+                "email_verifications": []
             }
             self.save_analytics()
     
@@ -316,7 +321,9 @@ class UserManager:
             "max_sessions": 3,
             "is_active": True,
             "email": "admin@tradinganalysis.com",
-            "subscription_id": "admin_account"
+            "subscription_id": "admin_account",
+            "email_verified": True,  # Admin email is always verified
+            "verification_date": datetime.now().isoformat()
         }
         print("✅ Created default admin account")
     
@@ -405,7 +412,11 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"sub_{username}_{int(time.time())}",
-            "payment_status": "active" if plan == "trial" else "pending"
+            "payment_status": "active" if plan == "trial" else "pending",
+            "email_verified": False,  # NEW: Email verification status
+            "verification_date": None,  # NEW: When email was verified
+            "verification_notes": "",  # NEW: Admin notes for verification
+            "verification_admin": None  # NEW: Which admin verified the email
         }
         
         # Update analytics
@@ -452,7 +463,11 @@ class UserManager:
             "max_sessions": plan_config["max_sessions"],
             "is_active": True,
             "subscription_id": f"test_{test_username}",
-            "payment_status": "active"
+            "payment_status": "active",
+            "email_verified": False,  # Test users start unverified
+            "verification_date": None,
+            "verification_notes": "",
+            "verification_admin": None
         }
         
         self.analytics["user_registrations"].append({
@@ -558,6 +573,10 @@ class UserManager:
         if not user.get("is_active", True):
             return False, "Account deactivated. Please contact support."
         
+        # NEW: Check if email is verified (only for non-admin users)
+        if username != "admin" and not user.get("email_verified", False):
+            return False, "Email not verified. Please wait for admin verification."
+        
         if not self.verify_password(password, user["password_hash"]):
             return False, "Invalid username or password"
         
@@ -626,13 +645,19 @@ class UserManager:
             plan = user.get('plan', 'unknown')
             plan_counts[plan] = plan_counts.get(plan, 0) + 1
         
+        # NEW: Email verification metrics
+        verified_users = sum(1 for u in self.users.values() if u.get('email_verified', False))
+        unverified_users = total_users - verified_users
+        
         return {
             "total_users": total_users,
             "active_users": active_users,
             "online_users": online_users,
             "plan_distribution": plan_counts,
             "total_logins": self.analytics.get("total_logins", 0),
-            "revenue_today": self.analytics.get("revenue_today", 0)
+            "revenue_today": self.analytics.get("revenue_today", 0),
+            "verified_users": verified_users,
+            "unverified_users": unverified_users
         }
 
     # NEW FUNCTION: Export all user credentials
@@ -654,7 +679,10 @@ class UserManager:
                     "active_sessions": user_data.get("active_sessions", 0),
                     "is_active": user_data.get("is_active", True),
                     "subscription_id": user_data.get("subscription_id", ""),
-                    "payment_status": user_data.get("payment_status", "")
+                    "payment_status": user_data.get("payment_status", ""),
+                    "email_verified": user_data.get("email_verified", False),  # NEW
+                    "verification_date": user_data.get("verification_date", ""),  # NEW
+                    "verification_admin": user_data.get("verification_admin", "")  # NEW
                 })
             
             df = pd.DataFrame(rows)
@@ -749,15 +777,359 @@ class UserManager:
                 "last_login": user_data.get("last_login", ""),
                 "is_active": user_data.get("is_active", True),
                 "login_count": user_data.get("login_count", 0),
-                "active_sessions": user_data.get("active_sessions", 0)
+                "active_sessions": user_data.get("active_sessions", 0),
+                "email_verified": user_data.get("email_verified", False),  # NEW
+                "verification_date": user_data.get("verification_date", ""),  # NEW
+                "verification_admin": user_data.get("verification_admin", "")  # NEW
             })
         return users_list
+
+    # NEW FUNCTION: Verify user email manually
+    def verify_user_email(self, username, admin_username, notes=""):
+        """Manually verify a user's email address (admin function)"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        if username == "admin":
+            return False, "Cannot modify admin account verification"
+        
+        user_data = self.users[username]
+        
+        if user_data.get("email_verified", False):
+            return False, "Email is already verified"
+        
+        # Update verification status
+        user_data["email_verified"] = True
+        user_data["verification_date"] = datetime.now().isoformat()
+        user_data["verification_admin"] = admin_username
+        user_data["verification_notes"] = notes
+        
+        # Update analytics
+        if 'email_verifications' not in self.analytics:
+            self.analytics['email_verifications'] = []
+        
+        self.analytics['email_verifications'].append({
+            "username": username,
+            "email": user_data.get("email", ""),
+            "verified_by": admin_username,
+            "timestamp": datetime.now().isoformat(),
+            "notes": notes
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Email for '{username}' has been verified successfully!"
+        else:
+            return False, "Error saving verification data"
+
+    # NEW FUNCTION: Revoke email verification
+    def revoke_email_verification(self, username, admin_username, reason=""):
+        """Revoke email verification (admin function)"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        if username == "admin":
+            return False, "Cannot modify admin account verification"
+        
+        user_data = self.users[username]
+        
+        if not user_data.get("email_verified", False):
+            return False, "Email is not verified"
+        
+        # Update verification status
+        user_data["email_verified"] = False
+        user_data["verification_date"] = None
+        user_data["verification_admin"] = None
+        user_data["verification_notes"] = reason
+        
+        # Update analytics
+        if 'email_verifications' not in self.analytics:
+            self.analytics['email_verifications'] = []
+        
+        self.analytics['email_verifications'].append({
+            "username": username,
+            "email": user_data.get("email", ""),
+            "action": "revoked",
+            "revoked_by": admin_username,
+            "timestamp": datetime.now().isoformat(),
+            "reason": reason
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, f"Email verification for '{username}' has been revoked!"
+        else:
+            return False, "Error saving verification data"
+
+    # NEW FUNCTION: Get email verification statistics
+    def get_email_verification_stats(self):
+        """Get statistics about email verification status"""
+        total_users = len(self.users)
+        verified_count = 0
+        unverified_count = 0
+        pending_verification = []
+        recently_verified = []
+        
+        for username, user_data in self.users.items():
+            if username == "admin":
+                continue  # Skip admin
+            
+            if user_data.get("email_verified", False):
+                verified_count += 1
+                # Get recently verified (last 7 days)
+                verification_date = user_data.get("verification_date")
+                if verification_date:
+                    try:
+                        verify_dt = datetime.fromisoformat(verification_date)
+                        if (datetime.now() - verify_dt).days <= 7:
+                            recently_verified.append({
+                                "username": username,
+                                "email": user_data.get("email", ""),
+                                "verified_date": verification_date,
+                                "verified_by": user_data.get("verification_admin", "")
+                            })
+                    except:
+                        pass
+            else:
+                unverified_count += 1
+                pending_verification.append({
+                    "username": username,
+                    "email": user_data.get("email", ""),
+                    "created": user_data.get("created", ""),
+                    "plan": user_data.get("plan", "")
+                })
+        
+        return {
+            "total_users": total_users - 1,  # Exclude admin
+            "verified_count": verified_count,
+            "unverified_count": unverified_count,
+            "verification_rate": (verified_count / (total_users - 1)) * 100 if total_users > 1 else 0,
+            "pending_verification": pending_verification,
+            "recently_verified": recently_verified
+        }
 
 # Initialize user manager
 user_manager = UserManager()
 
 # -------------------------
-# NEW: USER CREDENTIALS MANAGEMENT INTERFACE
+# NEW: EMAIL VERIFICATION INTERFACE
+# -------------------------
+def render_email_verification_interface():
+    """Interface for manual email verification by admin"""
+    st.subheader("📧 Email Verification Management")
+    
+    # Back button
+    if st.button("⬅️ Back to Admin Dashboard", key="back_email_verification"):
+        st.session_state.admin_view = 'overview'
+        st.rerun()
+    
+    # Get verification statistics
+    stats = user_manager.get_email_verification_stats()
+    
+    # Statistics overview
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", stats["total_users"])
+    with col2:
+        st.metric("Verified Users", stats["verified_count"])
+    with col3:
+        st.metric("Pending Verification", stats["unverified_count"])
+    with col4:
+        st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
+    
+    st.markdown("---")
+    
+    # Tabs for different views
+    tab1, tab2, tab3 = st.tabs(["📋 Pending Verification", "✅ Verified Users", "📊 Verification History"])
+    
+    with tab1:
+        render_pending_verification_tab(stats)
+    
+    with tab2:
+        render_verified_users_tab(stats)
+    
+    with tab3:
+        render_verification_history_tab()
+
+def render_pending_verification_tab(stats):
+    """Tab showing users pending email verification"""
+    st.subheader("⏳ Users Pending Email Verification")
+    
+    pending_users = stats["pending_verification"]
+    
+    if not pending_users:
+        st.success("🎉 All users are verified!")
+        return
+    
+    st.info(f"**{len(pending_users)} users waiting for email verification**")
+    
+    # Display pending users in a table with action buttons
+    for user in pending_users:
+        with st.container():
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 1, 1])
+            
+            with col1:
+                st.write(f"**{user['username']}**")
+                st.caption(f"Created: {user['created'][:10]}")
+            
+            with col2:
+                st.write(user['email'])
+            
+            with col3:
+                plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
+                st.write(f"`{plan_display}`")
+            
+            with col4:
+                if st.button("✅ Verify", key=f"verify_{user['username']}", use_container_width=True):
+                    success, message = user_manager.verify_user_email(
+                        user['username'], 
+                        st.session_state.user['username'],
+                        "Manual verification by admin"
+                    )
+                    if success:
+                        st.success(f"✅ {message}")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+            
+            with col5:
+                if st.button("👀 View", key=f"view_{user['username']}", use_container_width=True):
+                    st.session_state.user_to_manage = user['username']
+                    st.session_state.manage_user_plan = user['username']
+                    st.rerun()
+    
+    st.markdown("---")
+    
+    # Bulk actions
+    st.subheader("⚡ Bulk Actions")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("✅ Verify All Pending", type="primary", use_container_width=True):
+            verified_count = 0
+            errors = []
+            
+            for user in pending_users:
+                success, message = user_manager.verify_user_email(
+                    user['username'],
+                    st.session_state.user['username'],
+                    "Bulk verification by admin"
+                )
+                if success:
+                    verified_count += 1
+                else:
+                    errors.append(f"{user['username']}: {message}")
+            
+            if verified_count > 0:
+                st.success(f"✅ Successfully verified {verified_count} users!")
+            if errors:
+                for error in errors:
+                    st.error(f"❌ {error}")
+            
+            time.sleep(2)
+            st.rerun()
+    
+    with col2:
+        st.info("Verify all pending users at once")
+
+def render_verified_users_tab(stats):
+    """Tab showing verified users"""
+    st.subheader("✅ Verified Users")
+    
+    # Get all verified users
+    verified_users = []
+    for username, user_data in user_manager.users.items():
+        if username != "admin" and user_data.get("email_verified", False):
+            verified_users.append({
+                "username": username,
+                "email": user_data.get("email", ""),
+                "plan": user_data.get("plan", ""),
+                "verified_date": user_data.get("verification_date", ""),
+                "verified_by": user_data.get("verification_admin", ""),
+                "verification_notes": user_data.get("verification_notes", "")
+            })
+    
+    if not verified_users:
+        st.info("No verified users found.")
+        return
+    
+    # Display verified users
+    for user in verified_users:
+        with st.container():
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
+            
+            with col1:
+                st.write(f"**{user['username']}**")
+            
+            with col2:
+                st.write(user['email'])
+            
+            with col3:
+                plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
+                st.write(f"`{plan_display}`")
+            
+            with col4:
+                if user['verified_date']:
+                    st.caption(f"Verified: {user['verified_date'][:10]}")
+                    st.caption(f"By: {user['verified_by']}")
+            
+            with col5:
+                if st.button("🔄 Revoke", key=f"revoke_{user['username']}", use_container_width=True):
+                    success, message = user_manager.revoke_email_verification(
+                        user['username'],
+                        st.session_state.user['username'],
+                        "Manual revocation by admin"
+                    )
+                    if success:
+                        st.success(f"✅ {message}")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {message}")
+    
+    st.markdown("---")
+    
+    # Recently verified section
+    recent_verified = stats["recently_verified"]
+    if recent_verified:
+        st.subheader("🕒 Recently Verified (Last 7 Days)")
+        for user in recent_verified[:5]:  # Show last 5
+            with st.expander(f"{user['username']} - {user['verified_date'][:10]}"):
+                st.write(f"**Email:** {user['email']}")
+                st.write(f"**Verified by:** {user['verified_by']}")
+                st.write(f"**Date:** {user['verified_date'][:19]}")
+
+def render_verification_history_tab():
+    """Tab showing verification history"""
+    st.subheader("📊 Verification History")
+    
+    verification_history = user_manager.analytics.get("email_verifications", [])
+    
+    if not verification_history:
+        st.info("No verification history found.")
+        return
+    
+    # Display history in reverse chronological order
+    st.write(f"**Total verification actions:** {len(verification_history)}")
+    
+    for entry in reversed(verification_history[-20:]):  # Show last 20 entries
+        with st.expander(f"{entry['username']} - {entry['timestamp'][:10]}"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write(f"**User:** {entry['username']}")
+                st.write(f"**Email:** {entry.get('email', 'N/A')}")
+                st.write(f"**Action:** {'✅ Verified' if entry.get('action') != 'revoked' else '❌ Revoked'}")
+            
+            with col2:
+                st.write(f"**By:** {entry.get('verified_by', entry.get('revoked_by', 'N/A'))}")
+                st.write(f"**Date:** {entry['timestamp'][:19]}")
+                
+                notes = entry.get('notes', entry.get('reason', ''))
+                if notes:
+                    st.write(f"**Notes:** {notes}")
+
+# -------------------------
+# USER CREDENTIALS MANAGEMENT INTERFACE
 # -------------------------
 def render_user_credentials_interface():
     """Interface for viewing and managing user credentials"""
@@ -873,6 +1245,7 @@ def render_user_credentials_interface():
         with col3:
             st.write(f"**Active Sessions:** {user_data.get('active_sessions', 0)}")
             st.write(f"**Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+            st.write(f"**Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
             st.write(f"**Expires:** {user_data.get('expires', 'N/A')}")
 
 # -------------------------
@@ -1250,9 +1623,38 @@ def render_plan_management_interface(username):
             
         st.write(f"• **Total Logins:** {user_data.get('login_count', 0)}")
         st.write(f"• **Status:** {'🟢 Active' if user_data.get('is_active', True) else '🔴 Inactive'}")
+        st.write(f"• **Email Verified:** {'✅ Yes' if user_data.get('email_verified', False) else '❌ No'}")
         
         # Quick actions
         st.markdown("#### Quick Actions:")
+        
+        # Email verification quick action
+        if not user_data.get('email_verified', False):
+            if st.button("✅ Verify Email", use_container_width=True, key=f"verify_email_{username}"):
+                success, message = user_manager.verify_user_email(
+                    username, 
+                    st.session_state.user['username'],
+                    "Quick verification from plan management"
+                )
+                if success:
+                    st.success(f"✅ {message}")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+        else:
+            if st.button("🔄 Revoke Verification", use_container_width=True, key=f"revoke_email_{username}"):
+                success, message = user_manager.revoke_email_verification(
+                    username,
+                    st.session_state.user['username'],
+                    "Revoked from plan management"
+                )
+                if success:
+                    st.success(f"✅ {message}")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
         
         # Quick plan changes
         quick_plans = {
@@ -1282,7 +1684,7 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
-# ADMIN DASHBOARD - COMPLETE VERSION
+# ADMIN DASHBOARD - COMPLETE VERSION WITH EMAIL VERIFICATION
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard for business management"""
@@ -1326,6 +1728,16 @@ def render_admin_dashboard():
             st.session_state.show_password_change = False
             st.session_state.show_user_credentials = False
             st.session_state.admin_view = "users"
+            st.rerun()
+        
+        if st.button("📧 Email Verification", use_container_width=True, key="sidebar_email_verify"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
+            st.session_state.admin_view = "email_verification"
             st.rerun()
         
         if st.button("🔐 User Credentials", use_container_width=True, key="sidebar_credentials"):
@@ -1394,6 +1806,8 @@ def render_admin_dashboard():
         render_admin_analytics()
     elif current_view == 'users':
         render_admin_user_management()
+    elif current_view == 'email_verification':
+        render_email_verification_interface()
     elif current_view == 'revenue':
         render_admin_revenue()
 
@@ -1405,7 +1819,7 @@ def render_admin_overview():
     metrics = user_manager.get_business_metrics()
     
     # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         st.metric("Total Users", metrics["total_users"])
     with col2:
@@ -1413,7 +1827,9 @@ def render_admin_overview():
     with col3:
         st.metric("Online Now", metrics["online_users"])
     with col4:
-        st.metric("Total Logins", metrics["total_logins"])
+        st.metric("Verified Users", metrics["verified_users"])
+    with col5:
+        st.metric("Pending Verification", metrics["unverified_users"])
     
     st.markdown("---")
     
@@ -1427,17 +1843,20 @@ def render_admin_overview():
         with col1:
             st.write("**Users by Plan:**")
             for plan, count in plan_data.items():
-                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                st.write(f"• {plan_name}: {count} users")
+                if plan != "admin":  # Don't show admin in distribution
+                    plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                    st.write(f"• {plan_name}: {count} users")
         
         with col2:
             # Simple chart using progress bars
-            total = sum(plan_data.values())
-            for plan, count in plan_data.items():
-                percentage = (count / total) * 100 if total > 0 else 0
-                plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
-                st.progress(percentage / 100)
+            total = sum(count for plan, count in plan_data.items() if plan != "admin")
+            if total > 0:
+                for plan, count in plan_data.items():
+                    if plan != "admin":
+                        percentage = (count / total) * 100
+                        plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                        st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
+                        st.progress(percentage / 100)
     
     st.markdown("---")
     
@@ -1484,6 +1903,21 @@ def render_admin_analytics():
     with col3:
         st.metric("Failed Logins", failed_logins)
     
+    # Email verification analytics
+    st.markdown("---")
+    st.subheader("📧 Email Verification Analytics")
+    
+    stats = user_manager.get_email_verification_stats()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", stats["total_users"])
+    with col2:
+        st.metric("Verified", stats["verified_count"])
+    with col3:
+        st.metric("Pending", stats["unverified_count"])
+    with col4:
+        st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
+    
     # User growth
     st.markdown("---")
     st.subheader("📈 User Growth")
@@ -1508,16 +1942,20 @@ def render_admin_user_management():
     """User management interface with delete and plan management functionality"""
     st.subheader("👥 User Management")
     
-    # User actions - UPDATED WITH USER CREDENTIALS
+    # User actions - UPDATED WITH EMAIL VERIFICATION
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
             st.rerun()
     with col2:
+        if st.button("📧 Email Verification", use_container_width=True, key="um_email_verify"):
+            st.session_state.admin_view = "email_verification"
+            st.rerun()
+    with col3:
         if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials"):
             st.session_state.show_user_credentials = True
             st.rerun()
-    with col3:
+    with col4:
         if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
             created_username, msg = user_manager.create_test_user("trial")
             if created_username:
@@ -1525,35 +1963,24 @@ def render_admin_user_management():
             else:
                 st.error(msg)
             st.rerun()
-    with col4:
+    with col5:
         if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
             st.session_state.show_bulk_delete = True
             st.rerun()
-    with col5:
+    with col6:
         if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
             st.session_state.show_password_change = True
             st.rerun()
-    with col6:
-        # Export credentials button
-        csv_bytes, error = user_manager.export_user_credentials()
-        if csv_bytes:
-            st.download_button(
-                label="📥 Export Users",
-                data=csv_bytes,
-                file_name=f"user_credentials_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
     
     st.markdown("---")
     
-    # Enhanced User table with quick actions
-    st.write("**All Users - Quick Plan Management:**")
+    # Enhanced User table with quick actions including email verification
+    st.write("**All Users - Quick Management:**")
     
-    # Display users with quick plan change options
+    # Display users with quick plan change and verification options
     for username, user_data in user_manager.users.items():
         with st.container():
-            col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 2, 2, 1, 1])
+            col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 2, 2, 1, 1, 1])
             
             with col1:
                 st.write(f"**{username}**")
@@ -1574,6 +2001,13 @@ def render_admin_user_management():
                 st.caption(f"{days_left} days left")
             
             with col5:
+                # Email verification status
+                if user_data.get('email_verified', False):
+                    st.success("✅")
+                else:
+                    st.error("❌")
+            
+            with col6:
                 if username != "admin":
                     # Quick upgrade to premium
                     if current_plan != "premium":
@@ -1588,7 +2022,7 @@ def render_admin_user_management():
                     else:
                         st.write("⭐")
             
-            with col6:
+            with col7:
                 if username != "admin":
                     if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
                         st.session_state.manage_user_plan = username
@@ -1605,7 +2039,8 @@ def render_admin_user_management():
         if selected_user == "admin":
             st.warning("⚠️ Admin account cannot be modified")
         else:
-            col1, col2, col3, col4 = st.columns(4)
+            user_data = user_manager.users[selected_user]
+            col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
                 if st.button("🔴 Deactivate User", use_container_width=True, key=f"deactivate_{selected_user}"):
@@ -1630,6 +2065,35 @@ def render_admin_user_management():
                     st.rerun()
             
             with col4:
+                # Email verification action
+                if not user_data.get('email_verified', False):
+                    if st.button("✅ Verify Email", use_container_width=True, key=f"verify_{selected_user}"):
+                        success, message = user_manager.verify_user_email(
+                            selected_user,
+                            st.session_state.user['username'],
+                            "Manual verification from user management"
+                        )
+                        if success:
+                            st.success(f"✅ {message}")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+                else:
+                    if st.button("🔄 Revoke Email", use_container_width=True, key=f"revoke_{selected_user}"):
+                        success, message = user_manager.revoke_email_verification(
+                            selected_user,
+                            st.session_state.user['username'],
+                            "Manual revocation from user management"
+                        )
+                        if success:
+                            st.success(f"✅ {message}")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
+            
+            with col5:
                 if st.button("🗑️ Delete User", type="secondary", use_container_width=True, key=f"delete_{selected_user}"):
                     st.session_state.user_to_delete = selected_user
                     st.session_state.show_delete_confirmation = True
@@ -1751,6 +2215,9 @@ def render_login():
                     if plan_choice == "trial":
                         st.info("🎁 Free trial - no payment required")
             
+            # Email verification notice
+            st.info("📧 **Email Verification:** Your account will be activated after admin verification. This usually takes less than 24 hours.")
+            
             agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*")
             
             submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
@@ -1770,7 +2237,7 @@ def render_login():
                         if success:
                             st.success(f"✅ {message}")
                             st.balloons()
-                            st.info("📧 Welcome, you can now login.")
+                            st.info("📧 Your account has been created! Please wait for email verification by admin before logging in.")
                         else:
                             st.error(f"❌ {message}")
 
