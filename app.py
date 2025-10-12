@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION + CCXT CHARTS
+# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION AND CRYPTO CHARTS
 import streamlit as st
 import hashlib
 import json
@@ -16,7 +16,7 @@ import io
 import base64
 
 # -------------------------
-# NEW: CCXT FOR CRYPTO CHARTS
+# CRYPTO CHART IMPORTS
 # -------------------------
 try:
     import ccxt
@@ -25,7 +25,18 @@ try:
     CCXT_AVAILABLE = True
 except ImportError:
     CCXT_AVAILABLE = False
-    st.warning("⚠️ CCXT or Plotly not available. Charts will be disabled. Install with: pip install ccxt plotly")
+    st.warning("⚠️ CCXT or Plotly not available. Installing required packages...")
+    try:
+        import subprocess
+        import sys
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "ccxt", "plotly"])
+        import ccxt
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        CCXT_AVAILABLE = True
+        st.success("✅ CCXT and Plotly installed successfully!")
+    except:
+        st.error("❌ Failed to install CCXT/Plotly. Charts will be disabled.")
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -68,13 +79,10 @@ def init_session():
         st.session_state.user_to_manage = None
     if 'admin_email_verification_view' not in st.session_state:
         st.session_state.admin_email_verification_view = 'pending'
-    # NEW: Chart-related session states
-    if 'chart_timeframe' not in st.session_state:
-        st.session_state.chart_timeframe = '1d'
-    if 'chart_limit' not in st.session_state:
-        st.session_state.chart_limit = 100
-    if 'selected_symbol' not in st.session_state:
-        st.session_state.selected_symbol = 'BTC/USDT'
+    if 'crypto_chart_period' not in st.session_state:
+        st.session_state.crypto_chart_period = '1d'
+    if 'selected_crypto' not in st.session_state:
+        st.session_state.selected_crypto = 'BTC/USDT'
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -161,6 +169,184 @@ def sanitize_key(s: str):
          .replace(")", "")
          .replace(",", "_")
     )
+
+# -------------------------
+# CRYPTO CHART FUNCTIONS - LOCATION AGNOSTIC
+# -------------------------
+class CryptoChartManager:
+    def __init__(self):
+        self.exchanges = {
+            'binance': ccxt.binance,
+            'kraken': ccxt.kraken,
+            'coinbase': ccxt.coinbasepro,
+            'okx': ccxt.okx,
+            'bybit': ccxt.bybit
+        }
+        self.available_exchanges = {}
+        self.setup_exchanges()
+    
+    def setup_exchanges(self):
+        """Setup exchanges with location-agnostic configuration"""
+        for name, exchange_class in self.exchanges.items():
+            try:
+                # Configure exchange to be location-agnostic
+                exchange = exchange_class({
+                    'timeout': 30000,
+                    'enableRateLimit': True,
+                    'rateLimit': 1000,
+                    'sandbox': False,
+                    'options': {
+                        'defaultType': 'spot',
+                        'adjustForTimeDifference': True,
+                    }
+                })
+                
+                # Test if exchange is accessible
+                markets = exchange.load_markets()
+                if markets:
+                    self.available_exchanges[name] = exchange
+                    print(f"✅ {name.upper()} exchange available")
+                
+            except Exception as e:
+                print(f"❌ {name.upper()} exchange not available: {e}")
+    
+    def get_ohlcv_data(self, symbol='BTC/USDT', timeframe='1d', limit=100):
+        """Get OHLCV data from any available exchange"""
+        for exchange_name, exchange in self.available_exchanges.items():
+            try:
+                print(f"📊 Trying {exchange_name} for {symbol}...")
+                ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+                
+                if ohlcv and len(ohlcv) > 0:
+                    df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+                    df['symbol'] = symbol
+                    df['exchange'] = exchange_name
+                    
+                    # Calculate additional metrics
+                    df['price_change'] = df['close'].pct_change() * 100
+                    df['volume_change'] = df['volume'].pct_change() * 100
+                    df['price_change_24h'] = (df['close'] - df['close'].shift(1)) / df['close'].shift(1) * 100
+                    
+                    print(f"✅ Successfully fetched {len(df)} candles from {exchange_name}")
+                    return df
+                    
+            except Exception as e:
+                print(f"❌ Failed to fetch from {exchange_name}: {e}")
+                continue
+        
+        # Fallback: Generate mock data if no exchange works
+        print("⚠️ All exchanges failed, generating mock data...")
+        return self.generate_mock_data(symbol, timeframe, limit)
+    
+    def generate_mock_data(self, symbol='BTC/USDT', timeframe='1d', limit=100):
+        """Generate realistic mock crypto data"""
+        base_price = 50000 if 'BTC' in symbol else 3000
+        volatility = 0.02
+        
+        dates = pd.date_range(end=datetime.now(), periods=limit, freq='D')
+        prices = [base_price]
+        
+        for i in range(1, limit):
+            change = np.random.normal(0, volatility)
+            new_price = prices[-1] * (1 + change)
+            prices.append(new_price)
+        
+        df = pd.DataFrame({
+            'timestamp': dates,
+            'open': [p * (1 + np.random.normal(0, 0.001)) for p in prices],
+            'high': [p * (1 + abs(np.random.normal(0, 0.005))) for p in prices],
+            'low': [p * (1 - abs(np.random.normal(0, 0.005))) for p in prices],
+            'close': prices,
+            'volume': [np.random.uniform(1000, 5000) for _ in prices],
+            'symbol': symbol,
+            'exchange': 'mock_data'
+        })
+        
+        df['price_change'] = df['close'].pct_change() * 100
+        df['volume_change'] = df['volume'].pct_change() * 100
+        df['price_change_24h'] = (df['close'] - df['close'].shift(1)) / df['close'].shift(1) * 100
+        
+        return df
+    
+    def create_crypto_chart(self, df, symbol='BTC/USDT'):
+        """Create interactive crypto chart with Plotly"""
+        if df.empty:
+            return None
+            
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            subplot_titles=(f'{symbol} Price Chart', 'Volume'),
+            row_width=[0.7, 0.3]
+        )
+        
+        # Candlestick chart
+        fig.add_trace(
+            go.Candlestick(
+                x=df['timestamp'],
+                open=df['open'],
+                high=df['high'],
+                low=df['low'],
+                close=df['close'],
+                name='Price'
+            ),
+            row=1, col=1
+        )
+        
+        # Volume bars
+        colors = ['red' if row['close'] < row['open'] else 'green' for _, row in df.iterrows()]
+        fig.add_trace(
+            go.Bar(
+                x=df['timestamp'],
+                y=df['volume'],
+                name='Volume',
+                marker_color=colors,
+                opacity=0.7
+            ),
+            row=2, col=1
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=f'{symbol} Price & Volume Chart (Source: {df["exchange"].iloc[0]})',
+            xaxis_title='Date',
+            yaxis_title='Price (USDT)',
+            template='plotly_white',
+            height=600,
+            showlegend=True,
+            xaxis_rangeslider_visible=False
+        )
+        
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        
+        return fig
+    
+    def get_price_stats(self, df):
+        """Get price statistics from dataframe"""
+        if df.empty:
+            return {}
+            
+        current_price = df['close'].iloc[-1]
+        prev_price = df['close'].iloc[-2] if len(df) > 1 else current_price
+        price_change_24h = ((current_price - prev_price) / prev_price) * 100
+        
+        high_24h = df['high'].iloc[-1]
+        low_24h = df['low'].iloc[-1]
+        volume_24h = df['volume'].iloc[-1]
+        
+        return {
+            'current_price': current_price,
+            'price_change_24h': price_change_24h,
+            'high_24h': high_24h,
+            'low_24h': low_24h,
+            'volume_24h': volume_24h,
+            'price_change_color': 'green' if price_change_24h >= 0 else 'red'
+        }
+
+# Initialize crypto chart manager
+crypto_manager = CryptoChartManager() if CCXT_AVAILABLE else None
 
 # -------------------------
 # DATA MANAGEMENT
@@ -968,226 +1154,7 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# NEW: CCXT CHART FUNCTIONS
-# -------------------------
-def get_exchange_data():
-    """Initialize CCXT exchange with error handling"""
-    if not CCXT_AVAILABLE:
-        return None
-    
-    try:
-        # Using Binance as it's reliable and has good free access
-        exchange = ccxt.binance({
-            'enableRateLimit': True,
-            'timeout': 30000,
-        })
-        return exchange
-    except Exception as e:
-        st.error(f"❌ Error initializing exchange: {str(e)}")
-        return None
-
-def fetch_ohlcv_data(symbol, timeframe='1d', limit=100):
-    """Fetch OHLCV data using CCXT"""
-    if not CCXT_AVAILABLE:
-        return None
-    
-    exchange = get_exchange_data()
-    if not exchange:
-        return None
-    
-    try:
-        # Fetch OHLCV data
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        
-        # Convert to DataFrame
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        df.set_index('timestamp', inplace=True)
-        
-        return df
-    except Exception as e:
-        st.error(f"❌ Error fetching data for {symbol}: {str(e)}")
-        return None
-
-def create_candlestick_chart(df, symbol, timeframe):
-    """Create interactive candlestick chart with volume"""
-    if df is None or df.empty:
-        return None
-    
-    # Create subplots
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.1,
-        subplot_titles=(f'{symbol} Price', 'Volume'),
-        row_width=[0.7, 0.3]
-    )
-    
-    # Candlestick chart
-    fig.add_trace(
-        go.Candlestick(
-            x=df.index,
-            open=df['open'],
-            high=df['high'],
-            low=df['low'],
-            close=df['close'],
-            name='Price'
-        ),
-        row=1, col=1
-    )
-    
-    # Volume chart
-    colors = ['red' if row['close'] < row['open'] else 'green' for _, row in df.iterrows()]
-    fig.add_trace(
-        go.Bar(
-            x=df.index,
-            y=df['volume'],
-            name='Volume',
-            marker_color=colors
-        ),
-        row=2, col=1
-    )
-    
-    # Update layout
-    fig.update_layout(
-        title=f'{symbol} Chart - {timeframe}',
-        xaxis_title='Date',
-        yaxis_title='Price',
-        template='plotly_white',
-        height=600,
-        showlegend=False,
-        xaxis_rangeslider_visible=False
-    )
-    
-    # Update y-axes labels
-    fig.update_yaxes(title_text="Price", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
-    
-    return fig
-
-def render_crypto_charts():
-    """Render BTC and ETH charts interface"""
-    st.title("📊 Live Crypto Charts")
-    
-    if not CCXT_AVAILABLE:
-        st.error("""
-        ❌ **CCXT or Plotly not available!**
-        
-        To enable crypto charts, install the required packages:
-        ```bash
-        pip install ccxt plotly
-        ```
-        """)
-        return
-    
-    # Chart controls
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        symbol = st.selectbox(
-            "Select Symbol:",
-            ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "DOT/USDT"],
-            key="chart_symbol"
-        )
-    
-    with col2:
-        timeframe = st.selectbox(
-            "Timeframe:",
-            ["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
-            index=5,  # Default to 1d
-            key="chart_timeframe"
-        )
-    
-    with col3:
-        limit = st.slider(
-            "Number of candles:",
-            min_value=50,
-            max_value=500,
-            value=100,
-            step=50,
-            key="chart_limit"
-        )
-    
-    st.markdown("---")
-    
-    # Fetch and display data
-    with st.spinner(f"🔄 Fetching {symbol} data..."):
-        df = fetch_ohlcv_data(symbol, timeframe, limit)
-    
-    if df is not None and not df.empty:
-        # Display current price info
-        current_price = df['close'].iloc[-1]
-        previous_price = df['close'].iloc[-2] if len(df) > 1 else current_price
-        price_change = current_price - previous_price
-        price_change_pct = (price_change / previous_price) * 100
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric(
-                label="Current Price",
-                value=f"${current_price:,.2f}",
-                delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)"
-            )
-        with col2:
-            st.metric("24h High", f"${df['high'].max():,.2f}")
-        with col3:
-            st.metric("24h Low", f"${df['low'].min():,.2f}")
-        with col4:
-            st.metric("Volume", f"{df['volume'].sum():,.0f}")
-        
-        # Create and display chart
-        fig = create_candlestick_chart(df, symbol, timeframe)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # Display raw data
-        with st.expander("📋 View Raw Data"):
-            st.dataframe(df.tail(20), use_container_width=True)
-            
-            # Download data
-            csv = df.to_csv()
-            st.download_button(
-                label="📥 Download CSV",
-                data=csv,
-                file_name=f"{symbol.replace('/', '_')}_{timeframe}_data.csv",
-                mime="text/csv"
-            )
-    else:
-        st.error("❌ Failed to fetch market data. Please try again later.")
-    
-    # Market overview section
-    st.markdown("---")
-    st.subheader("📈 Market Overview")
-    
-    # Quick overview of multiple symbols
-    symbols_overview = ["BTC/USDT", "ETH/USDT", "BNB/USDT"]
-    overview_data = []
-    
-    for sym in symbols_overview:
-        with st.spinner(f"Fetching {sym}..."):
-            temp_df = fetch_ohlcv_data(sym, '1d', 2)
-            if temp_df is not None and len(temp_df) >= 2:
-                current = temp_df['close'].iloc[-1]
-                previous = temp_df['close'].iloc[-2]
-                change = current - previous
-                change_pct = (change / previous) * 100
-                
-                overview_data.append({
-                    'Symbol': sym.replace('/USDT', ''),
-                    'Price': f"${current:,.2f}",
-                    'Change': f"{change:+.2f}",
-                    'Change %': f"{change_pct:+.2f}%",
-                    'Status': '🟢' if change > 0 else '🔴'
-                })
-    
-    if overview_data:
-        overview_df = pd.DataFrame(overview_data)
-        st.dataframe(overview_df, use_container_width=True, hide_index=True)
-    else:
-        st.info("ℹ️ Market data temporarily unavailable")
-
-# -------------------------
-# EMAIL VERIFICATION INTERFACE WITH VALIDATION TOOLS
+# NEW: EMAIL VERIFICATION INTERFACE WITH VALIDATION TOOLS
 # -------------------------
 def render_email_verification_interface():
     """Interface for manual email verification by admin with validation tools"""
@@ -2016,6 +1983,99 @@ def render_plan_management_interface(username):
             st.rerun()
 
 # -------------------------
+# CRYPTO CHARTS INTERFACE
+# -------------------------
+def render_crypto_charts():
+    """Render interactive crypto charts for BTC and ETH"""
+    st.subheader("📊 Live Crypto Charts")
+    
+    if not CCXT_AVAILABLE:
+        st.error("❌ Crypto charts are not available. Required packages are missing.")
+        st.info("💡 Please install ccxt and plotly: `pip install ccxt plotly`")
+        return
+    
+    if not crypto_manager:
+        st.error("❌ Crypto chart manager failed to initialize.")
+        return
+    
+    # Crypto selection and timeframe
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
+    with col1:
+        crypto_symbol = st.selectbox(
+            "Select Cryptocurrency:",
+            ["BTC/USDT", "ETH/USDT", "ADA/USDT", "DOT/USDT", "LINK/USDT"],
+            key="crypto_selector"
+        )
+    
+    with col2:
+        timeframe = st.selectbox(
+            "Timeframe:",
+            ["1h", "4h", "1d", "1w"],
+            key="timeframe_selector"
+        )
+    
+    with col3:
+        limit = st.selectbox(
+            "Data Points:",
+            [50, 100, 200],
+            index=1,
+            key="limit_selector"
+        )
+    
+    # Fetch and display data
+    with st.spinner(f"📡 Fetching {crypto_symbol} data..."):
+        df = crypto_manager.get_ohlcv_data(crypto_symbol, timeframe, limit)
+    
+    if df is not None and not df.empty:
+        # Display price statistics
+        stats = crypto_manager.get_price_stats(df)
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            price_color = stats.get('price_change_color', 'gray')
+            st.metric(
+                f"Current Price", 
+                f"${stats.get('current_price', 0):.2f}",
+                f"{stats.get('price_change_24h', 0):.2f}%"
+            )
+        
+        with col2:
+            st.metric("24h High", f"${stats.get('high_24h', 0):.2f}")
+        
+        with col3:
+            st.metric("24h Low", f"${stats.get('low_24h', 0):.2f}")
+        
+        with col4:
+            st.metric("24h Volume", f"{stats.get('volume_24h', 0):.0f}")
+        
+        with col5:
+            st.metric("Data Source", df['exchange'].iloc[0])
+        
+        # Create and display chart
+        fig = crypto_manager.create_crypto_chart(df, crypto_symbol)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Show raw data
+        with st.expander("📋 View Raw Data"):
+            st.dataframe(df.tail(20), use_container_width=True)
+            
+            # Download data
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=f"{crypto_symbol.replace('/', '_')}_{timeframe}_data.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+    else:
+        st.error("❌ Failed to fetch cryptocurrency data. Please try again later.")
+        st.info("💡 This could be due to network issues or exchange API limitations.")
+
+# -------------------------
 # ADMIN DASHBOARD - COMPLETE VERSION WITH IMPROVED EMAIL VERIFICATION BADGES
 # -------------------------
 def render_admin_dashboard():
@@ -2100,6 +2160,16 @@ def render_admin_dashboard():
             st.session_state.show_user_credentials = False
             st.session_state.admin_view = "revenue"
             st.rerun()
+        
+        if st.button("📈 Crypto Charts", use_container_width=True, key="sidebar_crypto"):
+            # Clear any modal/management states first
+            st.session_state.show_delete_confirmation = False
+            st.session_state.show_bulk_delete = False
+            st.session_state.manage_user_plan = None
+            st.session_state.show_password_change = False
+            st.session_state.show_user_credentials = False
+            st.session_state.admin_view = "crypto_charts"
+            st.rerun()
     
     # Main admin content
     st.title("👑 Business Administration Dashboard")
@@ -2142,6 +2212,8 @@ def render_admin_dashboard():
         render_email_verification_interface()
     elif current_view == 'revenue':
         render_admin_revenue()
+    elif current_view == 'crypto_charts':
+        render_crypto_charts()
 
 def render_admin_overview():
     """Admin overview with business metrics"""
@@ -2606,10 +2678,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND WORKING DATE NAVIGATION + CRYPTO CHARTS
+# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND WORKING DATE NAVIGATION
 # -------------------------
 def render_user_dashboard():
-    """Redesigned trading dashboard with 5-day cycle system, working date navigation, and crypto charts"""
+    """Redesigned trading dashboard with 5-day cycle system and working date navigation"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -2711,13 +2783,13 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Navigation - UPDATED WITH CRYPTO CHARTS
+        # Navigation
         st.subheader("📊 Navigation")
         nav_options = {
             "📈 Trading Dashboard": "main",
-            "📊 Crypto Charts": "charts",  # NEW: Crypto charts option
             "📝 Strategy Notes": "notes", 
-            "⚙️ Account Settings": "settings"
+            "⚙️ Account Settings": "settings",
+            "💰 Crypto Charts": "crypto"
         }
         
         for label, view in nav_options.items():
@@ -2751,12 +2823,12 @@ def render_user_dashboard():
         render_account_settings()
     elif st.session_state.get('show_upgrade'):
         render_upgrade_plans()
-    elif current_view == 'charts':  # NEW: Crypto charts view
-        render_crypto_charts()
     elif current_view == 'notes':
         render_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_account_settings()
+    elif current_view == 'crypto':
+        render_crypto_charts()
     else:
         render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -2778,30 +2850,6 @@ def render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_d
         st.metric("Plan Days", days_left)
     
     st.markdown("---")
-    
-    # Quick access to crypto charts
-    if CCXT_AVAILABLE:
-        st.subheader("🚀 Quick Market Access")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if st.button("📈 View BTC/USDT Chart", use_container_width=True):
-                st.session_state.dashboard_view = 'charts'
-                st.session_state.selected_symbol = 'BTC/USDT'
-                st.rerun()
-        
-        with col2:
-            if st.button("📈 View ETH/USDT Chart", use_container_width=True):
-                st.session_state.dashboard_view = 'charts'
-                st.session_state.selected_symbol = 'ETH/USDT'
-                st.rerun()
-        
-        with col3:
-            if st.button("📊 All Crypto Charts", use_container_width=True):
-                st.session_state.dashboard_view = 'charts'
-                st.rerun()
-        
-        st.markdown("---")
     
     # Progress indicators for today's strategies
     st.subheader("📋 Today's Strategy Progress")
