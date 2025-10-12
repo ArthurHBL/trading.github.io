@@ -1,4 +1,4 @@
-# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION AND BINANCE CHARTS
+# app.py - COMPLETE FIXED VERSION WITH WORKING DATE NAVIGATION + CCXT CHARTS
 import streamlit as st
 import hashlib
 import json
@@ -14,9 +14,18 @@ import numpy as np
 import shutil
 import io
 import base64
-import requests
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+
+# -------------------------
+# NEW: CCXT FOR CRYPTO CHARTS
+# -------------------------
+try:
+    import ccxt
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    CCXT_AVAILABLE = True
+except ImportError:
+    CCXT_AVAILABLE = False
+    st.warning("⚠️ CCXT or Plotly not available. Charts will be disabled. Install with: pip install ccxt plotly")
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -59,10 +68,13 @@ def init_session():
         st.session_state.user_to_manage = None
     if 'admin_email_verification_view' not in st.session_state:
         st.session_state.admin_email_verification_view = 'pending'
-    if 'crypto_chart_symbol' not in st.session_state:
-        st.session_state.crypto_chart_symbol = 'BTCUSDT'
-    if 'crypto_chart_interval' not in st.session_state:
-        st.session_state.crypto_chart_interval = '1d'
+    # NEW: Chart-related session states
+    if 'chart_timeframe' not in st.session_state:
+        st.session_state.chart_timeframe = '1d'
+    if 'chart_limit' not in st.session_state:
+        st.session_state.chart_limit = 100
+    if 'selected_symbol' not in st.session_state:
+        st.session_state.selected_symbol = 'BTC/USDT'
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -83,323 +95,6 @@ def setup_data_persistence():
             print(f"⚠️ Error saving strategy data: {e}")
             
         st.session_state.last_save_time = current_time
-
-# -------------------------
-# BINANCE API INTEGRATION
-# -------------------------
-class BinanceAPI:
-    """Binance API integration for cryptocurrency data"""
-    
-    BASE_URL = "https://api.binance.com/api/v3"
-    
-    @staticmethod
-    def get_klines(symbol: str, interval: str, limit: int = 500):
-        """Get kline/candlestick data from Binance"""
-        try:
-            url = f"{BinanceAPI.BASE_URL}/klines"
-            params = {
-                'symbol': symbol.upper(),
-                'interval': interval,
-                'limit': limit
-            }
-            
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            # Convert to DataFrame
-            df = pd.DataFrame(data, columns=[
-                'open_time', 'open', 'high', 'low', 'close', 'volume',
-                'close_time', 'quote_asset_volume', 'number_of_trades',
-                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-            ])
-            
-            # Convert types
-            df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-            df['close_time'] = pd.to_datetime(df['close_time'], unit='ms')
-            
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-            
-            return df
-            
-        except Exception as e:
-            st.error(f"Error fetching data from Binance: {str(e)}")
-            return None
-    
-    @staticmethod
-    def get_current_price(symbol: str):
-        """Get current price for a symbol"""
-        try:
-            url = f"{BinanceAPI.BASE_URL}/ticker/price"
-            params = {'symbol': symbol.upper()}
-            
-            response = requests.get(url, params=params, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            
-            return float(data['price'])
-        except Exception as e:
-            st.error(f"Error fetching current price: {str(e)}")
-            return None
-    
-    @staticmethod
-    def get_24h_ticker(symbol: str):
-        """Get 24hr ticker price change statistics"""
-        try:
-            url = f"{BinanceAPI.BASE_URL}/ticker/24hr"
-            params = {'symbol': symbol.upper()}
-            
-            response = requests.get(url, params=params, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            
-            return {
-                'symbol': data['symbol'],
-                'price_change': float(data['priceChange']),
-                'price_change_percent': float(data['priceChangePercent']),
-                'weighted_avg_price': float(data['weightedAvgPrice']),
-                'prev_close_price': float(data['prevClosePrice']),
-                'last_price': float(data['lastPrice']),
-                'volume': float(data['volume']),
-                'high_price': float(data['highPrice']),
-                'low_price': float(data['lowPrice'])
-            }
-        except Exception as e:
-            st.error(f"Error fetching 24h ticker: {str(e)}")
-            return None
-
-# -------------------------
-# CRYPTO CHART COMPONENTS
-# -------------------------
-def render_crypto_charts():
-    """Render BTC and ETH charts with technical analysis"""
-    st.title("📊 Cryptocurrency Charts")
-    
-    # Chart configuration
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        symbol = st.selectbox(
-            "Select Symbol:",
-            ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT", "LTCUSDT", "BCHUSDT", "XRPUSDT"],
-            index=0,
-            key="crypto_symbol"
-        )
-        st.session_state.crypto_chart_symbol = symbol
-    
-    with col2:
-        interval = st.selectbox(
-            "Timeframe:",
-            ["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
-            index=5,  # Default to 1d
-            key="crypto_interval"
-        )
-        st.session_state.crypto_chart_interval = interval
-    
-    with col3:
-        st.markdown("")
-        st.markdown("")
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            st.rerun()
-    
-    # Fetch and display data
-    df = BinanceAPI.get_klines(symbol, interval, 100)
-    
-    if df is not None and not df.empty:
-        # Display current price and 24h stats
-        current_price = BinanceAPI.get_current_price(symbol)
-        ticker_24h = BinanceAPI.get_24h_ticker(symbol)
-        
-        if current_price or ticker_24h:
-            st.markdown("---")
-            st.subheader(f"💰 {symbol} Market Data")
-            
-            cols = st.columns(4)
-            if current_price:
-                with cols[0]:
-                    st.metric("Current Price", f"${current_price:,.2f}")
-            
-            if ticker_24h:
-                with cols[1]:
-                    change_color = "green" if ticker_24h['price_change'] >= 0 else "red"
-                    change_icon = "📈" if ticker_24h['price_change'] >= 0 else "📉"
-                    st.metric(
-                        "24h Change", 
-                        f"{change_icon} ${abs(ticker_24h['price_change']):.2f}",
-                        f"{ticker_24h['price_change_percent']:.2f}%"
-                    )
-                
-                with cols[2]:
-                    st.metric("24h High", f"${ticker_24h['high_price']:,.2f}")
-                
-                with cols[3]:
-                    st.metric("24h Low", f"${ticker_24h['low_price']:,.2f}")
-        
-        # Create candlestick chart
-        st.markdown("---")
-        st.subheader(f"📈 {symbol} Price Chart - {interval} timeframe")
-        
-        # Calculate moving averages
-        df['MA20'] = df['close'].rolling(window=20).mean()
-        df['MA50'] = df['close'].rolling(window=50).mean()
-        
-        # Create subplots
-        fig = make_subplots(
-            rows=2, cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            subplot_titles=(f'{symbol} Price', 'Volume'),
-            row_width=[0.7, 0.3]
-        )
-        
-        # Candlestick trace
-        fig.add_trace(
-            go.Candlestick(
-                x=df['open_time'],
-                open=df['open'],
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                name='Price'
-            ),
-            row=1, col=1
-        )
-        
-        # Moving averages
-        fig.add_trace(
-            go.Scatter(
-                x=df['open_time'],
-                y=df['MA20'],
-                line=dict(color='orange', width=1),
-                name='MA20'
-            ),
-            row=1, col=1
-        )
-        
-        fig.add_trace(
-            go.Scatter(
-                x=df['open_time'],
-                y=df['MA50'],
-                line=dict(color='blue', width=1),
-                name='MA50'
-            ),
-            row=1, col=1
-        )
-        
-        # Volume trace
-        colors = ['red' if row['open'] > row['close'] else 'green' for _, row in df.iterrows()]
-        fig.add_trace(
-            go.Bar(
-                x=df['open_time'],
-                y=df['volume'],
-                name='Volume',
-                marker_color=colors,
-                opacity=0.7
-            ),
-            row=2, col=1
-        )
-        
-        # Update layout
-        fig.update_layout(
-            height=600,
-            title=f"{symbol} Technical Analysis",
-            xaxis_rangeslider_visible=False,
-            template="plotly_white",
-            showlegend=True
-        )
-        
-        # Update y-axis labels
-        fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-        fig.update_yaxes(title_text="Volume", row=2, col=1)
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Additional technical indicators
-        st.markdown("---")
-        st.subheader("🔍 Technical Indicators")
-        
-        # Calculate basic indicators
-        if len(df) > 20:
-            # RSI
-            delta = df['close'].diff()
-            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            rs = gain / loss
-            df['RSI'] = 100 - (100 / (1 + rs))
-            
-            # MACD
-            exp1 = df['close'].ewm(span=12).mean()
-            exp2 = df['close'].ewm(span=26).mean()
-            df['MACD'] = exp1 - exp2
-            df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
-            df['MACD_Histogram'] = df['MACD'] - df['MACD_Signal']
-            
-            # Display indicators in columns
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                current_rsi = df['RSI'].iloc[-1]
-                rsi_status = "Overbought" if current_rsi > 70 else "Oversold" if current_rsi < 30 else "Neutral"
-                rsi_color = "red" if current_rsi > 70 else "green" if current_rsi < 30 else "gray"
-                st.metric("RSI (14)", f"{current_rsi:.2f}", rsi_status)
-            
-            with col2:
-                macd_value = df['MACD'].iloc[-1]
-                macd_signal = df['MACD_Signal'].iloc[-1]
-                macd_trend = "Bullish" if macd_value > macd_signal else "Bearish"
-                st.metric("MACD", f"{macd_value:.4f}", macd_trend)
-            
-            with col3:
-                price_change_24h = ((df['close'].iloc[-1] - df['close'].iloc[-2]) / df['close'].iloc[-2]) * 100
-                st.metric("24h Return", f"{price_change_24h:.2f}%")
-            
-            with col4:
-                volume_change = ((df['volume'].iloc[-1] - df['volume'].iloc[-2]) / df['volume'].iloc[-2]) * 100
-                st.metric("Volume Change", f"{volume_change:.2f}%")
-            
-            # Display recent price data
-            st.markdown("### 📋 Recent Price Data")
-            display_df = df.tail(10)[['open_time', 'open', 'high', 'low', 'close', 'volume']].copy()
-            display_df['open_time'] = display_df['open_time'].dt.strftime('%Y-%m-%d %H:%M')
-            display_df.columns = ['Time', 'Open', 'High', 'Low', 'Close', 'Volume']
-            display_df = display_df.round(4)
-            st.dataframe(display_df, use_container_width=True)
-        
-    else:
-        st.error("❌ Failed to fetch cryptocurrency data. Please check your internet connection and try again.")
-        st.info("💡 If this persists, the Binance API might be temporarily unavailable.")
-
-def render_crypto_dashboard():
-    """Compact crypto dashboard for the main trading dashboard"""
-    st.subheader("🚀 Cryptocurrency Markets")
-    
-    # Quick crypto overview
-    symbols = ["BTCUSDT", "ETHUSDT"]
-    cols = st.columns(len(symbols))
-    
-    for i, symbol in enumerate(symbols):
-        with cols[i]:
-            ticker = BinanceAPI.get_24h_ticker(symbol)
-            if ticker:
-                change_color = "green" if ticker['price_change'] >= 0 else "red"
-                change_icon = "📈" if ticker['price_change'] >= 0 else "📉"
-                
-                st.metric(
-                    label=symbol.replace("USDT", ""),
-                    value=f"${ticker['last_price']:,.2f}",
-                    delta=f"{change_icon} {ticker['price_change_percent']:.2f}%"
-                )
-    
-    # Quick chart toggle
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        if st.button("📊 View Detailed Charts", use_container_width=True):
-            st.session_state.dashboard_view = 'crypto_charts'
-            st.rerun()
-    with col2:
-        if st.button("🔄 Refresh", use_container_width=True):
-            st.rerun()
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -1273,7 +968,226 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# NEW: EMAIL VERIFICATION INTERFACE WITH VALIDATION TOOLS
+# NEW: CCXT CHART FUNCTIONS
+# -------------------------
+def get_exchange_data():
+    """Initialize CCXT exchange with error handling"""
+    if not CCXT_AVAILABLE:
+        return None
+    
+    try:
+        # Using Binance as it's reliable and has good free access
+        exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'timeout': 30000,
+        })
+        return exchange
+    except Exception as e:
+        st.error(f"❌ Error initializing exchange: {str(e)}")
+        return None
+
+def fetch_ohlcv_data(symbol, timeframe='1d', limit=100):
+    """Fetch OHLCV data using CCXT"""
+    if not CCXT_AVAILABLE:
+        return None
+    
+    exchange = get_exchange_data()
+    if not exchange:
+        return None
+    
+    try:
+        # Fetch OHLCV data
+        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+        
+        return df
+    except Exception as e:
+        st.error(f"❌ Error fetching data for {symbol}: {str(e)}")
+        return None
+
+def create_candlestick_chart(df, symbol, timeframe):
+    """Create interactive candlestick chart with volume"""
+    if df is None or df.empty:
+        return None
+    
+    # Create subplots
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+        subplot_titles=(f'{symbol} Price', 'Volume'),
+        row_width=[0.7, 0.3]
+    )
+    
+    # Candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=df.index,
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='Price'
+        ),
+        row=1, col=1
+    )
+    
+    # Volume chart
+    colors = ['red' if row['close'] < row['open'] else 'green' for _, row in df.iterrows()]
+    fig.add_trace(
+        go.Bar(
+            x=df.index,
+            y=df['volume'],
+            name='Volume',
+            marker_color=colors
+        ),
+        row=2, col=1
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title=f'{symbol} Chart - {timeframe}',
+        xaxis_title='Date',
+        yaxis_title='Price',
+        template='plotly_white',
+        height=600,
+        showlegend=False,
+        xaxis_rangeslider_visible=False
+    )
+    
+    # Update y-axes labels
+    fig.update_yaxes(title_text="Price", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    return fig
+
+def render_crypto_charts():
+    """Render BTC and ETH charts interface"""
+    st.title("📊 Live Crypto Charts")
+    
+    if not CCXT_AVAILABLE:
+        st.error("""
+        ❌ **CCXT or Plotly not available!**
+        
+        To enable crypto charts, install the required packages:
+        ```bash
+        pip install ccxt plotly
+        ```
+        """)
+        return
+    
+    # Chart controls
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        symbol = st.selectbox(
+            "Select Symbol:",
+            ["BTC/USDT", "ETH/USDT", "BNB/USDT", "ADA/USDT", "DOT/USDT"],
+            key="chart_symbol"
+        )
+    
+    with col2:
+        timeframe = st.selectbox(
+            "Timeframe:",
+            ["1m", "5m", "15m", "1h", "4h", "1d", "1w"],
+            index=5,  # Default to 1d
+            key="chart_timeframe"
+        )
+    
+    with col3:
+        limit = st.slider(
+            "Number of candles:",
+            min_value=50,
+            max_value=500,
+            value=100,
+            step=50,
+            key="chart_limit"
+        )
+    
+    st.markdown("---")
+    
+    # Fetch and display data
+    with st.spinner(f"🔄 Fetching {symbol} data..."):
+        df = fetch_ohlcv_data(symbol, timeframe, limit)
+    
+    if df is not None and not df.empty:
+        # Display current price info
+        current_price = df['close'].iloc[-1]
+        previous_price = df['close'].iloc[-2] if len(df) > 1 else current_price
+        price_change = current_price - previous_price
+        price_change_pct = (price_change / previous_price) * 100
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric(
+                label="Current Price",
+                value=f"${current_price:,.2f}",
+                delta=f"{price_change:,.2f} ({price_change_pct:.2f}%)"
+            )
+        with col2:
+            st.metric("24h High", f"${df['high'].max():,.2f}")
+        with col3:
+            st.metric("24h Low", f"${df['low'].min():,.2f}")
+        with col4:
+            st.metric("Volume", f"{df['volume'].sum():,.0f}")
+        
+        # Create and display chart
+        fig = create_candlestick_chart(df, symbol, timeframe)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Display raw data
+        with st.expander("📋 View Raw Data"):
+            st.dataframe(df.tail(20), use_container_width=True)
+            
+            # Download data
+            csv = df.to_csv()
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv,
+                file_name=f"{symbol.replace('/', '_')}_{timeframe}_data.csv",
+                mime="text/csv"
+            )
+    else:
+        st.error("❌ Failed to fetch market data. Please try again later.")
+    
+    # Market overview section
+    st.markdown("---")
+    st.subheader("📈 Market Overview")
+    
+    # Quick overview of multiple symbols
+    symbols_overview = ["BTC/USDT", "ETH/USDT", "BNB/USDT"]
+    overview_data = []
+    
+    for sym in symbols_overview:
+        with st.spinner(f"Fetching {sym}..."):
+            temp_df = fetch_ohlcv_data(sym, '1d', 2)
+            if temp_df is not None and len(temp_df) >= 2:
+                current = temp_df['close'].iloc[-1]
+                previous = temp_df['close'].iloc[-2]
+                change = current - previous
+                change_pct = (change / previous) * 100
+                
+                overview_data.append({
+                    'Symbol': sym.replace('/USDT', ''),
+                    'Price': f"${current:,.2f}",
+                    'Change': f"{change:+.2f}",
+                    'Change %': f"{change_pct:+.2f}%",
+                    'Status': '🟢' if change > 0 else '🔴'
+                })
+    
+    if overview_data:
+        overview_df = pd.DataFrame(overview_data)
+        st.dataframe(overview_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ Market data temporarily unavailable")
+
+# -------------------------
+# EMAIL VERIFICATION INTERFACE WITH VALIDATION TOOLS
 # -------------------------
 def render_email_verification_interface():
     """Interface for manual email verification by admin with validation tools"""
@@ -2692,10 +2606,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND WORKING DATE NAVIGATION
+# REDESIGNED USER DASHBOARD WITH 5-DAY CYCLE AND WORKING DATE NAVIGATION + CRYPTO CHARTS
 # -------------------------
 def render_user_dashboard():
-    """Redesigned trading dashboard with 5-day cycle system and working date navigation"""
+    """Redesigned trading dashboard with 5-day cycle system, working date navigation, and crypto charts"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -2797,13 +2711,13 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Navigation
+        # Navigation - UPDATED WITH CRYPTO CHARTS
         st.subheader("📊 Navigation")
         nav_options = {
             "📈 Trading Dashboard": "main",
+            "📊 Crypto Charts": "charts",  # NEW: Crypto charts option
             "📝 Strategy Notes": "notes", 
-            "⚙️ Account Settings": "settings",
-            "🚀 Crypto Charts": "crypto_charts"
+            "⚙️ Account Settings": "settings"
         }
         
         for label, view in nav_options.items():
@@ -2837,12 +2751,12 @@ def render_user_dashboard():
         render_account_settings()
     elif st.session_state.get('show_upgrade'):
         render_upgrade_plans()
+    elif current_view == 'charts':  # NEW: Crypto charts view
+        render_crypto_charts()
     elif current_view == 'notes':
         render_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_account_settings()
-    elif current_view == 'crypto_charts':
-        render_crypto_charts()
     else:
         render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -2865,10 +2779,29 @@ def render_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_d
     
     st.markdown("---")
     
-    # Add crypto dashboard to main view
-    render_crypto_dashboard()
-    
-    st.markdown("---")
+    # Quick access to crypto charts
+    if CCXT_AVAILABLE:
+        st.subheader("🚀 Quick Market Access")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📈 View BTC/USDT Chart", use_container_width=True):
+                st.session_state.dashboard_view = 'charts'
+                st.session_state.selected_symbol = 'BTC/USDT'
+                st.rerun()
+        
+        with col2:
+            if st.button("📈 View ETH/USDT Chart", use_container_width=True):
+                st.session_state.dashboard_view = 'charts'
+                st.session_state.selected_symbol = 'ETH/USDT'
+                st.rerun()
+        
+        with col3:
+            if st.button("📊 All Crypto Charts", use_container_width=True):
+                st.session_state.dashboard_view = 'charts'
+                st.rerun()
+        
+        st.markdown("---")
     
     # Progress indicators for today's strategies
     st.subheader("📋 Today's Strategy Progress")
