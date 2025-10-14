@@ -21,8 +21,8 @@ from supabase import create_client, Client
 # -------------------------
 class SupabaseConfig:
     # Replace these with your actual Supabase credentials
-    SUPABASE_URL = https://dmshwbwdupyqpqrqcndm.supabase.co
-    SUPABASE_KEY = Proxy1986@
+    SUPABASE_URL = "https://dmshwbwdupyqpqrqcndm.supabase.co"
+    SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc2h3YndkdXB5cXBxcnFjbmRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM5NzYwMSwiZXhwIjoyMDc1OTczNjAxfQ.TsxLuUB1dAOMWRdXBhw4KjNMhcieXNErTepiFLdbGzU"
     
     # Table names
     USERS_TABLE = "users"
