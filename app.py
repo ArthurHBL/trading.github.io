@@ -13,6 +13,9 @@ import numpy as np
 import shutil
 import io
 import base64
+import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -58,6 +61,13 @@ def init_session():
     # NEW: Admin dashboard selection
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None  # 'admin' or 'premium'
+    # NEW: Chart data caching
+    if 'btc_data' not in st.session_state:
+        st.session_state.btc_data = None
+    if 'eth_data' not in st.session_state:
+        st.session_state.eth_data = None
+    if 'last_chart_update' not in st.session_state:
+        st.session_state.last_chart_update = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -251,6 +261,197 @@ def check_email_quality(email):
         issues.append("✅ Email appears valid")
     
     return issues
+
+# -------------------------
+# CRYPTO CHART FUNCTIONS
+# -------------------------
+def get_crypto_data(symbol, period="6mo"):
+    """
+    Get cryptocurrency data using yfinance
+    period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        data = ticker.history(period=period)
+        return data
+    except Exception as e:
+        print(f"Error fetching {symbol} data: {e}")
+        return None
+
+def create_crypto_chart(data, symbol, title):
+    """Create an interactive candlestick chart with volume"""
+    if data is None or data.empty:
+        return None
+    
+    # Create subplots
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.1,
+        subplot_titles=(f'{title} Price', 'Volume'),
+        row_width=[0.3, 0.7]
+    )
+    
+    # Candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name='Price'
+        ),
+        row=1, col=1
+    )
+    
+    # Volume chart
+    colors = ['red' if data['Close'][i] < data['Open'][i] else 'green' for i in range(len(data))]
+    fig.add_trace(
+        go.Bar(
+            x=data.index,
+            y=data['Volume'],
+            name='Volume',
+            marker_color=colors
+        ),
+        row=2, col=1
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title=f'{title} Chart',
+        xaxis_title='Date',
+        yaxis_title='Price (USD)',
+        height=600,
+        showlegend=False,
+        template='plotly_white',
+        xaxis_rangeslider_visible=False
+    )
+    
+    # Update yaxis labels
+    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    
+    return fig
+
+def get_crypto_price_change(data):
+    """Calculate price change percentage"""
+    if data is None or data.empty or len(data) < 2:
+        return 0, 0
+    
+    current_price = data['Close'].iloc[-1]
+    previous_price = data['Close'].iloc[-2]
+    
+    price_change = current_price - previous_price
+    price_change_pct = (price_change / previous_price) * 100
+    
+    return price_change, price_change_pct
+
+def render_crypto_dashboard():
+    """Render BTC and ETH charts with real-time data"""
+    st.title("📊 Live Crypto Charts")
+    st.markdown("---")
+    
+    # Period selection
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        period = st.selectbox(
+            "Chart Period",
+            ["1mo", "3mo", "6mo", "1y", "2y"],
+            index=2,
+            key="chart_period"
+        )
+    with col2:
+        if st.button("🔄 Refresh Data", use_container_width=True):
+            # Clear cached data to force refresh
+            st.session_state.btc_data = None
+            st.session_state.eth_data = None
+            st.session_state.last_chart_update = None
+            st.rerun()
+    
+    with col3:
+        if st.session_state.last_chart_update:
+            st.caption(f"Last updated: {st.session_state.last_chart_update}")
+    
+    # Fetch data with caching
+    if st.session_state.btc_data is None or st.session_state.eth_data is None:
+        with st.spinner("Fetching latest crypto data..."):
+            st.session_state.btc_data = get_crypto_data("BTC-USD", period)
+            st.session_state.eth_data = get_crypto_data("ETH-USD", period)
+            st.session_state.last_chart_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Display price cards
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.session_state.btc_data is not None and not st.session_state.btc_data.empty:
+            btc_change, btc_change_pct = get_crypto_price_change(st.session_state.btc_data)
+            btc_color = "green" if btc_change >= 0 else "red"
+            st.metric(
+                "Bitcoin (BTC)",
+                f"${st.session_state.btc_data['Close'].iloc[-1]:,.2f}",
+                f"{btc_change_pct:+.2f}%",
+                delta_color="normal"
+            )
+    
+    with col2:
+        if st.session_state.eth_data is not None and not st.session_state.eth_data.empty:
+            eth_change, eth_change_pct = get_crypto_price_change(st.session_state.eth_data)
+            eth_color = "green" if eth_change >= 0 else "red"
+            st.metric(
+                "Ethereum (ETH)",
+                f"${st.session_state.eth_data['Close'].iloc[-1]:,.2f}",
+                f"{eth_change_pct:+.2f}%",
+                delta_color="normal"
+            )
+    
+    st.markdown("---")
+    
+    # Display charts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.session_state.btc_data is not None and not st.session_state.btc_data.empty:
+            btc_chart = create_crypto_chart(st.session_state.btc_data, "BTC-USD", "Bitcoin")
+            if btc_chart:
+                st.plotly_chart(btc_chart, use_container_width=True)
+        else:
+            st.error("Failed to load Bitcoin data")
+    
+    with col2:
+        if st.session_state.eth_data is not None and not st.session_state.eth_data.empty:
+            eth_chart = create_crypto_chart(st.session_state.eth_data, "ETH-USD", "Ethereum")
+            if eth_chart:
+                st.plotly_chart(eth_chart, use_container_width=True)
+        else:
+            st.error("Failed to load Ethereum data")
+    
+    # Additional market data
+    st.markdown("---")
+    st.subheader("📈 Market Overview")
+    
+    if st.session_state.btc_data is not None and st.session_state.eth_data is not None:
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if not st.session_state.btc_data.empty:
+                btc_high = st.session_state.btc_data['High'].max()
+                st.metric("BTC All-Time High (Period)", f"${btc_high:,.2f}")
+        
+        with col2:
+            if not st.session_state.btc_data.empty:
+                btc_low = st.session_state.btc_data['Low'].min()
+                st.metric("BTC All-Time Low (Period)", f"${btc_low:,.2f}")
+        
+        with col3:
+            if not st.session_state.eth_data.empty:
+                eth_high = st.session_state.eth_data['High'].max()
+                st.metric("ETH All-Time High (Period)", f"${eth_high:,.2f}")
+        
+        with col4:
+            if not st.session_state.eth_data.empty:
+                eth_low = st.session_state.eth_data['Low'].min()
+                st.metric("ETH All-Time Low (Period)", f"${eth_low:,.2f}")
 
 # -------------------------
 # SECURE USER MANAGEMENT WITH PERSISTENCE - COMPLETE VERSION
@@ -1513,7 +1714,8 @@ def render_premium_signal_dashboard():
         nav_options = {
             "📈 Signal Dashboard": "main",
             "📝 Edit Signals": "notes", 
-            "⚙️ Admin Settings": "settings"
+            "⚙️ Admin Settings": "settings",
+            "📊 Crypto Charts": "crypto"  # NEW: Added crypto charts to navigation
         }
         
         for label, view in nav_options.items():
@@ -1548,6 +1750,8 @@ def render_premium_signal_dashboard():
         render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_admin_account_settings()
+    elif current_view == 'crypto':  # NEW: Crypto charts view
+        render_crypto_dashboard()
     else:
         render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -1909,17 +2113,17 @@ def render_user_dashboard():
         
         # Navigation - SIMPLIFIED FOR USERS
         st.subheader("📊 Navigation")
-        if st.button("📈 View Signals", use_container_width=True, key="nav_main"):
-            st.session_state.dashboard_view = 'main'
-            st.rerun()
+        nav_options = {
+            "📈 View Signals": "main",
+            "📋 Strategy Details": "notes",
+            "⚙️ Account Settings": "settings",
+            "📊 Crypto Charts": "crypto"  # NEW: Added crypto charts to user navigation
+        }
         
-        if st.button("📋 Strategy Details", use_container_width=True, key="nav_notes"):
-            st.session_state.dashboard_view = 'notes'
-            st.rerun()
-        
-        if st.button("⚙️ Account Settings", use_container_width=True, key="nav_settings"):
-            st.session_state.dashboard_view = 'settings'
-            st.rerun()
+        for label, view in nav_options.items():
+            if st.button(label, use_container_width=True, key=f"user_nav_{view}"):
+                st.session_state.dashboard_view = view
+                st.rerun()
         
         st.markdown("---")
         
@@ -1947,6 +2151,8 @@ def render_user_dashboard():
         render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_user_account_settings()
+    elif current_view == 'crypto':  # NEW: Crypto charts view for users
+        render_crypto_dashboard()
     else:
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -2237,6 +2443,10 @@ def render_premium_sidebar_options():
     
     if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_settings"):
         st.session_state.dashboard_view = "settings"
+        st.rerun()
+    
+    if st.button("📊 Crypto Charts", use_container_width=True, key="premium_crypto"):  # NEW: Crypto charts button
+        st.session_state.dashboard_view = "crypto"
         st.rerun()
     
     if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_refresh"):
