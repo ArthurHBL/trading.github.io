@@ -13,10 +13,6 @@ import numpy as np
 import shutil
 import io
 import base64
-import yfinance as yf
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import requests
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -62,16 +58,6 @@ def init_session():
     # NEW: Admin dashboard selection
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None  # 'admin' or 'premium'
-    # NEW: Chart data caching
-    if 'btc_data' not in st.session_state:
-        st.session_state.btc_data = None
-    if 'eth_data' not in st.session_state:
-        st.session_state.eth_data = None
-    if 'last_chart_update' not in st.session_state:
-        st.session_state.last_chart_update = None
-    # NEW: Chart type selection
-    if 'chart_type' not in st.session_state:
-        st.session_state.chart_type = 'candlestick'  # 'candlestick' or 'line'
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -265,331 +251,6 @@ def check_email_quality(email):
         issues.append("✅ Email appears valid")
     
     return issues
-
-# -------------------------
-# TRADINGVIEW-STYLE CHARTS WITH LIGHTWEIGHT CHARTS
-# -------------------------
-def get_crypto_data(symbol, period="6mo"):
-    """
-    Get cryptocurrency data using yfinance
-    period: 1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max
-    """
-    try:
-        ticker = yf.Ticker(symbol)
-        data = ticker.history(period=period)
-        return data
-    except Exception as e:
-        print(f"Error fetching {symbol} data: {e}")
-        return None
-
-def prepare_chart_data(data, symbol):
-    """Prepare data for TradingView-style charts"""
-    if data is None or data.empty:
-        return None
-    
-    # Reset index to get Date as a column
-    data_reset = data.reset_index()
-    
-    # Convert to list of dictionaries for easier processing
-    chart_data = []
-    for idx, row in data_reset.iterrows():
-        chart_data.append({
-            'time': row['Date'].strftime('%Y-%m-%d'),
-            'open': float(row['Open']),
-            'high': float(row['High']),
-            'low': float(row['Low']),
-            'close': float(row['Close']),
-            'volume': float(row['Volume'])
-        })
-    
-    return chart_data
-
-def render_tradingview_chart(chart_data, symbol, title, chart_type='candlestick'):
-    """Render TradingView-style chart using Lightweight Charts"""
-    
-    if chart_data is None or len(chart_data) == 0:
-        st.error(f"No data available for {title}")
-        return
-    
-    # Convert data to JSON
-    data_json = json.dumps(chart_data)
-    
-    # Chart configuration
-    chart_config = {
-        "data": data_json,
-        "symbol": symbol,
-        "title": title,
-        "chartType": chart_type,
-        "width": "100%",
-        "height": 500
-    }
-    
-    # HTML and JavaScript for the chart
-    chart_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script type="text/javascript" src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                background: #1e1e1e;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            }}
-            #chart-container {{
-                width: 100%;
-                height: {chart_config['height']}px;
-                border-radius: 8px;
-                overflow: hidden;
-            }}
-            .chart-title {{
-                color: #ffffff;
-                font-size: 18px;
-                font-weight: bold;
-                padding: 10px;
-                background: #2d2d2d;
-                margin: 0;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="chart-title">{title} - {chart_type.title()} Chart</div>
-        <div id="chart-container"></div>
-        
-        <script type="text/javascript">
-            const chartData = {data_json};
-            
-            // Create the chart
-            const chartContainer = document.getElementById('chart-container');
-            const chart = LightweightCharts.createChart(chartContainer, {{
-                width: chartContainer.clientWidth,
-                height: {chart_config['height']},
-                layout: {{
-                    backgroundColor: '#1e1e1e',
-                    textColor: '#d1d4dc',
-                }},
-                grid: {{
-                    vertLines: {{
-                        color: '#2d2d2d',
-                    }},
-                    horzLines: {{
-                        color: '#2d2d2d',
-                    }},
-                }},
-                crosshair: {{
-                    mode: LightweightCharts.CrosshairMode.Normal,
-                }},
-                rightPriceScale: {{
-                    borderColor: '#2d2d2d',
-                }},
-                timeScale: {{
-                    borderColor: '#2d2d2d',
-                    timeVisible: true,
-                    secondsVisible: false,
-                }},
-                handleScroll: {{
-                    mouseWheel: true,
-                    pressedMouseMove: true,
-                }},
-                handleScale: {{
-                    axisPressedMouseMove: true,
-                    mouseWheel: true,
-                    pinch: true,
-                }},
-            }});
-            
-            // Add the main series based on chart type
-            let mainSeries;
-            if ('{chart_type}' === 'candlestick') {{
-                mainSeries = chart.addCandlestickSeries({{
-                    upColor: '#26a69a',
-                    downColor: '#ef5350',
-                    borderDownColor: '#ef5350',
-                    borderUpColor: '#26a69a',
-                    wickDownColor: '#ef5350',
-                    wickUpColor: '#26a69a',
-                }});
-            }} else {{
-                mainSeries = chart.addLineSeries({{
-                    color: '#2962FF',
-                    lineWidth: 2,
-                }});
-            }}
-            
-            // Format data for the chart
-            const formattedData = chartData.map(item => ({{
-                time: item.time,
-                open: item.open,
-                high: item.high,
-                low: item.low,
-                close: item.close,
-                value: item.close, // For line series
-            }}));
-            
-            mainSeries.setData(formattedData);
-            
-            // Add volume series
-            const volumeSeries = chart.addHistogramSeries({{
-                color: '#26a69a',
-                priceFormat: {{
-                    type: 'volume',
-                }},
-                priceScaleId: '', // Place volume in separate scale
-                scaleMargins: {{
-                    top: 0.8,
-                    bottom: 0,
-                }},
-            }});
-            
-            const volumeData = chartData.map(item => ({{
-                time: item.time,
-                value: item.volume,
-                color: item.close >= item.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
-            }}));
-            
-            volumeSeries.setData(volumeData);
-            
-            // Handle window resize
-            window.addEventListener('resize', () => {{
-                chart.applyOptions({{ width: chartContainer.clientWidth }});
-            }});
-            
-            // Add price line
-            chart.subscribeCrosshairMove(param => {{
-                // You can add crosshair functionality here if needed
-            }});
-        </script>
-    </body>
-    </html>
-    """
-    
-    # Display the chart
-    st.components.v1.html(chart_html, height=550, scrolling=False)
-
-def get_crypto_price_change(data):
-    """Calculate price change percentage"""
-    if data is None or data.empty or len(data) < 2:
-        return 0, 0
-    
-    current_price = data['Close'].iloc[-1]
-    previous_price = data['Close'].iloc[-2]
-    
-    price_change = current_price - previous_price
-    price_change_pct = (price_change / previous_price) * 100
-    
-    return price_change, price_change_pct
-
-def render_crypto_dashboard():
-    """Render BTC and ETH charts with TradingView-style interface"""
-    st.title("📊 Live Crypto Charts - TradingView Style")
-    st.markdown("---")
-    
-    # Chart controls
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
-    with col1:
-        period = st.selectbox(
-            "Chart Period",
-            ["1mo", "3mo", "6mo", "1y", "2y"],
-            index=2,
-            key="chart_period"
-        )
-    with col2:
-        chart_type = st.selectbox(
-            "Chart Type",
-            ["candlestick", "line"],
-            index=0,
-            key="chart_type"
-        )
-    with col3:
-        if st.button("🔄 Refresh Data", use_container_width=True):
-            # Clear cached data to force refresh
-            st.session_state.btc_data = None
-            st.session_state.eth_data = None
-            st.session_state.last_chart_update = None
-            st.rerun()
-    
-    with col4:
-        if st.session_state.last_chart_update:
-            st.caption(f"Last updated: {st.session_state.last_chart_update}")
-    
-    # Fetch data with caching
-    if st.session_state.btc_data is None or st.session_state.eth_data is None:
-        with st.spinner("Fetching latest crypto data..."):
-            st.session_state.btc_data = get_crypto_data("BTC-USD", period)
-            st.session_state.eth_data = get_crypto_data("ETH-USD", period)
-            st.session_state.last_chart_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    # Display price cards
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.session_state.btc_data is not None and not st.session_state.btc_data.empty:
-            btc_change, btc_change_pct = get_crypto_price_change(st.session_state.btc_data)
-            st.metric(
-                "Bitcoin (BTC)",
-                f"${st.session_state.btc_data['Close'].iloc[-1]:,.2f}",
-                f"{btc_change_pct:+.2f}%",
-                delta_color="normal"
-            )
-    
-    with col2:
-        if st.session_state.eth_data is not None and not st.session_state.eth_data.empty:
-            eth_change, eth_change_pct = get_crypto_price_change(st.session_state.eth_data)
-            st.metric(
-                "Ethereum (ETH)",
-                f"${st.session_state.eth_data['Close'].iloc[-1]:,.2f}",
-                f"{eth_change_pct:+.2f}%",
-                delta_color="normal"
-            )
-    
-    st.markdown("---")
-    
-    # Prepare chart data
-    btc_chart_data = prepare_chart_data(st.session_state.btc_data, "BTC-USD")
-    eth_chart_data = prepare_chart_data(st.session_state.eth_data, "ETH-USD")
-    
-    # Display charts in tabs for better mobile experience
-    tab1, tab2 = st.tabs(["💰 Bitcoin (BTC)", "💎 Ethereum (ETH)"])
-    
-    with tab1:
-        if btc_chart_data:
-            render_tradingview_chart(btc_chart_data, "BTC-USD", "Bitcoin", chart_type)
-        else:
-            st.error("Failed to load Bitcoin data")
-    
-    with tab2:
-        if eth_chart_data:
-            render_tradingview_chart(eth_chart_data, "ETH-USD", "Ethereum", chart_type)
-        else:
-            st.error("Failed to load Ethereum data")
-    
-    # Additional market data
-    st.markdown("---")
-    st.subheader("📈 Market Overview")
-    
-    if st.session_state.btc_data is not None and st.session_state.eth_data is not None:
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if not st.session_state.btc_data.empty:
-                btc_high = st.session_state.btc_data['High'].max()
-                st.metric("BTC All-Time High (Period)", f"${btc_high:,.2f}")
-        
-        with col2:
-            if not st.session_state.btc_data.empty:
-                btc_low = st.session_state.btc_data['Low'].min()
-                st.metric("BTC All-Time Low (Period)", f"${btc_low:,.2f}")
-        
-        with col3:
-            if not st.session_state.eth_data.empty:
-                eth_high = st.session_state.eth_data['High'].max()
-                st.metric("ETH All-Time High (Period)", f"${eth_high:,.2f}")
-        
-        with col4:
-            if not st.session_state.eth_data.empty:
-                eth_low = st.session_state.eth_data['Low'].min()
-                st.metric("ETH All-Time Low (Period)", f"${eth_low:,.2f}")
 
 # -------------------------
 # SECURE USER MANAGEMENT WITH PERSISTENCE - COMPLETE VERSION
@@ -1852,8 +1513,7 @@ def render_premium_signal_dashboard():
         nav_options = {
             "📈 Signal Dashboard": "main",
             "📝 Edit Signals": "notes", 
-            "⚙️ Admin Settings": "settings",
-            "📊 Crypto Charts": "crypto"  # NEW: Added crypto charts to navigation
+            "⚙️ Admin Settings": "settings"
         }
         
         for label, view in nav_options.items():
@@ -1888,8 +1548,6 @@ def render_premium_signal_dashboard():
         render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_admin_account_settings()
-    elif current_view == 'crypto':  # NEW: Crypto charts view
-        render_crypto_dashboard()
     else:
         render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -2251,17 +1909,17 @@ def render_user_dashboard():
         
         # Navigation - SIMPLIFIED FOR USERS
         st.subheader("📊 Navigation")
-        nav_options = {
-            "📈 View Signals": "main",
-            "📋 Strategy Details": "notes",
-            "⚙️ Account Settings": "settings",
-            "📊 Crypto Charts": "crypto"  # NEW: Added crypto charts to user navigation
-        }
+        if st.button("📈 View Signals", use_container_width=True, key="nav_main"):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
         
-        for label, view in nav_options.items():
-            if st.button(label, use_container_width=True, key=f"user_nav_{view}"):
-                st.session_state.dashboard_view = view
-                st.rerun()
+        if st.button("📋 Strategy Details", use_container_width=True, key="nav_notes"):
+            st.session_state.dashboard_view = 'notes'
+            st.rerun()
+        
+        if st.button("⚙️ Account Settings", use_container_width=True, key="nav_settings"):
+            st.session_state.dashboard_view = 'settings'
+            st.rerun()
         
         st.markdown("---")
         
@@ -2289,8 +1947,6 @@ def render_user_dashboard():
         render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
     elif current_view == 'settings':
         render_user_account_settings()
-    elif current_view == 'crypto':  # NEW: Crypto charts view for users
-        render_crypto_dashboard()
     else:
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
@@ -2581,10 +2237,6 @@ def render_premium_sidebar_options():
     
     if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_settings"):
         st.session_state.dashboard_view = "settings"
-        st.rerun()
-    
-    if st.button("📊 Crypto Charts", use_container_width=True, key="premium_crypto"):  # NEW: Crypto charts button
-        st.session_state.dashboard_view = "crypto"
         st.rerun()
     
     if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_refresh"):
