@@ -4,4 +4,4 @@ pandas
 openpyxl
 reportlab
 ccxt
-supabase
+yfinance
