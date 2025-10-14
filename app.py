@@ -16,6 +16,7 @@ import base64
 import yfinance as yf
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import requests
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -68,6 +69,9 @@ def init_session():
         st.session_state.eth_data = None
     if 'last_chart_update' not in st.session_state:
         st.session_state.last_chart_update = None
+    # NEW: Chart type selection
+    if 'chart_type' not in st.session_state:
+        st.session_state.chart_type = 'candlestick'  # 'candlestick' or 'line'
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -263,7 +267,7 @@ def check_email_quality(email):
     return issues
 
 # -------------------------
-# CRYPTO CHART FUNCTIONS
+# TRADINGVIEW-STYLE CHARTS WITH LIGHTWEIGHT CHARTS
 # -------------------------
 def get_crypto_data(symbol, period="6mo"):
     """
@@ -278,61 +282,190 @@ def get_crypto_data(symbol, period="6mo"):
         print(f"Error fetching {symbol} data: {e}")
         return None
 
-def create_crypto_chart(data, symbol, title):
-    """Create an interactive candlestick chart with volume"""
+def prepare_chart_data(data, symbol):
+    """Prepare data for TradingView-style charts"""
     if data is None or data.empty:
         return None
     
-    # Create subplots
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.1,
-        subplot_titles=(f'{title} Price', 'Volume'),
-        row_width=[0.3, 0.7]
-    )
+    # Reset index to get Date as a column
+    data_reset = data.reset_index()
     
-    # Candlestick chart
-    fig.add_trace(
-        go.Candlestick(
-            x=data.index,
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name='Price'
-        ),
-        row=1, col=1
-    )
+    # Convert to list of dictionaries for easier processing
+    chart_data = []
+    for idx, row in data_reset.iterrows():
+        chart_data.append({
+            'time': row['Date'].strftime('%Y-%m-%d'),
+            'open': float(row['Open']),
+            'high': float(row['High']),
+            'low': float(row['Low']),
+            'close': float(row['Close']),
+            'volume': float(row['Volume'])
+        })
     
-    # Volume chart
-    colors = ['red' if data['Close'][i] < data['Open'][i] else 'green' for i in range(len(data))]
-    fig.add_trace(
-        go.Bar(
-            x=data.index,
-            y=data['Volume'],
-            name='Volume',
-            marker_color=colors
-        ),
-        row=2, col=1
-    )
+    return chart_data
+
+def render_tradingview_chart(chart_data, symbol, title, chart_type='candlestick'):
+    """Render TradingView-style chart using Lightweight Charts"""
     
-    # Update layout
-    fig.update_layout(
-        title=f'{title} Chart',
-        xaxis_title='Date',
-        yaxis_title='Price (USD)',
-        height=600,
-        showlegend=False,
-        template='plotly_white',
-        xaxis_rangeslider_visible=False
-    )
+    if chart_data is None or len(chart_data) == 0:
+        st.error(f"No data available for {title}")
+        return
     
-    # Update yaxis labels
-    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    # Convert data to JSON
+    data_json = json.dumps(chart_data)
     
-    return fig
+    # Chart configuration
+    chart_config = {
+        "data": data_json,
+        "symbol": symbol,
+        "title": title,
+        "chartType": chart_type,
+        "width": "100%",
+        "height": 500
+    }
+    
+    # HTML and JavaScript for the chart
+    chart_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <script type="text/javascript" src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+        <style>
+            body {{
+                margin: 0;
+                padding: 0;
+                background: #1e1e1e;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }}
+            #chart-container {{
+                width: 100%;
+                height: {chart_config['height']}px;
+                border-radius: 8px;
+                overflow: hidden;
+            }}
+            .chart-title {{
+                color: #ffffff;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 10px;
+                background: #2d2d2d;
+                margin: 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="chart-title">{title} - {chart_type.title()} Chart</div>
+        <div id="chart-container"></div>
+        
+        <script type="text/javascript">
+            const chartData = {data_json};
+            
+            // Create the chart
+            const chartContainer = document.getElementById('chart-container');
+            const chart = LightweightCharts.createChart(chartContainer, {{
+                width: chartContainer.clientWidth,
+                height: {chart_config['height']},
+                layout: {{
+                    backgroundColor: '#1e1e1e',
+                    textColor: '#d1d4dc',
+                }},
+                grid: {{
+                    vertLines: {{
+                        color: '#2d2d2d',
+                    }},
+                    horzLines: {{
+                        color: '#2d2d2d',
+                    }},
+                }},
+                crosshair: {{
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                }},
+                rightPriceScale: {{
+                    borderColor: '#2d2d2d',
+                }},
+                timeScale: {{
+                    borderColor: '#2d2d2d',
+                    timeVisible: true,
+                    secondsVisible: false,
+                }},
+                handleScroll: {{
+                    mouseWheel: true,
+                    pressedMouseMove: true,
+                }},
+                handleScale: {{
+                    axisPressedMouseMove: true,
+                    mouseWheel: true,
+                    pinch: true,
+                }},
+            }});
+            
+            // Add the main series based on chart type
+            let mainSeries;
+            if ('{chart_type}' === 'candlestick') {{
+                mainSeries = chart.addCandlestickSeries({{
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderDownColor: '#ef5350',
+                    borderUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                }});
+            }} else {{
+                mainSeries = chart.addLineSeries({{
+                    color: '#2962FF',
+                    lineWidth: 2,
+                }});
+            }}
+            
+            // Format data for the chart
+            const formattedData = chartData.map(item => ({{
+                time: item.time,
+                open: item.open,
+                high: item.high,
+                low: item.low,
+                close: item.close,
+                value: item.close, // For line series
+            }}));
+            
+            mainSeries.setData(formattedData);
+            
+            // Add volume series
+            const volumeSeries = chart.addHistogramSeries({{
+                color: '#26a69a',
+                priceFormat: {{
+                    type: 'volume',
+                }},
+                priceScaleId: '', // Place volume in separate scale
+                scaleMargins: {{
+                    top: 0.8,
+                    bottom: 0,
+                }},
+            }});
+            
+            const volumeData = chartData.map(item => ({{
+                time: item.time,
+                value: item.volume,
+                color: item.close >= item.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
+            }}));
+            
+            volumeSeries.setData(volumeData);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {{
+                chart.applyOptions({{ width: chartContainer.clientWidth }});
+            }});
+            
+            // Add price line
+            chart.subscribeCrosshairMove(param => {{
+                // You can add crosshair functionality here if needed
+            }});
+        </script>
+    </body>
+    </html>
+    """
+    
+    # Display the chart
+    st.components.v1.html(chart_html, height=550, scrolling=False)
 
 def get_crypto_price_change(data):
     """Calculate price change percentage"""
@@ -348,12 +481,12 @@ def get_crypto_price_change(data):
     return price_change, price_change_pct
 
 def render_crypto_dashboard():
-    """Render BTC and ETH charts with real-time data"""
-    st.title("📊 Live Crypto Charts")
+    """Render BTC and ETH charts with TradingView-style interface"""
+    st.title("📊 Live Crypto Charts - TradingView Style")
     st.markdown("---")
     
-    # Period selection
-    col1, col2, col3 = st.columns([1, 1, 2])
+    # Chart controls
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 2])
     with col1:
         period = st.selectbox(
             "Chart Period",
@@ -362,6 +495,13 @@ def render_crypto_dashboard():
             key="chart_period"
         )
     with col2:
+        chart_type = st.selectbox(
+            "Chart Type",
+            ["candlestick", "line"],
+            index=0,
+            key="chart_type"
+        )
+    with col3:
         if st.button("🔄 Refresh Data", use_container_width=True):
             # Clear cached data to force refresh
             st.session_state.btc_data = None
@@ -369,7 +509,7 @@ def render_crypto_dashboard():
             st.session_state.last_chart_update = None
             st.rerun()
     
-    with col3:
+    with col4:
         if st.session_state.last_chart_update:
             st.caption(f"Last updated: {st.session_state.last_chart_update}")
     
@@ -386,7 +526,6 @@ def render_crypto_dashboard():
     with col1:
         if st.session_state.btc_data is not None and not st.session_state.btc_data.empty:
             btc_change, btc_change_pct = get_crypto_price_change(st.session_state.btc_data)
-            btc_color = "green" if btc_change >= 0 else "red"
             st.metric(
                 "Bitcoin (BTC)",
                 f"${st.session_state.btc_data['Close'].iloc[-1]:,.2f}",
@@ -397,7 +536,6 @@ def render_crypto_dashboard():
     with col2:
         if st.session_state.eth_data is not None and not st.session_state.eth_data.empty:
             eth_change, eth_change_pct = get_crypto_price_change(st.session_state.eth_data)
-            eth_color = "green" if eth_change >= 0 else "red"
             st.metric(
                 "Ethereum (ETH)",
                 f"${st.session_state.eth_data['Close'].iloc[-1]:,.2f}",
@@ -407,22 +545,22 @@ def render_crypto_dashboard():
     
     st.markdown("---")
     
-    # Display charts
-    col1, col2 = st.columns(2)
+    # Prepare chart data
+    btc_chart_data = prepare_chart_data(st.session_state.btc_data, "BTC-USD")
+    eth_chart_data = prepare_chart_data(st.session_state.eth_data, "ETH-USD")
     
-    with col1:
-        if st.session_state.btc_data is not None and not st.session_state.btc_data.empty:
-            btc_chart = create_crypto_chart(st.session_state.btc_data, "BTC-USD", "Bitcoin")
-            if btc_chart:
-                st.plotly_chart(btc_chart, use_container_width=True)
+    # Display charts in tabs for better mobile experience
+    tab1, tab2 = st.tabs(["💰 Bitcoin (BTC)", "💎 Ethereum (ETH)"])
+    
+    with tab1:
+        if btc_chart_data:
+            render_tradingview_chart(btc_chart_data, "BTC-USD", "Bitcoin", chart_type)
         else:
             st.error("Failed to load Bitcoin data")
     
-    with col2:
-        if st.session_state.eth_data is not None and not st.session_state.eth_data.empty:
-            eth_chart = create_crypto_chart(st.session_state.eth_data, "ETH-USD", "Ethereum")
-            if eth_chart:
-                st.plotly_chart(eth_chart, use_container_width=True)
+    with tab2:
+        if eth_chart_data:
+            render_tradingview_chart(eth_chart_data, "ETH-USD", "Ethereum", chart_type)
         else:
             st.error("Failed to load Ethereum data")
     
