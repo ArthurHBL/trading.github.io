@@ -1,4 +1,3 @@
-# app.py - DUAL DASHBOARD SYSTEM WITH ALL RICH FEATURES
 import streamlit as st
 import hashlib
 import json
@@ -1803,19 +1802,49 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD - READ ONLY FOR REGULAR USERS
+# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY)
 # -------------------------
 def render_user_dashboard():
-    """User dashboard - READ ONLY for regular users"""
+    """User dashboard - READ ONLY for regular users with same layout as admin"""
     user = st.session_state.user
+    
+    # User-specific data isolation
+    user_data_key = f"{user['username']}_data"
+    if user_data_key not in st.session_state.user_data:
+        st.session_state.user_data[user_data_key] = {
+            "saved_analyses": {},
+            "favorite_strategies": [],
+            "performance_history": [],
+            "recent_signals": []
+        }
+    
+    data = st.session_state.user_data[user_data_key]
     
     # Load strategy analyses data
     strategy_data = load_data()
     
     # Date navigation
-    analysis_date = st.session_state.get('analysis_date', date.today())
+    start_date = date(2025, 8, 9)
     
-    # Clean sidebar with 5-day cycle system - READ ONLY
+    # Get date from URL parameters or session state
+    query_params = st.query_params
+    current_date_str = query_params.get("date", "")
+    
+    if current_date_str:
+        try:
+            analysis_date = datetime.strptime(current_date_str, "%Y-%m-%d").date()
+            st.session_state.analysis_date = analysis_date
+        except ValueError:
+            analysis_date = st.session_state.get('analysis_date', date.today())
+    else:
+        analysis_date = st.session_state.get('analysis_date', date.today())
+    
+    # Ensure analysis_date is not before start_date
+    if analysis_date < start_date:
+        analysis_date = start_date
+        st.session_state.analysis_date = start_date
+    
+    # Clean sidebar with 5-day cycle system - SAME AS ADMIN BUT READ ONLY
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
         
@@ -1831,44 +1860,101 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # 5-Day Cycle System
+        # 5-Day Cycle System - SAME AS ADMIN
+        st.subheader("📅 5-Day Cycle")
+        
+        # Display current date
+        st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
+        
+        # Date navigation - READ ONLY FOR USERS
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
+                new_date = analysis_date - timedelta(days=1)
+                if new_date >= start_date:
+                    st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+                    st.rerun()
+                else:
+                    st.warning("Cannot go before start date")
+        with col2:
+            if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
+                new_date = analysis_date + timedelta(days=1)
+                st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+                st.rerun()
+        
+        # Quick date reset button
+        if st.button("🔄 Today", use_container_width=True, key="today_btn"):
+            st.query_params["date"] = date.today().strftime("%Y-%m-%d")
+            st.rerun()
+        
+        # Cycle information
         daily_strategies, cycle_day = get_daily_strategies(analysis_date)
         st.info(f"**Day {cycle_day} of 5-day cycle**")
         
         # Today's focus strategies
-        st.markdown("**Today's Signals:**")
+        st.markdown("**Today's Focus:**")
         for strategy in daily_strategies:
             st.write(f"• {strategy}")
         
         st.markdown("---")
         
-        # Navigation
-        if st.button("📈 View Signals", use_container_width=True):
+        # Strategy selection - READ ONLY
+        selected_strategy = st.selectbox(
+            "Choose Strategy to View:", 
+            daily_strategies,
+            key="strategy_selector"
+        )
+        
+        st.markdown("---")
+        
+        # Navigation - SIMPLIFIED FOR USERS
+        st.subheader("📊 Navigation")
+        if st.button("📈 View Signals", use_container_width=True, key="nav_main"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
         
-        if st.button("⚙️ Account Settings", use_container_width=True):
+        if st.button("📋 Strategy Details", use_container_width=True, key="nav_notes"):
+            st.session_state.dashboard_view = 'notes'
+            st.rerun()
+        
+        if st.button("⚙️ Account Settings", use_container_width=True, key="nav_settings"):
             st.session_state.dashboard_view = 'settings'
             st.rerun()
         
+        st.markdown("---")
+        
+        # Export functionality - READ ONLY
+        csv_bytes = generate_filtered_csv_bytes(strategy_data, analysis_date)
+        st.subheader("📄 Export Data")
+        st.download_button(
+            label="⬇️ Download CSV",
+            data=csv_bytes,
+            file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
+        st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
     
-    # Main dashboard content - READ ONLY for users
+    # Main dashboard content - READ ONLY for users but same layout as admin
     current_view = st.session_state.get('dashboard_view', 'main')
     
-    if current_view == 'settings':
-        render_account_settings()
+    if current_view == 'notes':
+        render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
+    elif current_view == 'settings':
+        render_user_account_settings()
     else:
-        render_user_trading_dashboard(user, analysis_date)
+        render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
-def render_user_trading_dashboard(user, analysis_date):
-    """Clean trading dashboard - READ ONLY for regular users"""
+def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
+    """User trading dashboard - SAME LAYOUT AS ADMIN BUT READ ONLY"""
     st.title("📊 Trading Signal Dashboard")
     
-    # Welcome message
+    # Welcome message - DIFFERENT FROM ADMIN
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
         if user['plan'] == 'premium':
@@ -1876,7 +1962,6 @@ def render_user_trading_dashboard(user, analysis_date):
         else:
             st.info(f"👋 Welcome, **{user['name']}**! You have access to {Config.PLANS[user['plan']]['strategies']} strategies.")
     with col2:
-        daily_strategies, cycle_day = get_daily_strategies(analysis_date)
         st.metric("Cycle Day", f"Day {cycle_day}/5")
     with col3:
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
@@ -1884,39 +1969,144 @@ def render_user_trading_dashboard(user, analysis_date):
     
     st.markdown("---")
     
-    # Display today's strategies
-    st.subheader("📋 Today's Trading Signals")
+    # Progress indicators for today's strategies - SAME AS ADMIN BUT READ ONLY
+    st.subheader("📋 Today's Strategy Progress")
+    cols = st.columns(3)
     
     strategy_data = load_data()
-    
-    for strategy in daily_strategies:
-        with st.expander(f"📊 {strategy}", expanded=False):
-            existing_data = strategy_data.get(strategy, {})
-            if existing_data:
-                # Get strategy-level info from first indicator
-                first_indicator = next(iter(existing_data.values()), {})
-                strategy_tag = first_indicator.get("strategy_tag", "Neutral")
-                strategy_type = first_indicator.get("momentum", "Not Defined")
-                modified_by = first_indicator.get("modified_by", "System")
-                
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.info(f"**Signal:** {strategy_tag}")
-                with col2:
-                    st.info(f"**Type:** {strategy_type}")
-                with col3:
-                    st.info(f"**Provider:** {modified_by}")
-                
-                # Display analysis note
-                note = first_indicator.get("note", "")
-                if note:
-                    st.text_area("Analysis:", value=note, height=100, disabled=True, key=f"note_{strategy}")
-                else:
-                    st.info("No analysis available yet.")
+    for i, strategy in enumerate(daily_strategies):
+        with cols[i]:
+            strategy_completed = False
+            if strategy in strategy_data:
+                # Check if all indicators have notes for today
+                today_indicators = [ind for ind, meta in strategy_data[strategy].items() 
+                                  if meta.get("analysis_date") == analysis_date.strftime("%Y-%m-%d")]
+                if len(today_indicators) == len(STRATEGIES[strategy]):
+                    strategy_completed = True
+            
+            if strategy_completed:
+                st.success(f"✅ {strategy}")
+            elif strategy == selected_strategy:
+                st.info(f"📊 {strategy} (viewing)")
             else:
-                st.warning("No signal data available for this strategy yet.")
+                st.warning(f"🕓 {strategy}")
+    
+    st.markdown("---")
+    
+    # Selected strategy analysis - READ ONLY FOR USERS
+    st.subheader(f"🔍 {selected_strategy} Analysis - VIEW MODE")
+    
+    # Display existing analysis - NO EDITING CAPABILITY
+    strategy_data = load_data()
+    existing_data = strategy_data.get(selected_strategy, {})
+    
+    if existing_data:
+        # Get strategy-level info from first indicator
+        first_indicator = next(iter(existing_data.values()), {})
+        strategy_tag = first_indicator.get("strategy_tag", "Neutral")
+        strategy_type = first_indicator.get("momentum", "Not Defined")
+        modified_by = first_indicator.get("modified_by", "System")
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.info(f"**Signal:** {strategy_tag}")
+        with col2:
+            st.info(f"**Type:** {strategy_type}")
+        with col3:
+            st.info(f"**Provider:** {modified_by}")
+        
+        # Display analysis note - READ ONLY
+        note = first_indicator.get("note", "")
+        if note:
+            st.text_area("Analysis:", value=note, height=100, disabled=True, key=f"note_{selected_strategy}")
+        else:
+            st.info("No analysis available yet for this strategy.")
+    else:
+        st.warning("No signal data available for this strategy yet.")
+    
+    st.markdown("---")
+    
+    # Detailed view button - LEADS TO READ-ONLY DETAILED VIEW
+    if st.button("📋 View Detailed Analysis", use_container_width=True):
+        st.session_state.dashboard_view = 'notes'
+        st.rerun()
+    
+    # Recent activity - READ ONLY
+    if data.get('saved_analyses'):
+        st.markdown("---")
+        st.subheader("📜 Your Recent Views")
+        for strategy, analysis in list(data['saved_analyses'].items())[-3:]:
+            with st.expander(f"{strategy} - {analysis['timestamp'].strftime('%H:%M')}"):
+                st.write(f"**Tag:** {analysis['tag']} | **Type:** {analysis['type']}")
+                st.write(analysis.get('note', 'No notes'))
 
-def render_account_settings():
+def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
+    """Detailed strategy notes interface - READ ONLY FOR USERS"""
+    st.title("📋 Strategy Details")
+    
+    # Header with cycle info
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.subheader(f"Day {cycle_day} - {selected_strategy} - VIEW MODE")
+    with col2:
+        st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
+    with col3:
+        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Display existing data - READ ONLY
+    existing_data = strategy_data.get(selected_strategy, {})
+    
+    if not existing_data:
+        st.warning("No signal data available for this strategy yet.")
+        return
+    
+    # Strategy-level info
+    first_indicator = next(iter(existing_data.values()), {})
+    strategy_tag = first_indicator.get("strategy_tag", "Neutral")
+    strategy_type = first_indicator.get("momentum", "Not Defined")
+    modified_by = first_indicator.get("modified_by", "System")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.info(f"**Overall Signal:** {strategy_tag}")
+    with col2:
+        st.info(f"**Strategy Type:** {strategy_type}")
+    
+    st.markdown("---")
+    
+    # Indicator analysis in columns - READ ONLY
+    st.subheader("📊 Indicator Analysis")
+    
+    indicators = STRATEGIES[selected_strategy]
+    col_objs = st.columns(3)
+    
+    for i, indicator in enumerate(indicators):
+        col = col_objs[i % 3]
+        existing = existing_data.get(indicator, {})
+        note = existing.get("note", "")
+        status = existing.get("status", "Open")
+        
+        with col.expander(f"**{indicator}** - {status}", expanded=False):
+            if note:
+                st.text_area(
+                    f"Analysis", 
+                    value=note, 
+                    height=120, 
+                    disabled=True,
+                    key=f"view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}"
+                )
+            else:
+                st.info("No analysis available for this indicator.")
+            
+            st.caption(f"Status: {status}")
+            if existing.get("last_modified"):
+                st.caption(f"Last updated: {existing['last_modified'][:16]}")
+
+def render_user_account_settings():
     """User account settings"""
     st.title("⚙️ Account Settings")
     
