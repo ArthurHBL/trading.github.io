@@ -88,6 +88,8 @@ def init_session():
         st.session_state.supabase = init_supabase()
     if 'strategy_data' not in st.session_state:
         st.session_state.strategy_data = {}
+    if 'user_manager' not in st.session_state:
+        st.session_state.user_manager = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -664,8 +666,11 @@ class UserManager:
         
         return stats
 
-# Initialize user manager
-user_manager = UserManager()
+# Initialize user manager when needed
+def get_user_manager():
+    if st.session_state.user_manager is None:
+        st.session_state.user_manager = UserManager()
+    return st.session_state.user_manager
 
 # -------------------------
 # AUTHENTICATION UI
@@ -692,7 +697,7 @@ def render_login():
                 if not username or not password:
                     st.error("Please enter both username and password")
                 else:
-                    success, result = user_manager.authenticate_user(username, password)
+                    success, result = get_user_manager().authenticate_user(username, password)
                     if success:
                         st.session_state.user = result
                         st.session_state.strategy_data = load_data()
@@ -723,11 +728,11 @@ def render_login():
                 if not all([new_username, new_password, new_name, new_email]):
                     st.error("Please fill in all fields")
                 else:
-                    success, message = user_manager.register_user(new_username, new_password, new_name, new_email, plan_choice)
+                    success, message = get_user_manager().register_user(new_username, new_password, new_name, new_email, plan_choice)
                     if success:
                         st.success(message)
                         # Auto-login after registration
-                        success, result = user_manager.authenticate_user(new_username, new_password)
+                        success, result = get_user_manager().authenticate_user(new_username, new_password)
                         if success:
                             st.session_state.user = result
                             st.session_state.strategy_data = load_data()
@@ -837,7 +842,7 @@ def render_user_dashboard():
         if st.button("🚪 Secure Logout", use_container_width=True):
             # Save user data before logout
             save_user_data(user['username'], data)
-            user_manager.logout(user['username'])
+            get_user_manager().logout(user['username'])
             st.session_state.user = None
             st.rerun()
     
@@ -1073,7 +1078,7 @@ def render_account_settings():
                     elif len(new_password) < 8:
                         st.error("Password must be at least 8 characters")
                     else:
-                        success, message = user_manager.change_password(user['username'], new_password)
+                        success, message = get_user_manager().change_password(user['username'], new_password)
                         if success:
                             st.success(message)
                             st.session_state.show_password_change = False
@@ -1096,9 +1101,9 @@ def render_account_settings():
                     st.success("Current Plan")
                 elif plan_id == "premium" and current_plan == "trial":
                     if st.button(f"Upgrade to {plan_config['name']}", key=f"upgrade_{plan_id}", use_container_width=True):
-                        success, message = user_manager.update_user_plan(user['username'], plan_id)
+                        success, message = get_user_manager().update_user_plan(user['username'], plan_id)
                         if success:
-                            st.session_state.user = user_manager.users[user['username']]
+                            st.session_state.user = get_user_manager().users[user['username']]
                             st.success(message)
                             st.rerun()
                         else:
@@ -1133,9 +1138,9 @@ def render_upgrade_plans():
                     st.write(f"✅ {plan_config['duration']} Days Access")
                     
                     if st.button(f"Upgrade to {plan_config['name']}", key=f"upgrade_{plan_id}", use_container_width=True):
-                        success, message = user_manager.update_user_plan(user['username'], plan_id)
+                        success, message = get_user_manager().update_user_plan(user['username'], plan_id)
                         if success:
-                            st.session_state.user = user_manager.users[user['username']]
+                            st.session_state.user = get_user_manager().users[user['username']]
                             st.success(f"🎉 {message}")
                             time.sleep(2)
                             st.session_state.show_upgrade = False
@@ -1196,7 +1201,7 @@ def render_admin_dashboard():
 
 def render_admin_overview():
     """Admin overview dashboard"""
-    stats = user_manager.get_user_stats()
+    stats = get_user_manager().get_user_stats()
     
     # Key metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -1221,7 +1226,7 @@ def render_admin_overview():
     st.subheader("Recent Activity")
     
     # Recent registrations
-    recent_registrations = user_manager.analytics.get("user_registrations", [])[-10:]
+    recent_registrations = get_user_manager().analytics.get("user_registrations", [])[-10:]
     if recent_registrations:
         st.write("**Recent Registrations:**")
         for reg in reversed(recent_registrations):
@@ -1230,7 +1235,7 @@ def render_admin_overview():
         st.info("No recent registrations")
     
     # Recent logins
-    recent_logins = user_manager.analytics.get("login_history", [])[-10:]
+    recent_logins = get_user_manager().analytics.get("login_history", [])[-10:]
     if recent_logins:
         st.write("**Recent Logins:**")
         for login in reversed(recent_logins):
@@ -1243,7 +1248,7 @@ def render_admin_overview():
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🔄 Refresh Data", use_container_width=True):
-            user_manager.load_data()
+            get_user_manager().load_data()
             st.rerun()
     with col2:
         if st.button("📧 Email Verification", use_container_width=True):
@@ -1271,7 +1276,7 @@ def render_user_management():
     st.markdown("---")
     
     users_to_display = []
-    for username, user_data in user_manager.users.items():
+    for username, user_data in get_user_manager().users.items():
         if search_term and search_term.lower() not in username.lower() and search_term.lower() not in user_data.get('email', '').lower() and search_term.lower() not in user_data.get('name', '').lower():
             continue
         
@@ -1321,7 +1326,7 @@ def render_user_management():
                 
                 if new_plan != user_data.get('plan'):
                     if st.button("Update Plan", key=f"update_plan_{username}"):
-                        success, message = user_manager.update_user_plan(username, new_plan)
+                        success, message = get_user_manager().update_user_plan(username, new_plan)
                         if success:
                             st.success(message)
                             st.rerun()
@@ -1331,7 +1336,7 @@ def render_user_management():
                 # Email verification
                 if not user_data.get('email_verified'):
                     if st.button("Verify Email", key=f"verify_{username}"):
-                        success, message = user_manager.verify_email(username, st.session_state.user['username'], "Manual verification by admin")
+                        success, message = get_user_manager().verify_email(username, st.session_state.user['username'], "Manual verification by admin")
                         if success:
                             st.success(message)
                             st.rerun()
@@ -1352,7 +1357,7 @@ def render_user_management():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("✅ Confirm Delete", use_container_width=True):
-                success, message = user_manager.delete_user(st.session_state.user_to_delete)
+                success, message = get_user_manager().delete_user(st.session_state.user_to_delete)
                 if success:
                     st.success(message)
                 else:
@@ -1370,7 +1375,7 @@ def render_admin_analytics():
     """Admin analytics dashboard"""
     st.subheader("📈 System Analytics")
     
-    analytics = user_manager.analytics
+    analytics = get_user_manager().analytics
     
     # Key metrics
     col1, col2, col3 = st.columns(3)
@@ -1402,7 +1407,7 @@ def render_admin_analytics():
     st.subheader("Plan Distribution")
     
     plan_counts = {}
-    for user in user_manager.users.values():
+    for user in get_user_manager().users.values():
         plan = user.get('plan', 'unknown')
         plan_counts[plan] = plan_counts.get(plan, 0) + 1
     
@@ -1465,7 +1470,7 @@ def render_email_verification():
         st.write("**Users Pending Email Verification**")
         
         pending_users = []
-        for username, user_data in user_manager.users.items():
+        for username, user_data in get_user_manager().users.items():
             if not user_data.get('email_verified') and user_data.get('plan') != 'admin':
                 pending_users.append((username, user_data))
         
@@ -1486,7 +1491,7 @@ def render_email_verification():
                     
                     with col2:
                         if st.button("Verify Email", key=f"verify_pending_{username}", use_container_width=True):
-                            success, message = user_manager.verify_email(username, st.session_state.user['username'], "Manual verification by admin")
+                            success, message = get_user_manager().verify_email(username, st.session_state.user['username'], "Manual verification by admin")
                             if success:
                                 st.success(message)
                                 st.rerun()
@@ -1501,7 +1506,7 @@ def render_email_verification():
         st.write("**Verified Users**")
         
         verified_users = []
-        for username, user_data in user_manager.users.items():
+        for username, user_data in get_user_manager().users.items():
             if user_data.get('email_verified'):
                 verified_users.append((username, user_data))
         
