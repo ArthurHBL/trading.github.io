@@ -65,6 +65,13 @@ def init_session():
         st.session_state.current_gallery_view = 'gallery'
     if 'selected_image' not in st.session_state:
         st.session_state.selected_image = None
+    # NEW: Gallery security confirmation states
+    if 'show_clear_gallery_confirmation' not in st.session_state:
+        st.session_state.show_clear_gallery_confirmation = False
+    if 'clear_gallery_password' not in st.session_state:
+        st.session_state.clear_gallery_password = ''
+    if 'clear_gallery_final_confirmation' not in st.session_state:
+        st.session_state.clear_gallery_final_confirmation = False
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1055,7 +1062,7 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# IMAGE GALLERY FORUM - NEW INTEGRATION
+# IMAGE GALLERY FORUM - NEW INTEGRATION WITH SECURITY IMPROVEMENTS
 # -------------------------
 def render_image_gallery():
     """Professional image gallery forum integrated into the dashboard"""
@@ -1153,7 +1160,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery"""
+    """Display the image gallery with enhanced security for admin clear function"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1274,12 +1281,129 @@ def render_gallery_display():
                 
                 st.markdown("</div>", unsafe_allow_html=True)
     
-    # Clear gallery button (admin only)
+    # Clear gallery button (admin only) - WITH ENHANCED SECURITY
     if st.session_state.user['plan'] == 'admin':
         st.markdown("---")
-        if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True):
-            st.session_state.uploaded_images = []
-            st.success("Gallery cleared!")
+        
+        # Show different interfaces based on confirmation state
+        if st.session_state.show_clear_gallery_confirmation:
+            render_clear_gallery_confirmation()
+        elif st.session_state.clear_gallery_final_confirmation:
+            render_clear_gallery_final_confirmation()
+        else:
+            if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True, key="clear_gallery_init"):
+                st.session_state.show_clear_gallery_confirmation = True
+                st.rerun()
+
+def render_clear_gallery_confirmation():
+    """First step: Admin password confirmation"""
+    st.warning("🔐 **ADMIN SECURITY CHECK REQUIRED**")
+    
+    with st.container():
+        st.markdown("""
+        <div style="
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        ">
+        <h4 style="color: #856404; margin-top: 0;">⚠️ SECURITY ACTION REQUIRED</h4>
+        <p style="color: #856404; margin-bottom: 0;">
+        You are about to delete ALL images from the gallery. This action cannot be undone.
+        </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Password confirmation
+    admin_password = st.text_input(
+        "Enter Admin Password to Continue:",
+        type="password",
+        placeholder="Enter your admin password...",
+        key="clear_gallery_password"
+    )
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("✅ Confirm Password", use_container_width=True, key="confirm_password"):
+            if admin_password:
+                # Verify admin password
+                success, message = user_manager.authenticate("admin", admin_password)
+                if success:
+                    st.session_state.clear_gallery_password = admin_password
+                    st.session_state.show_clear_gallery_confirmation = False
+                    st.session_state.clear_gallery_final_confirmation = True
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid admin password. Please try again.")
+            else:
+                st.error("❌ Please enter your admin password.")
+    
+    with col2:
+        if st.button("❌ Cancel", use_container_width=True, key="cancel_password"):
+            st.session_state.show_clear_gallery_confirmation = False
+            st.session_state.clear_gallery_password = ''
+            st.rerun()
+
+def render_clear_gallery_final_confirmation():
+    """Second step: Final confirmation after password verification"""
+    st.error("🚨 **FINAL CONFIRMATION REQUIRED**")
+    
+    with st.container():
+        st.markdown("""
+        <div style="
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        ">
+        <h4 style="color: #721c24; margin-top: 0;">🚨 DESTRUCTIVE ACTION</h4>
+        <p style="color: #721c24; margin-bottom: 10px;">
+        <strong>You are about to permanently delete ALL images from the gallery!</strong>
+        </p>
+        <ul style="color: #721c24;">
+            <li>This action cannot be undone</li>
+            <li>All uploaded images will be permanently removed</li>
+            <li>All likes and comments will be lost</li>
+            <li>This affects ALL users in the system</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Final confirmation with typed confirmation
+    confirmation_text = st.text_input(
+        "Type 'DELETE ALL IMAGES' to confirm:",
+        placeholder="Type exactly: DELETE ALL IMAGES",
+        key="final_confirmation_text"
+    )
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔥 PERMANENTLY DELETE ALL IMAGES", use_container_width=True, 
+                    type="primary", key="final_delete"):
+            if confirmation_text == "DELETE ALL IMAGES":
+                # Perform the deletion
+                image_count = len(st.session_state.uploaded_images)
+                st.session_state.uploaded_images = []
+                
+                # Reset confirmation states
+                st.session_state.show_clear_gallery_confirmation = False
+                st.session_state.clear_gallery_password = ''
+                st.session_state.clear_gallery_final_confirmation = False
+                
+                st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
+                st.rerun()
+            else:
+                st.error("❌ Confirmation text does not match. Please type 'DELETE ALL IMAGES' exactly.")
+    
+    with col2:
+        if st.button("🛑 Cancel Deletion", use_container_width=True, key="final_cancel"):
+            st.session_state.show_clear_gallery_confirmation = False
+            st.session_state.clear_gallery_password = ''
+            st.session_state.clear_gallery_final_confirmation = False
             st.rerun()
 
 # -------------------------
@@ -2616,6 +2740,20 @@ def main():
     }
     .stButton button {
         width: 100%;
+    }
+    .security-warning {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .security-danger {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
     }
     </style>
     """, unsafe_allow_html=True)
