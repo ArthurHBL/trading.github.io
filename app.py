@@ -1238,8 +1238,8 @@ def render_gallery_display():
                 '>
                 """, unsafe_allow_html=True)
                 
-                # Display image
-                st.image(img_data['bytes'], use_column_width=True)
+                # Display image - FIXED: use_container_width instead of use_column_width
+                st.image(img_data['bytes'], use_container_width=True)
                 
                 # Image info
                 st.markdown(f"**{img_data['name']}**")
