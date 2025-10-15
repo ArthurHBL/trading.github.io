@@ -68,6 +68,10 @@ def init_session():
     # NEW: Gallery clearance confirmation
     if 'show_clear_gallery_confirmation' not in st.session_state:
         st.session_state.show_clear_gallery_confirmation = False
+    if 'clear_gallery_password' not in st.session_state:
+        st.session_state.clear_gallery_password = ""
+    if 'clear_gallery_error' not in st.session_state:
+        st.session_state.clear_gallery_error = ""
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1286,13 +1290,15 @@ def render_gallery_display():
         else:
             if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True):
                 st.session_state.show_clear_gallery_confirmation = True
+                st.session_state.clear_gallery_password = ""
+                st.session_state.clear_gallery_error = ""
                 st.rerun()
 
 def render_clear_gallery_confirmation():
     """Security confirmation for clearing gallery - REQUIRES ADMIN PASSWORD"""
     st.warning("🚨 **SECURITY CONFIRMATION REQUIRED**")
     
-    with st.form("clear_gallery_confirmation"):
+    with st.container():
         st.error("""
         ⚠️ **DESTRUCTIVE ACTION - IRREVERSIBLE**
         
@@ -1306,41 +1312,46 @@ def render_clear_gallery_confirmation():
             "🔒 Enter Admin Password to Confirm:",
             type="password",
             placeholder="Enter your admin password to proceed",
-            help="This is a security measure to prevent accidental data loss"
+            help="This is a security measure to prevent accidental data loss",
+            value=st.session_state.clear_gallery_password,
+            key="admin_password_input"
         )
+        
+        # Update session state with password input
+        st.session_state.clear_gallery_password = admin_password
         
         col1, col2 = st.columns(2)
         with col1:
-            confirm_clear = st.form_submit_button(
-                "✅ CONFIRM DELETE ALL IMAGES", 
-                use_container_width=True,
-                type="primary"
-            )
-        with col2:
-            cancel_clear = st.form_submit_button(
-                "❌ CANCEL", 
-                use_container_width=True
-            )
-        
-        if cancel_clear:
-            st.session_state.show_clear_gallery_confirmation = False
-            st.rerun()
-        
-        if confirm_clear:
-            if not admin_password:
-                st.error("❌ Please enter your admin password to confirm")
-            else:
-                # Verify admin password
-                success, message = user_manager.authenticate("admin", admin_password)
-                if success:
-                    # Password verified - proceed with deletion
-                    image_count = len(st.session_state.uploaded_images)
-                    st.session_state.uploaded_images = []
-                    st.session_state.show_clear_gallery_confirmation = False
-                    st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
+            if st.button("✅ CONFIRM DELETE ALL IMAGES", use_container_width=True, type="primary"):
+                if not admin_password:
+                    st.session_state.clear_gallery_error = "❌ Please enter your admin password to confirm"
                     st.rerun()
                 else:
-                    st.error("❌ Invalid admin password. Gallery clearance cancelled.")
+                    # Verify admin password
+                    success, message = user_manager.authenticate("admin", admin_password)
+                    if success:
+                        # Password verified - proceed with deletion
+                        image_count = len(st.session_state.uploaded_images)
+                        st.session_state.uploaded_images = []
+                        st.session_state.show_clear_gallery_confirmation = False
+                        st.session_state.clear_gallery_password = ""
+                        st.session_state.clear_gallery_error = ""
+                        st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
+                        st.rerun()
+                    else:
+                        st.session_state.clear_gallery_error = "❌ Invalid admin password. Gallery clearance cancelled."
+                        st.rerun()
+        
+        with col2:
+            if st.button("❌ CANCEL", use_container_width=True):
+                st.session_state.show_clear_gallery_confirmation = False
+                st.session_state.clear_gallery_password = ""
+                st.session_state.clear_gallery_error = ""
+                st.rerun()
+        
+        # Display error message if any
+        if st.session_state.clear_gallery_error:
+            st.error(st.session_state.clear_gallery_error)
 
 # -------------------------
 # ENHANCED ADMIN DASHBOARD SELECTION INTERFACE
