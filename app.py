@@ -65,6 +65,9 @@ def init_session():
         st.session_state.uploaded_images = {}
     if 'current_image_uploads' not in st.session_state:
         st.session_state.current_image_uploads = {}
+    # NEW: Image deletion state
+    if 'image_to_delete' not in st.session_state:
+        st.session_state.image_to_delete = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -110,7 +113,7 @@ class Config:
     }
 
 # -------------------------
-# IMAGE MANAGEMENT SYSTEM
+# FIXED IMAGE MANAGEMENT SYSTEM
 # -------------------------
 def ensure_image_upload_dir():
     """Ensure the image upload directory exists"""
@@ -167,12 +170,15 @@ def save_uploaded_file(uploaded_file, strategy_name, indicator_name, analysis_da
         "uploaded_by": st.session_state.user['username'] if st.session_state.user else "unknown"
     }
     
-    # Store in session state
+    # Store in session state with unique key
     key = f"{strategy_name}__{indicator_name}__{analysis_date}"
     if key not in st.session_state.uploaded_images:
         st.session_state.uploaded_images[key] = []
     
-    st.session_state.uploaded_images[key].append(image_metadata)
+    # Check if this exact file already exists to prevent duplicates
+    existing_filenames = [img['filename'] for img in st.session_state.uploaded_images[key]]
+    if unique_filename not in existing_filenames:
+        st.session_state.uploaded_images[key].append(image_metadata)
     
     return image_metadata
 
@@ -187,23 +193,26 @@ def delete_uploaded_image(strategy_name, indicator_name, analysis_date, filename
     
     if key in st.session_state.uploaded_images:
         # Remove from metadata
+        original_count = len(st.session_state.uploaded_images[key])
         st.session_state.uploaded_images[key] = [
             img for img in st.session_state.uploaded_images[key] 
             if img['filename'] != filename
         ]
         
-        # Remove empty keys
-        if not st.session_state.uploaded_images[key]:
-            del st.session_state.uploaded_images[key]
-        
-        # Delete physical file
-        file_path = os.path.join(Config.IMAGE_UPLOAD_DIR, filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"✅ Deleted image file: {file_path}")
-        
-        save_uploaded_images()
-        return True
+        # Check if actually removed
+        if len(st.session_state.uploaded_images[key]) < original_count:
+            # Remove empty keys
+            if not st.session_state.uploaded_images[key]:
+                del st.session_state.uploaded_images[key]
+            
+            # Delete physical file
+            file_path = os.path.join(Config.IMAGE_UPLOAD_DIR, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                print(f"✅ Deleted image file: {file_path}")
+            
+            save_uploaded_images()
+            return True
     
     return False
 
@@ -240,20 +249,37 @@ def display_uploaded_images(strategy_name, indicator_name, analysis_date):
             if (st.session_state.user and 
                 (st.session_state.user['plan'] == 'admin' or 
                  st.session_state.user['username'] == image_meta['uploaded_by'])):
-                if st.button("🗑️ Delete", key=f"delete_img_{i}_{strategy_name}_{indicator_name}"):
-                    if delete_uploaded_image(strategy_name, indicator_name, analysis_date, image_meta['filename']):
-                        st.success("✅ Image deleted!")
-                        st.rerun()
+                delete_key = f"delete_img_{strategy_name}_{indicator_name}_{i}"
+                if st.button("🗑️ Delete", key=delete_key):
+                    st.session_state.image_to_delete = {
+                        'strategy': strategy_name,
+                        'indicator': indicator_name,
+                        'date': analysis_date,
+                        'filename': image_meta['filename']
+                    }
+                    st.rerun()
+    
+    # Handle image deletion after rendering
+    if st.session_state.image_to_delete:
+        img_info = st.session_state.image_to_delete
+        if delete_uploaded_image(img_info['strategy'], img_info['indicator'], img_info['date'], img_info['filename']):
+            st.success("✅ Image deleted!")
+            st.session_state.image_to_delete = None
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("❌ Failed to delete image")
+            st.session_state.image_to_delete = None
 
 def render_image_upload_interface(strategy_name, indicator_name, analysis_date):
     """Render image upload interface for a specific strategy and indicator"""
-    st.subheader("🖼️ Upload Analysis Images")
+    st.subheader("🖼️ Upload Strategy Images")
     
     uploaded_files = st.file_uploader(
         "Choose image files",
         type=Config.ALLOWED_IMAGE_TYPES,
         accept_multiple_files=True,
-        key=f"uploader_{strategy_name}_{indicator_name}"
+        key=f"uploader_{strategy_name}_{indicator_name}_{uuid.uuid4().hex[:8]}"
     )
     
     if uploaded_files:
@@ -277,6 +303,7 @@ def render_image_upload_interface(strategy_name, indicator_name, analysis_date):
         
         # Save images metadata
         save_uploaded_images()
+        st.rerun()
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -1596,7 +1623,7 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH IMAGE UPLOAD
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH FIXED IMAGE UPLOAD
 # -------------------------
 def render_premium_signal_dashboard():
     """Premium signal dashboard where admin can edit signals with full functionality including image uploads"""
@@ -1811,8 +1838,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     
     st.markdown("---")
     
-    # Image upload section
-    st.subheader("🖼️ Upload Strategy Images")
+    # SINGLE Image upload section - REMOVED DUPLICATE
     render_image_upload_interface(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
     
     # Display existing images
@@ -1899,13 +1925,8 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     key=key_status
                 )
                 
-                # Image upload for each indicator
-                st.markdown("---")
-                st.write("**Attach Images:**")
-                render_image_upload_interface(selected_strategy, indicator, analysis_date.strftime("%Y-%m-%d"))
-                
-                # Display existing images for this indicator
-                display_uploaded_images(selected_strategy, indicator, analysis_date.strftime("%Y-%m-%d"))
+                # Image upload for each indicator - REMOVED DUPLICATE
+                # Images are handled in the main upload interface only
         
         # Save button
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True)
