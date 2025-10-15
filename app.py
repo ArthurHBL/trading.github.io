@@ -13,6 +13,7 @@ import numpy as np
 import shutil
 import io
 import base64
+from PIL import Image
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -55,9 +56,15 @@ def init_session():
         st.session_state.user_to_manage = None
     if 'admin_email_verification_view' not in st.session_state:
         st.session_state.admin_email_verification_view = 'pending'
-    # NEW: Admin dashboard selection
     if 'admin_dashboard_mode' not in st.session_state:
-        st.session_state.admin_dashboard_mode = None  # 'admin' or 'premium'
+        st.session_state.admin_dashboard_mode = None
+    # NEW: Image gallery session state
+    if 'uploaded_images' not in st.session_state:
+        st.session_state.uploaded_images = []
+    if 'current_gallery_view' not in st.session_state:
+        st.session_state.current_gallery_view = 'gallery'
+    if 'selected_image' not in st.session_state:
+        st.session_state.selected_image = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1048,6 +1055,234 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
+# IMAGE GALLERY FORUM - NEW INTEGRATION
+# -------------------------
+def render_image_gallery():
+    """Professional image gallery forum integrated into the dashboard"""
+    
+    # Gallery header
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights with the community.")
+    
+    # Gallery navigation
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        gallery_view = st.radio(
+            "Gallery View:",
+            ["📸 Image Gallery", "⬆️ Upload Images"],
+            horizontal=True,
+            key="gallery_nav"
+        )
+    
+    st.markdown("---")
+    
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+    else:
+        render_gallery_display()
+
+def render_image_uploader():
+    """Image upload interface"""
+    st.subheader("📤 Upload New Images")
+    
+    with st.container():
+        st.markdown("""
+        <div style="
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 15px;
+            margin-bottom: 2rem;
+        ">
+        <h3 style="color: white; margin-bottom: 1rem;">🎯 Upload Trading Analysis Images</h3>
+        <p style="margin-bottom: 0;">Share your trading charts, technical analysis, market insights, and strategy screenshots.</p>
+        <p><strong>Supported formats:</strong> PNG, JPG, JPEG, GIF, BMP</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Image upload section
+    uploaded_files = st.file_uploader(
+        "Choose trading analysis images to upload", 
+        type=['png', 'jpg', 'jpeg', 'gif', 'bmp'], 
+        accept_multiple_files=True,
+        help="Select one or more trading charts or analysis images"
+    )
+    
+    # Image description
+    image_description = st.text_area(
+        "Image Description (Optional):",
+        placeholder="Describe what this image shows - e.g., 'BTC/USD 4H chart with RSI divergence', 'ETH breakout analysis', etc.",
+        height=100
+    )
+    
+    # Strategy tagging
+    strategy_tags = st.multiselect(
+        "Related Strategies (Optional):",
+        list(STRATEGIES.keys()),
+        help="Tag relevant trading strategies"
+    )
+    
+    # Upload button
+    if st.button("🚀 Upload Images to Gallery", use_container_width=True):
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                # Read image file
+                image = Image.open(uploaded_file)
+                
+                # Convert to bytes for display
+                img_bytes = io.BytesIO()
+                image.save(img_bytes, format=image.format if image.format else 'PNG')
+                
+                # Store in session state
+                st.session_state.uploaded_images.append({
+                    'name': uploaded_file.name,
+                    'image': image,
+                    'bytes': img_bytes.getvalue(),
+                    'format': image.format if image.format else 'PNG',
+                    'description': image_description,
+                    'strategies': strategy_tags,
+                    'uploaded_by': st.session_state.user['username'],
+                    'timestamp': datetime.now().isoformat(),
+                    'likes': 0,
+                    'comments': []
+                })
+            
+            st.success(f"✅ Successfully uploaded {len(uploaded_files)} image(s) to the gallery!")
+            st.balloons()
+        else:
+            st.warning("⚠️ Please select at least one image to upload.")
+
+def render_gallery_display():
+    """Display the image gallery"""
+    st.subheader("📸 Community Image Gallery")
+    
+    if not st.session_state.uploaded_images:
+        st.info("""
+        🖼️ **No images in the gallery yet!**
+        
+        Be the first to share your trading analysis! Upload charts, technical analysis screenshots, 
+        or market insights to help the community learn and discuss trading strategies.
+        """)
+        return
+    
+    # Gallery stats
+    total_images = len(st.session_state.uploaded_images)
+    your_images = len([img for img in st.session_state.uploaded_images if img['uploaded_by'] == st.session_state.user['username']])
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Images", total_images)
+    with col2:
+        st.metric("Your Images", your_images)
+    with col3:
+        total_likes = sum(img['likes'] for img in st.session_state.uploaded_images)
+        st.metric("Total Likes", total_likes)
+    
+    st.markdown("---")
+    
+    # Filter options
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filter_author = st.selectbox(
+            "Filter by Author:",
+            ["All Authors"] + list(set(img['uploaded_by'] for img in st.session_state.uploaded_images))
+        )
+    with col2:
+        filter_strategy = st.selectbox(
+            "Filter by Strategy:",
+            ["All Strategies"] + list(STRATEGIES.keys())
+        )
+    with col3:
+        sort_by = st.selectbox(
+            "Sort by:",
+            ["Newest First", "Oldest First", "Most Liked"]
+        )
+    
+    # Apply filters
+    filtered_images = st.session_state.uploaded_images.copy()
+    
+    if filter_author != "All Authors":
+        filtered_images = [img for img in filtered_images if img['uploaded_by'] == filter_author]
+    
+    if filter_strategy != "All Strategies":
+        filtered_images = [img for img in filtered_images if filter_strategy in img.get('strategies', [])]
+    
+    # Apply sorting
+    if sort_by == "Newest First":
+        filtered_images.sort(key=lambda x: x['timestamp'], reverse=True)
+    elif sort_by == "Oldest First":
+        filtered_images.sort(key=lambda x: x['timestamp'])
+    elif sort_by == "Most Liked":
+        filtered_images.sort(key=lambda x: x['likes'], reverse=True)
+    
+    # Display gallery in a grid
+    if not filtered_images:
+        st.warning("No images match your current filters.")
+        return
+    
+    # Create responsive grid
+    cols = st.columns(3)
+    
+    for i, img_data in enumerate(filtered_images):
+        with cols[i % 3]:
+            with st.container():
+                st.markdown("""
+                <div style='
+                    border: 1px solid #ddd;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background: white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s;
+                '>
+                """, unsafe_allow_html=True)
+                
+                # Display image
+                st.image(img_data['bytes'], use_column_width=True)
+                
+                # Image info
+                st.markdown(f"**{img_data['name']}**")
+                
+                # Description
+                if img_data.get('description'):
+                    st.caption(img_data['description'])
+                
+                # Strategy tags
+                if img_data.get('strategies'):
+                    tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
+                    st.markdown(f"**Strategies:** {tags}")
+                
+                # Author and date
+                st.caption(f"By: **{img_data['uploaded_by']}**")
+                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+                st.caption(f"Uploaded: {upload_time}")
+                
+                # Interaction buttons
+                col_a, col_b, col_c = st.columns([1, 1, 2])
+                with col_a:
+                    if st.button("❤️", key=f"like_{i}", help="Like this image"):
+                        img_data['likes'] += 1
+                        st.rerun()
+                with col_b:
+                    st.write(f" {img_data['likes']}")
+                with col_c:
+                    # Download button
+                    b64_img = base64.b64encode(img_data['bytes']).decode()
+                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+    
+    # Clear gallery button (admin only)
+    if st.session_state.user['plan'] == 'admin':
+        st.markdown("---")
+        if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True):
+            st.session_state.uploaded_images = []
+            st.success("Gallery cleared!")
+            st.rerun()
+
+# -------------------------
 # ENHANCED ADMIN DASHBOARD SELECTION INTERFACE
 # -------------------------
 def render_admin_dashboard_selection():
@@ -1055,7 +1290,7 @@ def render_admin_dashboard_selection():
     st.title("👑 Admin Portal - Choose Dashboard")
     st.markdown("---")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.subheader("🛠️ Admin Management Dashboard")
@@ -1089,8 +1324,23 @@ def render_admin_dashboard_selection():
             st.session_state.admin_dashboard_mode = "premium"
             st.rerun()
     
+    with col3:
+        st.subheader("🖼️ Image Gallery Forum")
+        st.markdown("""
+        **Community Features:**
+        - Upload trading charts
+        - Share analysis images
+        - Community discussions
+        - Strategy visualization
+        - Market insights sharing
+        - Like and download images
+        """)
+        if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash"):
+            st.session_state.admin_dashboard_mode = "gallery"
+            st.rerun()
+    
     st.markdown("---")
-    st.info("💡 **Tip:** Use the Admin Dashboard for user management and the Premium Dashboard for signal editing and observation.")
+    st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
 # -------------------------
 # COMPLETE ADMIN MANAGEMENT DASHBOARD WITH ALL FEATURES
@@ -2156,13 +2406,15 @@ def render_admin_dashboard():
         current_mode = st.session_state.admin_dashboard_mode
         if current_mode == "admin":
             st.success("🛠️ Admin Management Mode")
-        else:
+        elif current_mode == "premium":
             st.success("📊 Premium Signal Mode")
+        else:
+            st.success("🖼️ Image Gallery Mode")
         
         # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
                         type="primary" if current_mode == "admin" else "secondary"):
@@ -2172,6 +2424,11 @@ def render_admin_dashboard():
             if st.button("📊 Premium", use_container_width=True,
                         type="primary" if current_mode == "premium" else "secondary"):
                 st.session_state.admin_dashboard_mode = "premium"
+                st.rerun()
+        with col3:
+            if st.button("🖼️ Gallery", use_container_width=True,
+                        type="primary" if current_mode == "gallery" else "secondary"):
+                st.session_state.admin_dashboard_mode = "gallery"
                 st.rerun()
         
         st.markdown("---")
@@ -2186,14 +2443,25 @@ def render_admin_dashboard():
         # Show different sidebar options based on mode
         if current_mode == "admin":
             render_admin_sidebar_options()
-        else:
+        elif current_mode == "premium":
             render_premium_sidebar_options()
+        else:
+            # Gallery mode - minimal sidebar
+            st.subheader("Gallery Actions")
+            if st.button("🖼️ View Gallery", use_container_width=True):
+                st.session_state.current_gallery_view = "gallery"
+                st.rerun()
+            if st.button("📤 Upload Images", use_container_width=True):
+                st.session_state.current_gallery_view = "upload"
+                st.rerun()
     
     # Main admin content based on selected mode
     if st.session_state.get('admin_dashboard_mode') == "admin":
         render_admin_management_dashboard()
-    else:
+    elif st.session_state.get('admin_dashboard_mode') == "premium":
         render_premium_signal_dashboard()
+    else:
+        render_image_gallery()
 
 def render_admin_sidebar_options():
     """Sidebar options for admin management mode"""
@@ -2293,6 +2561,13 @@ def main():
         margin: 0.5rem 0;
         background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
     }
+    .gallery-feature {
+        border: 2px solid #F59E0B;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+    }
     .verification-badge {
         font-size: 0.7rem !important;
         padding: 2px 8px !important;
@@ -2313,6 +2588,35 @@ def main():
         color: white;
         border-color: #B91C1C !important;
     }
+    .image-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 20px;
+    }
+    .image-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 10px;
+        width: 250px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        background-color: white;
+    }
+    .image-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .upload-section {
+        background-color: #f0f2f6;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+    }
+    .stButton button {
+        width: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
     
@@ -2322,7 +2626,11 @@ def main():
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            render_user_dashboard()
+            # For regular users, show either trading dashboard or gallery
+            if st.session_state.get('current_gallery_view') == 'gallery':
+                render_image_gallery()
+            else:
+                render_user_dashboard()
 
 if __name__ == "__main__":
     main()
