@@ -13,8 +13,6 @@ import numpy as np
 import shutil
 import io
 import base64
-from PIL import Image
-import mimetypes
 
 # -------------------------
 # SESSION MANAGEMENT
@@ -60,16 +58,6 @@ def init_session():
     # NEW: Admin dashboard selection
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None  # 'admin' or 'premium'
-    # NEW: Image upload states
-    if 'uploaded_images' not in st.session_state:
-        st.session_state.uploaded_images = {}
-    if 'current_image_uploads' not in st.session_state:
-        st.session_state.current_image_uploads = {}
-    # NEW: Image deletion states
-    if 'image_to_delete' not in st.session_state:
-        st.session_state.image_to_delete = None
-    if 'show_bulk_image_delete' not in st.session_state:
-        st.session_state.show_bulk_image_delete = False
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -82,13 +70,10 @@ def setup_data_persistence():
         user_manager.save_users()
         user_manager.save_analytics()
         
-        # Save strategy analyses data (including images)
+        # Save strategy analyses data
         try:
             strategy_data = load_data()
             save_data(strategy_data)
-            
-            # Save uploaded images metadata
-            save_uploaded_images()
         except Exception as e:
             print(f"⚠️ Error saving strategy data: {e}")
             
@@ -103,275 +88,11 @@ class Config:
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
     
-    # Image configuration
-    ALLOWED_IMAGE_TYPES = ["png", "jpg", "jpeg", "gif", "bmp", "webp"]
-    MAX_IMAGE_SIZE_MB = 5
-    IMAGE_UPLOAD_DIR = "uploaded_images"
-    
     # Simplified Subscription Plans - Only Trial and Premium
     PLANS = {
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
         "premium": {"name": "Premium Plan", "price": 79, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
-
-# -------------------------
-# FIXED IMAGE MANAGEMENT SYSTEM
-# -------------------------
-def ensure_image_upload_dir():
-    """Ensure the image upload directory exists"""
-    if not os.path.exists(Config.IMAGE_UPLOAD_DIR):
-        os.makedirs(Config.IMAGE_UPLOAD_DIR)
-        print(f"✅ Created image upload directory: {Config.IMAGE_UPLOAD_DIR}")
-
-def save_uploaded_images():
-    """Save uploaded images metadata to file"""
-    try:
-        with open("uploaded_images.json", "w", encoding="utf-8") as f:
-            json.dump(st.session_state.uploaded_images, f, indent=2, ensure_ascii=False)
-        print("✅ Saved uploaded images metadata")
-    except Exception as e:
-        print(f"❌ Error saving images metadata: {e}")
-
-def load_uploaded_images():
-    """Load uploaded images metadata from file"""
-    try:
-        if os.path.exists("uploaded_images.json"):
-            with open("uploaded_images.json", "r", encoding="utf-8") as f:
-                st.session_state.uploaded_images = json.load(f)
-            print(f"✅ Loaded {len(st.session_state.uploaded_images)} image records")
-        else:
-            st.session_state.uploaded_images = {}
-    except Exception as e:
-        print(f"❌ Error loading images metadata: {e}")
-        st.session_state.uploaded_images = {}
-
-def save_uploaded_file(uploaded_file, strategy_name, indicator_name, analysis_date):
-    """Save an uploaded file and return its metadata"""
-    ensure_image_upload_dir()
-    
-    # Generate unique filename
-    file_extension = uploaded_file.name.split('.')[-1].lower()
-    unique_filename = f"{strategy_name}_{indicator_name}_{analysis_date}_{uuid.uuid4().hex[:8]}.{file_extension}"
-    file_path = os.path.join(Config.IMAGE_UPLOAD_DIR, unique_filename)
-    
-    # Save file
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    
-    # Create metadata
-    image_metadata = {
-        "filename": unique_filename,
-        "original_name": uploaded_file.name,
-        "file_path": file_path,
-        "strategy": strategy_name,
-        "indicator": indicator_name,
-        "analysis_date": analysis_date,
-        "uploaded_at": datetime.now().isoformat(),
-        "file_size": uploaded_file.size,
-        "file_type": uploaded_file.type,
-        "uploaded_by": st.session_state.user['username'] if st.session_state.user else "unknown"
-    }
-    
-    # Store in session state
-    key = f"{strategy_name}__{indicator_name}__{analysis_date}"
-    if key not in st.session_state.uploaded_images:
-        st.session_state.uploaded_images[key] = []
-    
-    # Check for duplicates before adding
-    existing_filenames = [img['filename'] for img in st.session_state.uploaded_images[key]]
-    if unique_filename not in existing_filenames:
-        st.session_state.uploaded_images[key].append(image_metadata)
-    
-    return image_metadata
-
-def get_uploaded_images(strategy_name, indicator_name, analysis_date):
-    """Get uploaded images for a specific strategy, indicator, and date"""
-    key = f"{strategy_name}__{indicator_name}__{analysis_date}"
-    return st.session_state.uploaded_images.get(key, [])
-
-def delete_uploaded_image(strategy_name, indicator_name, analysis_date, filename):
-    """Delete an uploaded image"""
-    key = f"{strategy_name}__{indicator_name}__{analysis_date}"
-    
-    if key in st.session_state.uploaded_images:
-        # Remove from metadata
-        original_count = len(st.session_state.uploaded_images[key])
-        st.session_state.uploaded_images[key] = [
-            img for img in st.session_state.uploaded_images[key] 
-            if img['filename'] != filename
-        ]
-        
-        # Remove empty keys
-        if not st.session_state.uploaded_images[key]:
-            del st.session_state.uploaded_images[key]
-        
-        # Delete physical file
-        file_path = os.path.join(Config.IMAGE_UPLOAD_DIR, filename)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"✅ Deleted image file: {file_path}")
-        
-        save_uploaded_images()
-        return True
-    
-    return False
-
-def delete_all_strategy_images(strategy_name, analysis_date):
-    """Delete all images for a specific strategy and date"""
-    deleted_count = 0
-    keys_to_delete = []
-    
-    # Find all keys matching the strategy and date
-    for key in list(st.session_state.uploaded_images.keys()):
-        if key.startswith(f"{strategy_name}__") and key.endswith(f"__{analysis_date}"):
-            # Delete all files for this key
-            for image_meta in st.session_state.uploaded_images[key]:
-                file_path = os.path.join(Config.IMAGE_UPLOAD_DIR, image_meta['filename'])
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    deleted_count += 1
-            keys_to_delete.append(key)
-    
-    # Remove the keys from session state
-    for key in keys_to_delete:
-        del st.session_state.uploaded_images[key]
-    
-    save_uploaded_images()
-    return deleted_count
-
-def display_uploaded_images(strategy_name, indicator_name, analysis_date):
-    """Display uploaded images for a specific strategy and indicator"""
-    images = get_uploaded_images(strategy_name, indicator_name, analysis_date)
-    
-    if not images:
-        return
-    
-    st.subheader("📸 Attached Images")
-    
-    for i, image_meta in enumerate(images):
-        col1, col2 = st.columns([3, 1])
-        
-        with col1:
-            try:
-                # Display image
-                image_path = image_meta['file_path']
-                if os.path.exists(image_path):
-                    image = Image.open(image_path)
-                    st.image(image, caption=image_meta['original_name'], use_column_width=True)
-                else:
-                    st.error(f"Image file not found: {image_meta['original_name']}")
-            except Exception as e:
-                st.error(f"Error displaying image: {str(e)}")
-        
-        with col2:
-            st.write(f"**{image_meta['original_name']}**")
-            st.caption(f"Size: {image_meta['file_size'] // 1024} KB")
-            st.caption(f"Uploaded: {image_meta['uploaded_at'][:16]}")
-            
-            # Delete button (only for admin or uploader)
-            if (st.session_state.user and 
-                (st.session_state.user['plan'] == 'admin' or 
-                 st.session_state.user['username'] == image_meta['uploaded_by'])):
-                if st.button("🗑️ Delete", key=f"delete_img_{i}_{strategy_name}_{indicator_name}_{uuid.uuid4().hex[:6]}"):
-                    if delete_uploaded_image(strategy_name, indicator_name, analysis_date, image_meta['filename']):
-                        st.success("✅ Image deleted!")
-                        st.rerun()
-
-def render_image_upload_interface(strategy_name, indicator_name, analysis_date):
-    """Render SINGLE image upload interface for a specific strategy and indicator"""
-    st.subheader("🖼️ Upload Strategy Images")
-    
-    uploaded_files = st.file_uploader(
-        "Choose image files",
-        type=Config.ALLOWED_IMAGE_TYPES,
-        accept_multiple_files=True,
-        key=f"uploader_{strategy_name}_{indicator_name}_{uuid.uuid4().hex[:8]}"
-    )
-    
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            # Check file size
-            if uploaded_file.size > Config.MAX_IMAGE_SIZE_MB * 1024 * 1024:
-                st.error(f"❌ File {uploaded_file.name} is too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB.")
-                continue
-            
-            # Save file and metadata
-            try:
-                image_meta = save_uploaded_file(uploaded_file, strategy_name, indicator_name, analysis_date)
-                st.success(f"✅ Uploaded: {uploaded_file.name}")
-                
-                # Display preview
-                image = Image.open(uploaded_file)
-                st.image(image, caption=f"Preview: {uploaded_file.name}", width=300)
-                
-            except Exception as e:
-                st.error(f"❌ Error uploading {uploaded_file.name}: {str(e)}")
-        
-        # Save images metadata
-        save_uploaded_images()
-        st.rerun()
-
-def render_bulk_image_management(strategy_name, analysis_date):
-    """Render bulk image management interface for a strategy"""
-    st.subheader("🗂️ Bulk Image Management")
-    
-    # Get all images for this strategy across all indicators
-    strategy_images = []
-    total_size = 0
-    
-    for key, images in st.session_state.uploaded_images.items():
-        if key.startswith(f"{strategy_name}__") and key.endswith(f"__{analysis_date}"):
-            strategy_images.extend(images)
-            total_size += sum(img['file_size'] for img in images)
-    
-    if not strategy_images:
-        st.info("No images found for this strategy.")
-        return
-    
-    st.write(f"**Total Images:** {len(strategy_images)}")
-    st.write(f"**Total Storage Used:** {total_size / (1024*1024):.2f} MB")
-    
-    # Show image list
-    with st.expander("📋 View All Images", expanded=False):
-        for i, image_meta in enumerate(strategy_images):
-            col1, col2, col3 = st.columns([3, 2, 1])
-            with col1:
-                st.write(f"**{image_meta['original_name']}**")
-                st.caption(f"Indicator: {image_meta['indicator']}")
-            with col2:
-                st.caption(f"Size: {image_meta['file_size'] // 1024} KB")
-                st.caption(f"Uploaded: {image_meta['uploaded_at'][:16]}")
-            with col3:
-                if st.button("🗑️", key=f"bulk_delete_{i}_{uuid.uuid4().hex[:6]}"):
-                    if delete_uploaded_image(
-                        image_meta['strategy'], 
-                        image_meta['indicator'], 
-                        image_meta['analysis_date'], 
-                        image_meta['filename']
-                    ):
-                        st.success("✅ Image deleted!")
-                        st.rerun()
-    
-    # Bulk delete all images for this strategy
-    st.markdown("---")
-    st.warning("🚨 **Danger Zone**")
-    
-    if st.button("🗑️ DELETE ALL IMAGES FOR THIS STRATEGY", type="secondary"):
-        st.session_state.show_bulk_image_delete = True
-    
-    if st.session_state.show_bulk_image_delete:
-        st.error(f"Are you sure you want to delete ALL {len(strategy_images)} images for {strategy_name}?")
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ YES, DELETE ALL", type="primary"):
-                deleted_count = delete_all_strategy_images(strategy_name, analysis_date)
-                st.success(f"✅ Deleted {deleted_count} images for {strategy_name}!")
-                st.session_state.show_bulk_image_delete = False
-                st.rerun()
-        with col2:
-            if st.button("❌ Cancel", type="secondary"):
-                st.session_state.show_bulk_image_delete = False
-                st.rerun()
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -1265,8 +986,6 @@ def render_login():
                                 "expires": user_manager.users[username]["expires"],
                                 "email": user_manager.users[username]["email"]
                             }
-                            # Load uploaded images metadata
-                            load_uploaded_images()
                             st.success(f"✅ {message}")
                             time.sleep(1)
                             st.rerun()
@@ -1349,7 +1068,6 @@ def render_admin_dashboard_selection():
         - System configuration
         - Revenue reporting
         - Bulk operations
-        - Image management
         """)
         if st.button("🚀 Go to Admin Dashboard", use_container_width=True, key="admin_dash"):
             st.session_state.admin_dashboard_mode = "admin"
@@ -1366,7 +1084,6 @@ def render_admin_dashboard_selection():
         - Real-time updates
         - Advanced analytics
         - Export functionality
-        - Image upload & management
         """)
         if st.button("📈 Go to Premium Dashboard", use_container_width=True, key="premium_dash"):
             st.session_state.admin_dashboard_mode = "premium"
@@ -1691,10 +1408,10 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH FIXED IMAGE UPLOAD
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH ALL FEATURES
 # -------------------------
 def render_premium_signal_dashboard():
-    """Premium signal dashboard where admin can edit signals with full functionality including image uploads"""
+    """Premium signal dashboard where admin can edit signals with full functionality"""
     
     # User-specific data isolation
     user = st.session_state.user
@@ -1906,18 +1623,6 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     
     st.markdown("---")
     
-    # SINGLE Image upload section - FIXED
-    render_image_upload_interface(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
-    
-    # Display existing images
-    display_uploaded_images(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
-    
-    # Bulk image management for admin
-    if st.session_state.user['plan'] == 'admin':
-        render_bulk_image_management(selected_strategy, analysis_date.strftime("%Y-%m-%d"))
-    
-    st.markdown("---")
-    
     # Detailed analysis button
     if st.button("📝 Open Detailed Analysis Editor", use_container_width=True):
         st.session_state.dashboard_view = 'notes'
@@ -1933,7 +1638,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                 st.write(analysis.get('note', 'No notes'))
 
 def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface with full admin editing and SINGLE image upload interface"""
+    """Detailed strategy notes interface with full admin editing"""
     st.title("📝 Admin Signal Editor")
     
     # Header with cycle info
@@ -1949,7 +1654,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
     
     st.markdown("---")
     
-    # Notes Form - ADMIN VERSION WITH FULL ACCESS AND SINGLE IMAGE UPLOAD
+    # Notes Form - ADMIN VERSION WITH FULL ACCESS
     with st.form("admin_detailed_notes_form"):
         st.subheader(f"Admin Signal Editor - {selected_strategy}")
         
@@ -1966,19 +1671,6 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         with col2:
             strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], 
                                        index=["Momentum","Extreme","Not Defined"].index(current_strategy_type))
-        
-        st.markdown("---")
-        
-        # SINGLE Image upload for the strategy
-        st.subheader("🖼️ Upload Strategy Images")
-        render_image_upload_interface(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
-        
-        # Display existing images for the strategy
-        display_uploaded_images(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
-        
-        # Bulk image management for admin
-        if st.session_state.user['plan'] == 'admin':
-            render_bulk_image_management(selected_strategy, analysis_date.strftime("%Y-%m-%d"))
         
         st.markdown("---")
         
@@ -2009,9 +1701,6 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     index=["Open", "In Progress", "Done", "Skipped"].index(default_status) if default_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
                     key=key_status
                 )
-                
-                # Display images for this indicator (view only in detailed view)
-                display_uploaded_images(selected_strategy, indicator, analysis_date.strftime("%Y-%m-%d"))
         
         # Save button
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True)
@@ -2070,9 +1759,6 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     with st.expander(f"{ind_name} ({momentum_type}) — {status_icon} — Edited by: {modified_by}", expanded=False):
                         st.write(meta.get("note", "") or "_No notes yet_")
                         st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
-                        
-                        # Display images for this indicator
-                        display_uploaded_images(strat, ind_name, analysis_date.strftime("%Y-%m-%d"))
             st.markdown("---")
 
 def render_admin_account_settings():
@@ -2108,7 +1794,6 @@ def render_admin_account_settings():
     with col2:
         if st.button("📊 Refresh All Data", use_container_width=True):
             user_manager.load_data()
-            load_uploaded_images()
             st.rerun()
     
     with col3:
@@ -2117,10 +1802,10 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD - OBSERVE ONLY WITH IMAGE VIEWING
+# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY)
 # -------------------------
 def render_user_dashboard():
-    """User dashboard - READ ONLY for regular users with same layout as admin but with image viewing"""
+    """User dashboard - READ ONLY for regular users with same layout as admin"""
     user = st.session_state.user
     
     # User-specific data isolation
@@ -2266,7 +1951,7 @@ def render_user_dashboard():
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """User trading dashboard - SAME LAYOUT AS ADMIN BUT READ ONLY WITH IMAGE VIEWING"""
+    """User trading dashboard - SAME LAYOUT AS ADMIN BUT READ ONLY"""
     st.title("📊 Trading Signal Dashboard")
     
     # Welcome message - DIFFERENT FROM ADMIN
@@ -2339,9 +2024,6 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     else:
         st.warning("No signal data available for this strategy yet.")
     
-    # Display images for this strategy
-    display_uploaded_images(selected_strategy, "Overview", analysis_date.strftime("%Y-%m-%d"))
-    
     st.markdown("---")
     
     # Detailed view button - LEADS TO READ-ONLY DETAILED VIEW
@@ -2359,7 +2041,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
                 st.write(analysis.get('note', 'No notes'))
 
 def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface - READ ONLY FOR USERS WITH IMAGE VIEWING"""
+    """Detailed strategy notes interface - READ ONLY FOR USERS"""
     st.title("📋 Strategy Details")
     
     # Header with cycle info
@@ -2423,9 +2105,6 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
             st.caption(f"Status: {status}")
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
-            
-            # Display images for this indicator
-            display_uploaded_images(selected_strategy, indicator, analysis_date.strftime("%Y-%m-%d"))
 
 def render_user_account_settings():
     """User account settings"""
@@ -2522,7 +2201,6 @@ def render_admin_sidebar_options():
     
     if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh"):
         user_manager.load_data()
-        load_uploaded_images()
         st.rerun()
     
     if st.button("📊 Business Overview", use_container_width=True, key="sidebar_overview"):
@@ -2591,9 +2269,6 @@ def main():
     
     # Setup data persistence
     setup_data_persistence()
-    
-    # Load uploaded images metadata
-    load_uploaded_images()
     
     # Enhanced CSS for premium appearance
     st.markdown("""
