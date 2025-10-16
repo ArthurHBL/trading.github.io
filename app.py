@@ -58,7 +58,7 @@ def init_session():
         st.session_state.admin_email_verification_view = 'pending'
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None
-    # NEW: Image gallery session state
+    # ENHANCED: Image gallery session state
     if 'uploaded_images' not in st.session_state:
         st.session_state.uploaded_images = []
     if 'current_gallery_view' not in st.session_state:
@@ -72,6 +72,11 @@ def init_session():
         st.session_state.clear_gallery_password = ""
     if 'clear_gallery_error' not in st.session_state:
         st.session_state.clear_gallery_error = ""
+    # NEW: Image viewer state
+    if 'current_image_index' not in st.session_state:
+        st.session_state.current_image_index = 0
+    if 'image_viewer_mode' not in st.session_state:
+        st.session_state.image_viewer_mode = False
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1062,10 +1067,15 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# IMAGE GALLERY FORUM - NEW INTEGRATION WITH SECURITY IMPROVEMENT
+# ENHANCED IMAGE GALLERY FORUM WITH NAVIGATION
 # -------------------------
 def render_image_gallery():
-    """Professional image gallery forum integrated into the dashboard"""
+    """Professional image gallery forum with enhanced navigation"""
+    
+    # If in image viewer mode, show the image viewer
+    if st.session_state.image_viewer_mode:
+        render_image_viewer()
+        return
     
     # Gallery header
     st.title("🖼️ Trading Analysis Image Gallery")
@@ -1160,7 +1170,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery"""
+    """Display the image gallery with enhanced navigation"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1266,7 +1276,7 @@ def render_gallery_display():
                 st.caption(f"Uploaded: {upload_time}")
                 
                 # Interaction buttons
-                col_a, col_b, col_c = st.columns([1, 1, 2])
+                col_a, col_b, col_c, col_d = st.columns([1, 1, 1, 2])
                 with col_a:
                     if st.button("❤️", key=f"like_{i}", help="Like this image"):
                         img_data['likes'] += 1
@@ -1274,6 +1284,14 @@ def render_gallery_display():
                 with col_b:
                     st.write(f" {img_data['likes']}")
                 with col_c:
+                    # NEW: View button for image viewer
+                    if st.button("👁️", key=f"view_{i}", help="View full image"):
+                        # Find the index of this image in the filtered list
+                        original_index = st.session_state.uploaded_images.index(img_data)
+                        st.session_state.current_image_index = original_index
+                        st.session_state.image_viewer_mode = True
+                        st.rerun()
+                with col_d:
                     # Download button
                     b64_img = base64.b64encode(img_data['bytes']).decode()
                     href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
@@ -1293,6 +1311,150 @@ def render_gallery_display():
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
                 st.rerun()
+
+def render_image_viewer():
+    """Enhanced image viewer with navigation controls"""
+    if not st.session_state.uploaded_images:
+        st.warning("No images in gallery")
+        st.session_state.image_viewer_mode = False
+        st.rerun()
+        return
+    
+    current_index = st.session_state.current_image_index
+    total_images = len(st.session_state.uploaded_images)
+    img_data = st.session_state.uploaded_images[current_index]
+    
+    # Header with navigation
+    col1, col2, col3, col4 = st.columns([1, 2, 2, 1])
+    
+    with col1:
+        if st.button("⬅️ Back to Gallery", use_container_width=True):
+            st.session_state.image_viewer_mode = False
+            st.rerun()
+    
+    with col2:
+        st.markdown(f"### Image {current_index + 1} of {total_images}")
+    
+    with col3:
+        st.markdown(f"### {img_data['name']}")
+    
+    with col4:
+        if st.button("📋 Gallery", use_container_width=True):
+            st.session_state.image_viewer_mode = False
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Main image display
+    col1, col2, col3 = st.columns([1, 8, 1])
+    
+    with col1:
+        if st.button("◀️ Previous", use_container_width=True, key="prev_img"):
+            st.session_state.current_image_index = (current_index - 1) % total_images
+            st.rerun()
+    
+    with col2:
+        # Display the main image
+        st.image(img_data['bytes'], use_container_width=True)
+    
+    with col3:
+        if st.button("Next ▶️", use_container_width=True, key="next_img"):
+            st.session_state.current_image_index = (current_index + 1) % total_images
+            st.rerun()
+    
+    # Image information and controls below
+    st.markdown("---")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Image details
+        st.subheader("Image Details")
+        
+        # Description
+        if img_data.get('description'):
+            st.write("**Description:**")
+            st.info(img_data['description'])
+        else:
+            st.write("**Description:** No description provided")
+        
+        # Strategy tags
+        if img_data.get('strategies'):
+            st.write("**Related Strategies:**")
+            tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
+            st.markdown(tags)
+        
+        # Author and metadata
+        st.write("**Upload Information:**")
+        col_meta1, col_meta2 = st.columns(2)
+        with col_meta1:
+            st.write(f"**Author:** {img_data['uploaded_by']}")
+            st.write(f"**Likes:** {img_data['likes']} ❤️")
+        with col_meta2:
+            upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+            st.write(f"**Uploaded:** {upload_time}")
+            st.write(f"**Format:** {img_data['format']}")
+    
+    with col2:
+        # Quick navigation and actions
+        st.subheader("Quick Navigation")
+        
+        # Image selector
+        selected_index = st.selectbox(
+            "Jump to Image:",
+            range(total_images),
+            format_func=lambda i: f"Image {i+1}: {st.session_state.uploaded_images[i]['name'][:20]}...",
+            index=current_index,
+            key="image_selector"
+        )
+        
+        if selected_index != current_index:
+            st.session_state.current_image_index = selected_index
+            st.rerun()
+        
+        st.markdown("---")
+        
+        # Action buttons
+        st.subheader("Actions")
+        
+        # Like button
+        if st.button(f"❤️ Like ({img_data['likes']})", use_container_width=True, key="viewer_like"):
+            img_data['likes'] += 1
+            st.rerun()
+        
+        # Download button
+        b64_img = base64.b64encode(img_data['bytes']).decode()
+        href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 10px; text-align: center; text-decoration: none; display: inline-block; font-size: 14px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Image</button></a>', unsafe_allow_html=True)
+    
+    # Navigation controls at bottom
+    st.markdown("---")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("⏮️ First", use_container_width=True):
+            st.session_state.current_image_index = 0
+            st.rerun()
+    
+    with col2:
+        if st.button("◀️ Previous", use_container_width=True):
+            st.session_state.current_image_index = (current_index - 1) % total_images
+            st.rerun()
+    
+    with col3:
+        if st.button("📋 Gallery", use_container_width=True):
+            st.session_state.image_viewer_mode = False
+            st.rerun()
+    
+    with col4:
+        if st.button("Next ▶️", use_container_width=True):
+            st.session_state.current_image_index = (current_index + 1) % total_images
+            st.rerun()
+    
+    with col5:
+        if st.button("Last ⏭️", use_container_width=True):
+            st.session_state.current_image_index = total_images - 1
+            st.rerun()
 
 def render_clear_gallery_confirmation():
     """Security confirmation for clearing gallery - REQUIRES ADMIN PASSWORD"""
@@ -1336,6 +1498,7 @@ def render_clear_gallery_confirmation():
                         st.session_state.show_clear_gallery_confirmation = False
                         st.session_state.clear_gallery_password = ""
                         st.session_state.clear_gallery_error = ""
+                        st.session_state.image_viewer_mode = False  # Exit viewer if active
                         st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
                         st.rerun()
                     else:
@@ -1404,7 +1567,8 @@ def render_admin_dashboard_selection():
         - Community discussions
         - Strategy visualization
         - Market insights sharing
-        - Like and download images
+        - Enhanced image viewer
+        - Navigation controls
         """)
         if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash"):
             st.session_state.admin_dashboard_mode = "gallery"
@@ -2521,9 +2685,11 @@ def render_admin_dashboard():
             st.subheader("Gallery Actions")
             if st.button("🖼️ View Gallery", use_container_width=True):
                 st.session_state.current_gallery_view = "gallery"
+                st.session_state.image_viewer_mode = False
                 st.rerun()
             if st.button("📤 Upload Images", use_container_width=True):
                 st.session_state.current_gallery_view = "upload"
+                st.session_state.image_viewer_mode = False
                 st.rerun()
     
     # Main admin content based on selected mode
@@ -2695,6 +2861,12 @@ def main():
         padding: 1.5rem;
         margin: 1rem 0;
     }
+    .image-viewer-nav {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin: 20px 0;
+    }
     </style>
     """, unsafe_allow_html=True)
     
@@ -2705,7 +2877,7 @@ def main():
             render_admin_dashboard()
         else:
             # For regular users, show either trading dashboard or gallery
-            if st.session_state.get('current_gallery_view') == 'gallery':
+            if st.session_state.get('current_gallery_view') == 'gallery' or st.session_state.image_viewer_mode:
                 render_image_gallery()
             else:
                 render_user_dashboard()
