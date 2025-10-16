@@ -58,27 +58,20 @@ def init_session():
         st.session_state.admin_email_verification_view = 'pending'
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None
-    # Image gallery session state
+    # NEW: Image gallery session state
     if 'uploaded_images' not in st.session_state:
         st.session_state.uploaded_images = []
     if 'current_gallery_view' not in st.session_state:
         st.session_state.current_gallery_view = 'gallery'
     if 'selected_image' not in st.session_state:
         st.session_state.selected_image = None
-    # Gallery clearance confirmation
+    # NEW: Gallery clearance confirmation
     if 'show_clear_gallery_confirmation' not in st.session_state:
         st.session_state.show_clear_gallery_confirmation = False
     if 'clear_gallery_password' not in st.session_state:
         st.session_state.clear_gallery_password = ""
     if 'clear_gallery_error' not in st.session_state:
         st.session_state.clear_gallery_error = ""
-    # NEW: Lightbox/modal state
-    if 'lightbox_open' not in st.session_state:
-        st.session_state.lightbox_open = False
-    if 'lightbox_image_index' not in st.session_state:
-        st.session_state.lightbox_image_index = 0
-    if 'filtered_images' not in st.session_state:
-        st.session_state.filtered_images = []
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1069,10 +1062,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# IMAGE GALLERY FORUM - ENHANCED WITH LIGHTBOX/MODAL VIEW
+# IMAGE GALLERY FORUM - NEW INTEGRATION WITH SECURITY IMPROVEMENT
 # -------------------------
 def render_image_gallery():
-    """Professional image gallery forum with lightbox modal view"""
+    """Professional image gallery forum integrated into the dashboard"""
     
     # Gallery header
     st.title("🖼️ Trading Analysis Image Gallery")
@@ -1167,7 +1160,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery with lightbox modal functionality"""
+    """Display the image gallery"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1229,9 +1222,6 @@ def render_gallery_display():
     elif sort_by == "Most Liked":
         filtered_images.sort(key=lambda x: x['likes'], reverse=True)
     
-    # Store filtered images for lightbox navigation
-    st.session_state.filtered_images = filtered_images
-    
     # Display gallery in a grid
     if not filtered_images:
         st.warning("No images match your current filters.")
@@ -1252,28 +1242,22 @@ def render_gallery_display():
                     background: white;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     transition: transform 0.2s;
-                    cursor: pointer;
-                ' class="image-card">
+                '>
                 """, unsafe_allow_html=True)
                 
-                # Display image as clickable thumbnail
+                # Display image - FIXED: use_container_width instead of use_column_width
                 st.image(img_data['bytes'], use_container_width=True)
                 
                 # Image info
                 st.markdown(f"**{img_data['name']}**")
                 
-                # Description preview (truncate if too long)
-                description = img_data.get('description', '')
-                if description and len(description) > 100:
-                    description = description[:100] + "..."
-                if description:
-                    st.caption(description)
+                # Description
+                if img_data.get('description'):
+                    st.caption(img_data['description'])
                 
                 # Strategy tags
                 if img_data.get('strategies'):
-                    tags = " ".join([f"`{tag}`" for tag in img_data['strategies'][:2]])  # Show max 2 tags
-                    if len(img_data['strategies']) > 2:
-                        tags += f" +{len(img_data['strategies']) - 2} more"
+                    tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
                     st.markdown(f"**Strategies:** {tags}")
                 
                 # Author and date
@@ -1282,7 +1266,7 @@ def render_gallery_display():
                 st.caption(f"Uploaded: {upload_time}")
                 
                 # Interaction buttons
-                col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 1])
+                col_a, col_b, col_c = st.columns([1, 1, 2])
                 with col_a:
                     if st.button("❤️", key=f"like_{i}", help="Like this image"):
                         img_data['likes'] += 1
@@ -1294,20 +1278,10 @@ def render_gallery_display():
                     b64_img = base64.b64encode(img_data['bytes']).decode()
                     href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
                     st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
-                with col_d:
-                    # NEW: View button to open lightbox
-                    if st.button("👁️", key=f"view_{i}", help="View full image"):
-                        st.session_state.lightbox_open = True
-                        st.session_state.lightbox_image_index = i
-                        st.rerun()
                 
                 st.markdown("</div>", unsafe_allow_html=True)
     
-    # Render lightbox/modal if open
-    if st.session_state.lightbox_open:
-        render_lightbox_modal()
-    
-    # Clear gallery button (admin only)
+    # Clear gallery button (admin only) - WITH SECURITY IMPROVEMENT
     if st.session_state.user['plan'] == 'admin':
         st.markdown("---")
         
@@ -1319,171 +1293,6 @@ def render_gallery_display():
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
                 st.rerun()
-
-def render_lightbox_modal():
-    """Lightbox modal for viewing images in full size with navigation"""
-    if not st.session_state.lightbox_open or not st.session_state.filtered_images:
-        return
-    
-    current_index = st.session_state.lightbox_image_index
-    filtered_images = st.session_state.filtered_images
-    current_image = filtered_images[current_index]
-    
-    # Create modal overlay
-    st.markdown("""
-    <style>
-    .lightbox-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.9);
-        z-index: 9999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    .lightbox-content {
-        background: white;
-        border-radius: 15px;
-        padding: 20px;
-        max-width: 90%;
-        max-height: 90%;
-        position: relative;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-    }
-    .lightbox-image {
-        max-width: 100%;
-        max-height: 70vh;
-        object-fit: contain;
-    }
-    .lightbox-nav {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(255,255,255,0.8);
-        border: none;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        font-size: 20px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s;
-    }
-    .lightbox-nav:hover {
-        background: white;
-        transform: translateY(-50%) scale(1.1);
-    }
-    .lightbox-prev {
-        left: -25px;
-    }
-    .lightbox-next {
-        right: -25px;
-    }
-    .lightbox-close {
-        position: absolute;
-        top: -15px;
-        right: -15px;
-        background: #ff4444;
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        font-size: 20px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .lightbox-info {
-        margin-top: 15px;
-        max-width: 600px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Modal content
-    st.markdown(f"""
-    <div class="lightbox-overlay">
-        <div class="lightbox-content">
-            <button class="lightbox-close" onclick="window.closeLightbox()">×</button>
-            
-            {f'<button class="lightbox-nav lightbox-prev" onclick="window.prevImage()" {"disabled" if current_index == 0 else ""}>‹</button>' if current_index > 0 else ''}
-            
-            <img src="data:image/{current_image['format'].lower()};base64,{base64.b64encode(current_image['bytes']).decode()}" 
-                 class="lightbox-image" 
-                 alt="{current_image['name']}">
-            
-            {f'<button class="lightbox-nav lightbox-next" onclick="window.nextImage()" {"disabled" if current_index == len(filtered_images)-1 else ""}>›</button>' if current_index < len(filtered_images)-1 else ''}
-            
-            <div class="lightbox-info">
-                <h3>{current_image['name']}</h3>
-                <p><strong>By:</strong> {current_image['uploaded_by']} | <strong>Uploaded:</strong> {datetime.fromisoformat(current_image['timestamp']).strftime('%Y-%m-%d %H:%M')}</p>
-                {f'<p><strong>Description:</strong> {current_image.get("description", "No description")}</p>' if current_image.get('description') else ''}
-                {f'<p><strong>Strategies:</strong> {", ".join(current_image.get("strategies", []))}</p>' if current_image.get('strategies') else ''}
-                <p><strong>Likes:</strong> {current_image['likes']} ❤️</p>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # JavaScript for lightbox functionality
-    st.markdown("""
-    <script>
-    window.closeLightbox = function() {
-        window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'close_lightbox'}, '*');
-    }
-    
-    window.prevImage = function() {
-        window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'prev_image'}, '*');
-    }
-    
-    window.nextImage = function() {
-        window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'next_image'}, '*');
-    }
-    
-    // Close on ESC key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            window.closeLightbox();
-        } else if (e.key === 'ArrowLeft') {
-            window.prevImage();
-        } else if (e.key === 'ArrowRight') {
-            window.nextImage();
-        }
-    });
-    </script>
-    """, unsafe_allow_html=True)
-    
-    # Handle lightbox navigation via custom components
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("◀️ Previous", key="lightbox_prev", use_container_width=True):
-            if current_index > 0:
-                st.session_state.lightbox_image_index -= 1
-                st.rerun()
-    with col2:
-        if st.button("Close", key="lightbox_close", use_container_width=True):
-            st.session_state.lightbox_open = False
-            st.rerun()
-    with col3:
-        if st.button("Next ▶️", key="lightbox_next", use_container_width=True):
-            if current_index < len(filtered_images) - 1:
-                st.session_state.lightbox_image_index += 1
-                st.rerun()
-    
-    # Image counter
-    st.markdown(f"**Image {current_index + 1} of {len(filtered_images)}**")
-    
-    # Download current image
-    b64_img = base64.b64encode(current_image['bytes']).decode()
-    href = f'<a href="data:image/{current_image["format"].lower()};base64,{b64_img}" download="{current_image["name"]}">'
-    st.markdown(f'{href}<button style="background-color: #2196F3; color: white; border: none; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download This Image</button></a>', unsafe_allow_html=True)
 
 def render_clear_gallery_confirmation():
     """Security confirmation for clearing gallery - REQUIRES ADMIN PASSWORD"""
@@ -1596,7 +1405,6 @@ def render_admin_dashboard_selection():
         - Strategy visualization
         - Market insights sharing
         - Like and download images
-        - Lightbox image viewer
         """)
         if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash"):
             st.session_state.admin_dashboard_mode = "gallery"
