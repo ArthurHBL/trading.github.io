@@ -1166,6 +1166,7 @@ def render_image_uploader():
             
             st.success(f"✅ Successfully uploaded {len(uploaded_files)} image(s) to the gallery!")
             st.balloons()
+            st.rerun()  # Force refresh to show thumbnails immediately
         else:
             st.warning("⚠️ Please select at least one image to upload.")
 
@@ -1255,20 +1256,24 @@ def render_gallery_display():
                 '>
                 """, unsafe_allow_html=True)
                 
-                # Display image - FIXED: use_container_width instead of use_column_width
+                # FIXED: Display thumbnail immediately without requiring expander click
                 st.image(img_data['bytes'], use_container_width=True)
                 
-                # Image info
+                # Image info - always visible
                 st.markdown(f"**{img_data['name']}**")
                 
-                # Description
+                # Description preview
                 if img_data.get('description'):
-                    st.caption(img_data['description'])
+                    # Show first 50 characters of description
+                    preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
+                    st.caption(preview)
                 
-                # Strategy tags
+                # Strategy tags preview
                 if img_data.get('strategies'):
-                    tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
-                    st.markdown(f"**Strategies:** {tags}")
+                    tags_preview = ", ".join(img_data['strategies'][:2])  # Show first 2 strategies
+                    if len(img_data['strategies']) > 2:
+                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
+                    st.caption(f"**Strategies:** {tags_preview}")
                 
                 # Author and date
                 st.caption(f"By: **{img_data['uploaded_by']}**")
@@ -1284,8 +1289,8 @@ def render_gallery_display():
                 with col_b:
                     st.write(f" {img_data['likes']}")
                 with col_c:
-                    # NEW: View button for image viewer
-                    if st.button("👁️", key=f"view_{i}", help="View full image"):
+                    # ENHANCED: View button for image viewer with better label
+                    if st.button("👁️ View", key=f"view_{i}", help="View full image"):
                         # Find the index of this image in the filtered list
                         original_index = st.session_state.uploaded_images.index(img_data)
                         st.session_state.current_image_index = original_index
@@ -1296,6 +1301,29 @@ def render_gallery_display():
                     b64_img = base64.b64encode(img_data['bytes']).decode()
                     href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
                     st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+                
+                # Expandable section for full details
+                with st.expander("📋 Full Details", expanded=False):
+                    # Full description
+                    if img_data.get('description'):
+                        st.write("**Description:**")
+                        st.info(img_data['description'])
+                    
+                    # All strategy tags
+                    if img_data.get('strategies'):
+                        st.write("**All Strategies:**")
+                        tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
+                        st.markdown(tags)
+                    
+                    # Additional metadata
+                    st.write("**Image Info:**")
+                    col_x, col_y = st.columns(2)
+                    with col_x:
+                        st.write(f"**Format:** {img_data['format']}")
+                        st.write(f"**Likes:** {img_data['likes']}")
+                    with col_y:
+                        st.write(f"**Uploaded by:** {img_data['uploaded_by']}")
+                        st.write(f"**Date:** {upload_time}")
                 
                 st.markdown("</div>", unsafe_allow_html=True)
     
@@ -2681,9 +2709,9 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             render_premium_sidebar_options()
         else:
-            # Gallery mode - minimal sidebar
+            # Gallery mode - FIXED: Better button labels
             st.subheader("Gallery Actions")
-            if st.button("🖼️ View Gallery", use_container_width=True):
+            if st.button("🖼️ Full Gallery", use_container_width=True):
                 st.session_state.current_gallery_view = "gallery"
                 st.session_state.image_viewer_mode = False
                 st.rerun()
