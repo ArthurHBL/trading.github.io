@@ -1174,14 +1174,7 @@ def render_gallery_display():
     """Display the image gallery with enhanced navigation"""
     st.subheader("📸 Community Image Gallery")
     
-    # ADDED: View First Image button at the top
-    if st.session_state.uploaded_images:
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("👁️ View First Image", use_container_width=True, help="Open the first image in full viewer"):
-                st.session_state.current_image_index = 0
-                st.session_state.image_viewer_mode = True
-                st.rerun()
+    # REMOVED: The ugly button from the top - moved to Gallery Actions section
     
     if not st.session_state.uploaded_images:
         st.info("""
@@ -2718,7 +2711,7 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             render_premium_sidebar_options()
         else:
-            # Gallery mode - FIXED: Better button labels
+            # Gallery mode - UPDATED: Added "View First Image" button and renamed to "Images"
             st.subheader("Gallery Actions")
             if st.button("🖼️ Full Gallery", use_container_width=True):
                 st.session_state.current_gallery_view = "gallery"
@@ -2728,6 +2721,12 @@ def render_admin_dashboard():
                 st.session_state.current_gallery_view = "upload"
                 st.session_state.image_viewer_mode = False
                 st.rerun()
+            # ADDED: View First Image button in Gallery Actions section
+            if st.session_state.uploaded_images:
+                if st.button("👁️ View First Image", use_container_width=True, help="Open the first image in full viewer"):
+                    st.session_state.current_image_index = 0
+                    st.session_state.image_viewer_mode = True
+                    st.rerun()
     
     # Main admin content based on selected mode
     if st.session_state.get('admin_dashboard_mode') == "admin":
