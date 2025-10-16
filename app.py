@@ -1171,7 +1171,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery with enhanced navigation"""
+    """Display the image gallery with enhanced navigation - FIXED TO ALWAYS SHOW IMAGES"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1238,25 +1238,26 @@ def render_gallery_display():
         st.warning("No images match your current filters.")
         return
     
-    # Create responsive grid
+    # Create responsive grid - FIXED: Always show images without requiring expander click
     cols = st.columns(3)
     
     for i, img_data in enumerate(filtered_images):
         with cols[i % 3]:
             with st.container():
+                # Card container with improved styling
                 st.markdown("""
                 <div style='
-                    border: 1px solid #ddd;
-                    border-radius: 10px;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 12px;
                     padding: 15px;
                     margin-bottom: 20px;
                     background: white;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    transition: transform 0.2s;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    transition: transform 0.2s, box-shadow 0.2s;
                 '>
                 """, unsafe_allow_html=True)
                 
-                # Display thumbnail immediately without requiring expander click
+                # Display thumbnail - ALWAYS VISIBLE
                 st.image(img_data['bytes'], use_container_width=True)
                 
                 # Image info - always visible
@@ -1280,7 +1281,7 @@ def render_gallery_display():
                 upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
                 st.caption(f"Uploaded: {upload_time}")
                 
-                # Interaction buttons - IMPROVED: Clear fullscreen button
+                # Interaction buttons
                 col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
                 with col_a:
                     if st.button("❤️", key=f"like_{i}", help="Like this image"):
@@ -1289,7 +1290,7 @@ def render_gallery_display():
                 with col_b:
                     st.write(f" {img_data['likes']}")
                 with col_c:
-                    # IMPROVED: Clear fullscreen button with better text
+                    # Full view button
                     if st.button("🖼️ Full View", key=f"view_{i}", help="View image in fullscreen mode"):
                         # Find the index of this image in the filtered list
                         original_index = st.session_state.uploaded_images.index(img_data)
@@ -1302,11 +1303,9 @@ def render_gallery_display():
                     href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
                     st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
                 
-                # REMOVED: The "Full Details" expander that had no function
-                
                 st.markdown("</div>", unsafe_allow_html=True)
     
-    # Clear gallery button (admin only) - WITH SECURITY IMPROVEMENT
+    # Clear gallery button (admin only)
     if st.session_state.user['plan'] == 'admin':
         st.markdown("---")
         
