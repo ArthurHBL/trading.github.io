@@ -1174,8 +1174,6 @@ def render_gallery_display():
     """Display the image gallery with enhanced navigation"""
     st.subheader("📸 Community Image Gallery")
     
-    # REMOVED: The ugly button from the top - moved to Gallery Actions section
-    
     if not st.session_state.uploaded_images:
         st.info("""
         🖼️ **No images in the gallery yet!**
@@ -1258,7 +1256,7 @@ def render_gallery_display():
                 '>
                 """, unsafe_allow_html=True)
                 
-                # FIXED: Display thumbnail immediately without requiring expander click
+                # Display thumbnail immediately without requiring expander click
                 st.image(img_data['bytes'], use_container_width=True)
                 
                 # Image info - always visible
@@ -1282,8 +1280,8 @@ def render_gallery_display():
                 upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
                 st.caption(f"Uploaded: {upload_time}")
                 
-                # Interaction buttons
-                col_a, col_b, col_c, col_d = st.columns([1, 1, 1, 2])
+                # Interaction buttons - IMPROVED: Clear fullscreen button
+                col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
                 with col_a:
                     if st.button("❤️", key=f"like_{i}", help="Like this image"):
                         img_data['likes'] += 1
@@ -1291,8 +1289,8 @@ def render_gallery_display():
                 with col_b:
                     st.write(f" {img_data['likes']}")
                 with col_c:
-                    # CHANGED: Removed "View" text, only eye icon
-                    if st.button("👁️", key=f"view_{i}", help="View full image"):
+                    # IMPROVED: Clear fullscreen button with better text
+                    if st.button("🖼️ Full View", key=f"view_{i}", help="View image in fullscreen mode"):
                         # Find the index of this image in the filtered list
                         original_index = st.session_state.uploaded_images.index(img_data)
                         st.session_state.current_image_index = original_index
@@ -1304,28 +1302,7 @@ def render_gallery_display():
                     href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
                     st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
                 
-                # Expandable section for full details
-                with st.expander("📋 Full Details", expanded=False):
-                    # Full description
-                    if img_data.get('description'):
-                        st.write("**Description:**")
-                        st.info(img_data['description'])
-                    
-                    # All strategy tags
-                    if img_data.get('strategies'):
-                        st.write("**All Strategies:**")
-                        tags = " ".join([f"`{tag}`" for tag in img_data['strategies']])
-                        st.markdown(tags)
-                    
-                    # Additional metadata
-                    st.write("**Image Info:**")
-                    col_x, col_y = st.columns(2)
-                    with col_x:
-                        st.write(f"**Format:** {img_data['format']}")
-                        st.write(f"**Likes:** {img_data['likes']}")
-                    with col_y:
-                        st.write(f"**Uploaded by:** {img_data['uploaded_by']}")
-                        st.write(f"**Date:** {upload_time}")
+                # REMOVED: The "Full Details" expander that had no function
                 
                 st.markdown("</div>", unsafe_allow_html=True)
     
