@@ -1174,6 +1174,15 @@ def render_gallery_display():
     """Display the image gallery with enhanced navigation"""
     st.subheader("📸 Community Image Gallery")
     
+    # ADDED: View First Image button at the top
+    if st.session_state.uploaded_images:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("👁️ View First Image", use_container_width=True, help="Open the first image in full viewer"):
+                st.session_state.current_image_index = 0
+                st.session_state.image_viewer_mode = True
+                st.rerun()
+    
     if not st.session_state.uploaded_images:
         st.info("""
         🖼️ **No images in the gallery yet!**
@@ -1289,8 +1298,8 @@ def render_gallery_display():
                 with col_b:
                     st.write(f" {img_data['likes']}")
                 with col_c:
-                    # ENHANCED: View button for image viewer with better label
-                    if st.button("👁️ View", key=f"view_{i}", help="View full image"):
+                    # CHANGED: Removed "View" text, only eye icon
+                    if st.button("👁️", key=f"view_{i}", help="View full image"):
                         # Find the index of this image in the filtered list
                         original_index = st.session_state.uploaded_images.index(img_data)
                         st.session_state.current_image_index = original_index
