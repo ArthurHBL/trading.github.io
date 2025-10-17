@@ -88,6 +88,17 @@ def init_session():
     # NEW: User navigation mode
     if 'user_navigation_mode' not in st.session_state:
         st.session_state.user_navigation_mode = "📊 Trading Dashboard"
+    # NEW: Trading Signals Room state
+    if 'signals_room_view' not in st.session_state:
+        st.session_state.signals_room_view = 'active_signals'
+    if 'active_signals' not in st.session_state:
+        st.session_state.active_signals = load_signals_data()
+    if 'signal_creation_mode' not in st.session_state:
+        st.session_state.signal_creation_mode = 'quick'
+    if 'signal_to_confirm' not in st.session_state:
+        st.session_state.signal_to_confirm = None
+    if 'signal_confirmation_step' not in st.session_state:
+        st.session_state.signal_confirmation_step = 1
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -112,8 +123,61 @@ def setup_data_persistence():
             save_gallery_images(st.session_state.uploaded_images)
         except Exception as e:
             print(f"⚠️ Error saving gallery images: {e}")
+        
+        # Save signals data
+        try:
+            save_signals_data(st.session_state.active_signals)
+        except Exception as e:
+            print(f"⚠️ Error saving signals data: {e}")
             
         st.session_state.last_save_time = current_time
+
+# -------------------------
+# TRADING SIGNALS DATA PERSISTENCE
+# -------------------------
+SIGNALS_FILE = "trading_signals.json"
+
+def load_signals_data():
+    """Load trading signals from file"""
+    if os.path.exists(SIGNALS_FILE):
+        try:
+            with open(SIGNALS_FILE, "r", encoding="utf-8") as f:
+                signals_data = json.load(f)
+                print(f"✅ Loaded {len(signals_data)} signals from file")
+                return signals_data
+        except Exception as e:
+            print(f"❌ Error loading signals data: {e}")
+            # Create backup of corrupted file
+            backup_name = f"{SIGNALS_FILE}.backup.{int(time.time())}"
+            if os.path.exists(SIGNALS_FILE):
+                os.rename(SIGNALS_FILE, backup_name)
+                print(f"⚠️ Signals data corrupted. Backed up to {backup_name}")
+            return []
+    return []
+
+def save_signals_data(signals):
+    """Save trading signals to file"""
+    try:
+        # Create backup before saving
+        if os.path.exists(SIGNALS_FILE):
+            backup_file = f"{SIGNALS_FILE}.backup"
+            shutil.copy2(SIGNALS_FILE, backup_file)
+        
+        with open(SIGNALS_FILE, "w", encoding="utf-8") as f:
+            json.dump(signals, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved {len(signals)} signals to file")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving signals data: {e}")
+        # Try to save to temporary file
+        try:
+            temp_file = f"{SIGNALS_FILE}.temp.{int(time.time())}"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(signals, f, ensure_ascii=False, indent=2)
+            print(f"⚠️ Saved signals backup to {temp_file}")
+        except Exception as e2:
+            print(f"❌ Failed to save signals backup: {e2}")
+        return False
 
 # -------------------------
 # GALLERY IMAGE PERSISTENCE
@@ -216,6 +280,24 @@ STRATEGIES = {
     "LuxAlgo": ["Overview","Symmetrical STD Channel","Ultimate RSI","RWI"],
     "Point and Figure": ["Overview","RW Monte Carlo","CM SuperGuppy","AOv2","BBWP","SNAB_RSI_EMA","CM_Williams_Vix_Fix","ASO","RAINBOW_RSI"],
     "Rational Strategy LT": ["Overview","MMBs","GR-Multiple MAs","SAR","Support and Resistance","Coppock Curve","Stoch RSI","BBPower","%R MA","TRIX"],
+}
+
+# -------------------------
+# TRADING SIGNALS CONFIGURATION
+# -------------------------
+SIGNAL_CONFIG = {
+    "timeframes": {
+        "short": {"name": "Short Term", "duration": "1-7 days", "color": "#FF6B6B"},
+        "medium": {"name": "Medium Term", "duration": "1-4 weeks", "color": "#4ECDC4"},
+        "long": {"name": "Long Term", "duration": "1-6 months", "color": "#45B7D1"}
+    },
+    "assets": [
+        "BTC/USD", "ETH/USD", "ADA/USD", "DOT/USD", "LINK/USD", 
+        "LTC/USD", "BCH/USD", "XRP/USD", "XLM/USD", "EOS/USD",
+        "BNB/USD", "SOL/USD", "MATIC/USD", "AVAX/USD", "ATOM/USD"
+    ],
+    "signal_types": ["BUY", "SELL", "HOLD", "STRONG_BUY", "STRONG_SELL"],
+    "confidence_levels": ["Low", "Medium", "High", "Very High"]
 }
 
 # -------------------------
@@ -1054,6 +1136,686 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
+# TRADING SIGNALS ROOM - NEW FEATURE
+# -------------------------
+def render_trading_signals_room():
+    """Main Trading Signals Room interface"""
+    
+    # Admin vs User view logic
+    if st.session_state.user['plan'] == 'admin':
+        render_admin_signals_room()
+    else:
+        render_user_signals_room()
+
+def render_admin_signals_room():
+    """Admin Trading Signals Room with full workflow"""
+    
+    # Header
+    st.title("⚡ Trading Signals Room - Admin")
+    st.markdown("---")
+    
+    # Admin workflow navigation
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🚀 Launch Signal", use_container_width=True, key="admin_launch_signal"):
+            st.session_state.signals_room_view = 'launch_signal'
+            st.rerun()
+    with col2:
+        if st.button("🔍 Confirm Signals", use_container_width=True, key="admin_confirm_signal"):
+            st.session_state.signals_room_view = 'confirm_signals'
+            st.rerun()
+    with col3:
+        if st.button("📢 Published Signals", use_container_width=True, key="admin_published_signals"):
+            st.session_state.signals_room_view = 'published_signals'
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Render current view
+    if st.session_state.signals_room_view == 'launch_signal':
+        render_signal_launch_interface()
+    elif st.session_state.signals_room_view == 'confirm_signals':
+        render_signal_confirmation_interface()
+    elif st.session_state.signals_room_view == 'published_signals':
+        render_published_signals_interface()
+    else:
+        render_active_signals_overview()
+
+def render_user_signals_room():
+    """User Trading Signals Room - View Only"""
+    
+    # Header
+    st.title("📱 Trading Signals Room")
+    st.markdown("---")
+    
+    # User workflow navigation
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.button("📱 Active Signals", use_container_width=True, key="user_active_signals", 
+                 type="primary" if st.session_state.signals_room_view == 'active_signals' else "secondary")
+    with col2:
+        st.button("📊 Signal Results", use_container_width=True, key="user_signal_results",
+                 type="primary" if st.session_state.signals_room_view == 'signal_results' else "secondary")
+    with col3:
+        st.button("⭐ Provide Feedback", use_container_width=True, key="user_feedback",
+                 type="primary" if st.session_state.signals_room_view == 'provide_feedback' else "secondary")
+    
+    st.markdown("---")
+    
+    # Render current view
+    if st.session_state.signals_room_view == 'signal_results':
+        render_signal_results_interface()
+    elif st.session_state.signals_room_view == 'provide_feedback':
+        render_feedback_interface()
+    else:
+        render_active_signals_overview()
+
+def render_signal_launch_interface():
+    """Interface for admin to launch new trading signals"""
+    
+    st.subheader("🚀 Launch New Trading Signal")
+    
+    # Signal creation mode selection
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("⚡ Quick Signal", use_container_width=True, 
+                    type="primary" if st.session_state.signal_creation_mode == 'quick' else "secondary",
+                    key="quick_signal_btn"):
+            st.session_state.signal_creation_mode = 'quick'
+            st.rerun()
+    with col2:
+        if st.button("📋 Detailed Signal", use_container_width=True,
+                    type="primary" if st.session_state.signal_creation_mode == 'detailed' else "secondary",
+                    key="detailed_signal_btn"):
+            st.session_state.signal_creation_mode = 'detailed'
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Signal creation form
+    if st.session_state.signal_creation_mode == 'quick':
+        render_quick_signal_form()
+    else:
+        render_detailed_signal_form()
+
+def render_quick_signal_form():
+    """Quick signal form for rapid signal creation"""
+    
+    with st.form("quick_signal_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            asset = st.selectbox("Asset*", SIGNAL_CONFIG["assets"], key="quick_asset")
+            signal_type = st.selectbox("Signal Type*", SIGNAL_CONFIG["signal_types"], key="quick_signal_type")
+            timeframe = st.selectbox("Timeframe*", list(SIGNAL_CONFIG["timeframes"].keys()), 
+                                   format_func=lambda x: SIGNAL_CONFIG["timeframes"][x]["name"],
+                                   key="quick_timeframe")
+        
+        with col2:
+            entry_price = st.number_input("Entry Price*", min_value=0.0, step=0.01, key="quick_entry")
+            target_price = st.number_input("Target Price*", min_value=0.0, step=0.01, key="quick_target")
+            stop_loss = st.number_input("Stop Loss*", min_value=0.0, step=0.01, key="quick_stop")
+        
+        # Quick description
+        description = st.text_area("Signal Description*", 
+                                 placeholder="Brief description of the trading signal...",
+                                 max_chars=200,
+                                 key="quick_description")
+        
+        submitted = st.form_submit_button("🚀 Launch Quick Signal", use_container_width=True)
+        
+        if submitted:
+            if not all([asset, signal_type, timeframe, entry_price, target_price, stop_loss, description]):
+                st.error("❌ Please fill in all required fields (*)")
+            else:
+                # Create signal object
+                new_signal = {
+                    "signal_id": str(uuid.uuid4())[:8],
+                    "asset": asset,
+                    "signal_type": signal_type,
+                    "timeframe": timeframe,
+                    "entry_price": entry_price,
+                    "target_price": target_price,
+                    "stop_loss": stop_loss,
+                    "description": description,
+                    "created_by": st.session_state.user['username'],
+                    "created_at": datetime.now().isoformat(),
+                    "status": "pending_confirmation",
+                    "confirmations": [],
+                    "published_at": None,
+                    "user_feedback": [],
+                    "performance": None,
+                    "risk_level": "Medium",
+                    "confidence": "Medium"
+                }
+                
+                # Add to active signals
+                st.session_state.active_signals.append(new_signal)
+                save_signals_data(st.session_state.active_signals)
+                
+                st.success("✅ Signal launched successfully! Waiting for confirmation...")
+                st.balloons()
+                time.sleep(2)
+                st.session_state.signals_room_view = 'confirm_signals'
+                st.rerun()
+
+def render_detailed_signal_form():
+    """Detailed signal form with comprehensive analysis"""
+    
+    with st.form("detailed_signal_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            asset = st.selectbox("Asset*", SIGNAL_CONFIG["assets"], key="detailed_asset")
+            signal_type = st.selectbox("Signal Type*", SIGNAL_CONFIG["signal_types"], key="detailed_signal_type")
+            timeframe = st.selectbox("Timeframe*", list(SIGNAL_CONFIG["timeframes"].keys()), 
+                                   format_func=lambda x: SIGNAL_CONFIG["timeframes"][x]["name"],
+                                   key="detailed_timeframe")
+            confidence = st.selectbox("Confidence Level*", SIGNAL_CONFIG["confidence_levels"], key="detailed_confidence")
+        
+        with col2:
+            entry_price = st.number_input("Entry Price*", min_value=0.0, step=0.01, key="detailed_entry")
+            target_price = st.number_input("Target Price*", min_value=0.0, step=0.01, key="detailed_target")
+            stop_loss = st.number_input("Stop Loss*", min_value=0.0, step=0.01, key="detailed_stop")
+            risk_level = st.select_slider("Risk Level*", ["Low", "Medium", "High", "Very High"], value="Medium", key="detailed_risk")
+        
+        # Technical analysis
+        st.subheader("📊 Technical Analysis")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            rsi = st.slider("RSI", 0, 100, 50, key="detailed_rsi")
+            macd = st.selectbox("MACD Signal", ["Bullish", "Bearish", "Neutral"], key="detailed_macd")
+            volume_trend = st.selectbox("Volume Trend", ["Increasing", "Decreasing", "Stable"], key="detailed_volume")
+        
+        with col2:
+            support_level = st.number_input("Support Level", min_value=0.0, step=0.01, key="detailed_support")
+            resistance_level = st.number_input("Resistance Level", min_value=0.0, step=0.01, key="detailed_resistance")
+            trend_direction = st.selectbox("Trend Direction", ["Uptrend", "Downtrend", "Sideways"], key="detailed_trend")
+        
+        # Detailed description and rationale
+        description = st.text_area("Signal Description*", 
+                                 placeholder="Detailed description of the trading signal...",
+                                 height=100,
+                                 key="detailed_description")
+        
+        rationale = st.text_area("Trading Rationale*",
+                               placeholder="Explain the reasoning behind this signal...",
+                               height=100,
+                               key="detailed_rationale")
+        
+        submitted = st.form_submit_button("🚀 Launch Detailed Signal", use_container_width=True)
+        
+        if submitted:
+            if not all([asset, signal_type, timeframe, entry_price, target_price, stop_loss, description, rationale]):
+                st.error("❌ Please fill in all required fields (*)")
+            else:
+                # Create detailed signal object
+                new_signal = {
+                    "signal_id": str(uuid.uuid4())[:8],
+                    "asset": asset,
+                    "signal_type": signal_type,
+                    "timeframe": timeframe,
+                    "entry_price": entry_price,
+                    "target_price": target_price,
+                    "stop_loss": stop_loss,
+                    "description": description,
+                    "rationale": rationale,
+                    "technical_analysis": {
+                        "rsi": rsi,
+                        "macd": macd,
+                        "volume_trend": volume_trend,
+                        "support_level": support_level,
+                        "resistance_level": resistance_level,
+                        "trend_direction": trend_direction
+                    },
+                    "created_by": st.session_state.user['username'],
+                    "created_at": datetime.now().isoformat(),
+                    "status": "pending_confirmation",
+                    "confirmations": [],
+                    "published_at": None,
+                    "user_feedback": [],
+                    "performance": None,
+                    "risk_level": risk_level,
+                    "confidence": confidence
+                }
+                
+                # Add to active signals
+                st.session_state.active_signals.append(new_signal)
+                save_signals_data(st.session_state.active_signals)
+                
+                st.success("✅ Detailed signal launched successfully! Waiting for confirmation...")
+                st.balloons()
+                time.sleep(2)
+                st.session_state.signals_room_view = 'confirm_signals'
+                st.rerun()
+
+def render_signal_confirmation_interface():
+    """Interface for multi-confirmation system"""
+    
+    st.subheader("🔍 Signal Confirmation Queue")
+    
+    # Get pending confirmation signals
+    pending_signals = [s for s in st.session_state.active_signals if s["status"] == "pending_confirmation"]
+    
+    if not pending_signals:
+        st.info("🎉 No signals waiting for confirmation. All signals are confirmed!")
+        return
+    
+    for signal in pending_signals:
+        with st.container():
+            st.markdown("---")
+            
+            # Signal header
+            col1, col2, col3 = st.columns([3, 2, 1])
+            
+            with col1:
+                timeframe_config = SIGNAL_CONFIG["timeframes"][signal["timeframe"]]
+                color = timeframe_config["color"]
+                st.markdown(f"### **{signal['asset']}** - `{signal['signal_type']}`")
+                st.markdown(f"<span style='color: {color}; font-weight: bold;'>⏱️ {timeframe_config['name']}</span>", unsafe_allow_html=True)
+            
+            with col2:
+                st.write(f"**Entry:** ${signal['entry_price']:,.2f}")
+                st.write(f"**Target:** ${signal['target_price']:,.2f}")
+            
+            with col3:
+                st.write(f"**Stop:** ${signal['stop_loss']:,.2f}")
+                risk_reward = (signal['target_price'] - signal['entry_price']) / (signal['entry_price'] - signal['stop_loss'])
+                st.write(f"**R/R:** {risk_reward:.2f}:1")
+            
+            # Signal details
+            with st.expander("📋 Signal Details", expanded=False):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**Description:** {signal['description']}")
+                    if 'rationale' in signal:
+                        st.write(f"**Rationale:** {signal['rationale']}")
+                    
+                with col2:
+                    st.write(f"**Risk Level:** {signal.get('risk_level', 'Medium')}")
+                    st.write(f"**Confidence:** {signal.get('confidence', 'Medium')}")
+                    st.write(f"**Created by:** {signal['created_by']}")
+                    st.write(f"**Created at:** {datetime.fromisoformat(signal['created_at']).strftime('%Y-%m-%d %H:%M')}")
+                
+                # Technical analysis if available
+                if 'technical_analysis' in signal:
+                    st.subheader("📊 Technical Analysis")
+                    tech = signal['technical_analysis']
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write(f"**RSI:** {tech['rsi']}")
+                        st.write(f"**MACD:** {tech['macd']}")
+                    with col2:
+                        st.write(f"**Volume:** {tech['volume_trend']}")
+                        st.write(f"**Trend:** {tech['trend_direction']}")
+                    with col3:
+                        if tech['support_level'] > 0:
+                            st.write(f"**Support:** ${tech['support_level']:,.2f}")
+                        if tech['resistance_level'] > 0:
+                            st.write(f"**Resistance:** ${tech['resistance_level']:,.2f}")
+            
+            # Confirmation actions
+            col1, col2, col3 = st.columns([1, 1, 2])
+            
+            with col1:
+                if st.button("✅ Confirm", key=f"confirm_{signal['signal_id']}", use_container_width=True):
+                    # Add confirmation
+                    if st.session_state.user['username'] not in [c['admin'] for c in signal['confirmations']]:
+                        signal['confirmations'].append({
+                            "admin": st.session_state.user['username'],
+                            "timestamp": datetime.now().isoformat(),
+                            "notes": "Signal confirmed"
+                        })
+                        save_signals_data(st.session_state.active_signals)
+                        st.success("✅ Signal confirmed!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ You have already confirmed this signal")
+            
+            with col2:
+                if st.button("❌ Reject", key=f"reject_{signal['signal_id']}", use_container_width=True):
+                    signal['status'] = 'rejected'
+                    save_signals_data(st.session_state.active_signals)
+                    st.error("❌ Signal rejected!")
+                    st.rerun()
+            
+            with col3:
+                # Show confirmation progress
+                confirm_count = len(signal['confirmations'])
+                required_confirmations = 2  # Could be configurable
+                progress = confirm_count / required_confirmations
+                st.progress(progress, text=f"Confirmations: {confirm_count}/{required_confirmations}")
+                
+                # Auto-publish if enough confirmations
+                if confirm_count >= required_confirmations and signal['status'] == 'pending_confirmation':
+                    signal['status'] = 'published'
+                    signal['published_at'] = datetime.now().isoformat()
+                    save_signals_data(st.session_state.active_signals)
+                    st.success("🎉 Signal automatically published!")
+                    st.rerun()
+
+def render_published_signals_interface():
+    """Interface for managing published signals"""
+    
+    st.subheader("📢 Published Signals")
+    
+    # Get published signals
+    published_signals = [s for s in st.session_state.active_signals if s["status"] == "published"]
+    
+    if not published_signals:
+        st.info("📭 No published signals yet. Confirm some signals first!")
+        return
+    
+    # Filters
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filter_asset = st.selectbox("Filter by Asset", ["All Assets"] + SIGNAL_CONFIG["assets"], key="published_filter_asset")
+    with col2:
+        filter_timeframe = st.selectbox("Filter by Timeframe", ["All Timeframes"] + list(SIGNAL_CONFIG["timeframes"].keys()),
+                                      format_func=lambda x: SIGNAL_CONFIG["timeframes"][x]["name"] if x != "All Timeframes" else x,
+                                      key="published_filter_timeframe")
+    with col3:
+        filter_signal_type = st.selectbox("Filter by Type", ["All Types"] + SIGNAL_CONFIG["signal_types"], key="published_filter_type")
+    
+    # Apply filters
+    filtered_signals = published_signals.copy()
+    if filter_asset != "All Assets":
+        filtered_signals = [s for s in filtered_signals if s["asset"] == filter_asset]
+    if filter_timeframe != "All Timeframes":
+        filtered_signals = [s for s in filtered_signals if s["timeframe"] == filter_timeframe]
+    if filter_signal_type != "All Types":
+        filtered_signals = [s for s in filtered_signals if s["signal_type"] == filter_signal_type]
+    
+    # Display signals
+    for signal in filtered_signals:
+        with st.container():
+            st.markdown("---")
+            
+            # Signal card
+            col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+            
+            with col1:
+                # Signal type color coding
+                signal_color = "#10B981" if signal["signal_type"] in ["BUY", "STRONG_BUY"] else "#EF4444" if signal["signal_type"] in ["SELL", "STRONG_SELL"] else "#6B7280"
+                st.markdown(f"### **{signal['asset']}** - <span style='color: {signal_color};'>{signal['signal_type']}</span>", unsafe_allow_html=True)
+                
+                timeframe_config = SIGNAL_CONFIG["timeframes"][signal["timeframe"]]
+                st.markdown(f"⏱️ {timeframe_config['name']} • 🎯 {signal.get('confidence', 'Medium')} Confidence")
+                st.markdown(f"📝 {signal['description']}")
+            
+            with col2:
+                st.metric("Entry Price", f"${signal['entry_price']:,.2f}")
+                st.metric("Target Price", f"${signal['target_price']:,.2f}")
+            
+            with col3:
+                st.metric("Stop Loss", f"${signal['stop_loss']:,.2f}")
+                current_progress = 0  # This would come from real market data
+                st.progress(current_progress, text=f"Progress: {current_progress:.1%}")
+            
+            with col4:
+                # Performance and actions
+                if signal.get('performance'):
+                    perf = signal['performance']
+                    if perf['result'] == 'win':
+                        st.success(f"✅ {perf['pips']} pips")
+                    else:
+                        st.error(f"❌ {perf['pips']} pips")
+                else:
+                    st.info("🔄 Active")
+                
+                if st.button("📊 Update Result", key=f"update_{signal['signal_id']}", use_container_width=True):
+                    st.session_state.signal_to_confirm = signal['signal_id']
+                    st.session_state.signals_room_view = 'update_result'
+                    st.rerun()
+            
+            # User feedback summary
+            if signal.get('user_feedback'):
+                with st.expander(f"⭐ User Feedback ({len(signal['user_feedback'])} reviews)"):
+                    for feedback in signal['user_feedback'][:3]:  # Show first 3
+                        col1, col2 = st.columns([1, 4])
+                        with col1:
+                            st.write(f"**{feedback['rating']}/5** ⭐")
+                        with col2:
+                            st.write(feedback['comment'])
+                            st.caption(f"by {feedback['user']} • {datetime.fromisoformat(feedback['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+
+def render_active_signals_overview():
+    """Overview of all active signals for both admin and users"""
+    
+    st.subheader("📱 Active Trading Signals")
+    
+    # Get active signals (published and not expired)
+    active_signals = [s for s in st.session_state.active_signals 
+                     if s["status"] == "published" and not s.get('expired', False)]
+    
+    if not active_signals:
+        st.info("📭 No active signals available. Check back later for new trading opportunities!")
+        return
+    
+    # Stats overview
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        buy_signals = len([s for s in active_signals if s["signal_type"] in ["BUY", "STRONG_BUY"]])
+        st.metric("Buy Signals", buy_signals)
+    with col2:
+        sell_signals = len([s for s in active_signals if s["signal_type"] in ["SELL", "STRONG_SELL"]])
+        st.metric("Sell Signals", sell_signals)
+    with col3:
+        short_term = len([s for s in active_signals if s["timeframe"] == "short"])
+        st.metric("Short Term", short_term)
+    with col4:
+        total_signals = len(active_signals)
+        st.metric("Total Active", total_signals)
+    
+    st.markdown("---")
+    
+    # Display active signals in a clean grid
+    for i, signal in enumerate(active_signals):
+        col1, col2 = st.columns([3, 2])
+        
+        with col1:
+            # Signal info
+            signal_color = "#10B981" if signal["signal_type"] in ["BUY", "STRONG_BUY"] else "#EF4444"
+            timeframe_config = SIGNAL_CONFIG["timeframes"][signal["timeframe"]]
+            
+            st.markdown(f"#### **{signal['asset']}** • <span style='color: {signal_color};'>{signal['signal_type']}</span>", unsafe_allow_html=True)
+            st.markdown(f"**{timeframe_config['name']}** • {signal.get('confidence', 'Medium')} Confidence")
+            st.markdown(f"📊 {signal['description']}")
+            
+            # Progress bar for signal performance (simulated)
+            progress_value = min(0.7, 0.3 + (i * 0.1))  # Simulated progress
+            st.progress(progress_value, text=f"Signal Progress: {progress_value:.1%}")
+        
+        with col2:
+            # Pricing info
+            col2a, col2b = st.columns(2)
+            with col2a:
+                st.metric("Entry", f"${signal['entry_price']:,.2f}")
+                st.metric("Stop Loss", f"${signal['stop_loss']:,.2f}")
+            with col2b:
+                st.metric("Target", f"${signal['target_price']:,.2f}")
+                risk_reward = (signal['target_price'] - signal['entry_price']) / (signal['entry_price'] - signal['stop_loss'])
+                st.metric("R/R Ratio", f"{risk_reward:.2f}:1")
+            
+            # User actions
+            if st.session_state.user['plan'] != 'admin':
+                if st.button("⭐ Rate Signal", key=f"rate_{signal['signal_id']}", use_container_width=True):
+                    st.session_state.selected_signal_for_feedback = signal['signal_id']
+                    st.session_state.signals_room_view = 'provide_feedback'
+                    st.rerun()
+        
+        st.markdown("---")
+
+def render_signal_results_interface():
+    """Interface for users to view signal results and performance"""
+    
+    st.subheader("📊 Signal Results & Performance")
+    
+    # Get completed signals with results
+    completed_signals = [s for s in st.session_state.active_signals if s.get('performance')]
+    
+    if not completed_signals:
+        st.info("📊 No completed signals with results yet. Check back later for performance data!")
+        return
+    
+    # Performance metrics
+    total_signals = len(completed_signals)
+    winning_signals = len([s for s in completed_signals if s['performance']['result'] == 'win'])
+    win_rate = (winning_signals / total_signals) * 100 if total_signals > 0 else 0
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Signals", total_signals)
+    with col2:
+        st.metric("Winning Signals", winning_signals)
+    with col3:
+        st.metric("Win Rate", f"{win_rate:.1f}%")
+    with col4:
+        avg_pips = sum(s['performance']['pips'] for s in completed_signals) / total_signals if total_signals > 0 else 0
+        st.metric("Avg Pips", f"{avg_pips:.1f}")
+    
+    st.markdown("---")
+    
+    # Results table
+    results_data = []
+    for signal in completed_signals:
+        results_data.append({
+            "Asset": signal['asset'],
+            "Type": signal['signal_type'],
+            "Timeframe": SIGNAL_CONFIG["timeframes"][signal['timeframe']]["name"],
+            "Result": signal['performance']['result'],
+            "Pips": signal['performance']['pips'],
+            "Duration": signal['performance'].get('duration', 'N/A'),
+            "Closed At": datetime.fromisoformat(signal['performance']['closed_at']).strftime('%Y-%m-%d %H:%M') if 'closed_at' in signal['performance'] else 'N/A'
+        })
+    
+    if results_data:
+        df = pd.DataFrame(results_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Download results
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Results CSV",
+            data=csv,
+            file_name="signal_results.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+def render_feedback_interface():
+    """Interface for users to provide feedback on signals"""
+    
+    st.subheader("⭐ Provide Feedback on Signals")
+    
+    # Get signals that user hasn't rated yet
+    user_rated_signals = set()
+    for signal in st.session_state.active_signals:
+        for feedback in signal.get('user_feedback', []):
+            if feedback['user'] == st.session_state.user['username']:
+                user_rated_signals.add(signal['signal_id'])
+    
+    rateable_signals = [s for s in st.session_state.active_signals 
+                       if s["status"] == "published" and s['signal_id'] not in user_rated_signals]
+    
+    if not rateable_signals:
+        st.success("🎉 You've rated all available signals! Thank you for your feedback.")
+        return
+    
+    # If a specific signal is selected for feedback
+    if hasattr(st.session_state, 'selected_signal_for_feedback'):
+        target_signal = next((s for s in rateable_signals if s['signal_id'] == st.session_state.selected_signal_for_feedback), None)
+        if target_signal:
+            render_single_signal_feedback(target_signal)
+            return
+        else:
+            # Clear the selection if signal not found or already rated
+            delattr(st.session_state, 'selected_signal_for_feedback')
+    
+    # Show all rateable signals
+    st.write("### Available Signals for Feedback")
+    
+    for signal in rateable_signals:
+        with st.container():
+            st.markdown("---")
+            
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                signal_color = "#10B981" if signal["signal_type"] in ["BUY", "STRONG_BUY"] else "#EF4444"
+                st.markdown(f"#### **{signal['asset']}** • <span style='color: {signal_color};'>{signal['signal_type']}</span>", unsafe_allow_html=True)
+                st.write(f"**{SIGNAL_CONFIG['timeframes'][signal['timeframe']]['name']}** • Entry: ${signal['entry_price']:,.2f}")
+                st.write(signal['description'])
+            
+            with col2:
+                if st.button("💬 Provide Feedback", key=f"fb_{signal['signal_id']}", use_container_width=True):
+                    st.session_state.selected_signal_for_feedback = signal['signal_id']
+                    st.rerun()
+
+def render_single_signal_feedback(signal):
+    """Render feedback form for a specific signal"""
+    
+    st.write(f"### Providing Feedback for: **{signal['asset']}** - {signal['signal_type']}")
+    st.markdown("---")
+    
+    with st.form(f"feedback_form_{signal['signal_id']}"):
+        # Rating
+        rating = st.slider("Rate this signal (1-5 stars)", 1, 5, 3, 
+                          help="1 = Poor, 3 = Average, 5 = Excellent")
+        
+        # Display stars visually
+        stars = "⭐" * rating + "☆" * (5 - rating)
+        st.write(f"**Your rating:** {stars}")
+        
+        # Comment
+        comment = st.text_area("Your feedback comment (optional)", 
+                             placeholder="What did you think of this signal? Was it helpful? Any suggestions?",
+                             height=100)
+        
+        # Trading experience
+        experience = st.selectbox("Your trading experience with this signal", 
+                                ["Didn't trade", "Profitable", "Break-even", "Small loss", "Significant loss"],
+                                help="How did this signal work out for you?")
+        
+        submitted = st.form_submit_button("📤 Submit Feedback", use_container_width=True)
+        
+        if submitted:
+            # Create feedback object
+            feedback = {
+                "user": st.session_state.user['username'],
+                "rating": rating,
+                "comment": comment,
+                "experience": experience,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Add to signal
+            if 'user_feedback' not in signal:
+                signal['user_feedback'] = []
+            signal['user_feedback'].append(feedback)
+            
+            # Save data
+            save_signals_data(st.session_state.active_signals)
+            
+            st.success("✅ Thank you for your feedback! Your insights help improve our signals.")
+            
+            # Clear selection and return to main view
+            if hasattr(st.session_state, 'selected_signal_for_feedback'):
+                delattr(st.session_state, 'selected_signal_for_feedback')
+            
+            time.sleep(2)
+            st.session_state.signals_room_view = 'active_signals'
+            st.rerun()
+    
+    # Back button
+    if st.button("⬅️ Back to All Signals", use_container_width=True):
+        if hasattr(st.session_state, 'selected_signal_for_feedback'):
+            delattr(st.session_state, 'selected_signal_for_feedback')
+        st.rerun()
+
+# -------------------------
 # ENHANCED AUTHENTICATION COMPONENTS
 # -------------------------
 def render_login():
@@ -1329,7 +2091,7 @@ def render_gallery_display():
     elif sort_by == "Most Liked":
         filtered_images.sort(key=lambda x: x['likes'], reverse=True)
     
-    # Display gallery in a grid
+    # Display gallery in a grid - ALWAYS SHOW THUMBNAILS WITHOUT EXPANDER
     if not filtered_images:
         st.warning("No images match your current filters.")
         return
@@ -2549,13 +3311,17 @@ def render_admin_dashboard():
             st.success("🛠️ Admin Management Mode")
         elif current_mode == "premium":
             st.success("📊 Premium Signal Mode")
-        else:
+        elif current_mode == "gallery":
             st.success("🖼️ Image Gallery Mode")
+        elif current_mode == "signals_room":
+            st.success("⚡ Trading Signals Room")
+        else:
+            st.success("🛠️ Admin Management Mode")
         
         # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
                         type="primary" if current_mode == "admin" else "secondary",
@@ -2574,6 +3340,12 @@ def render_admin_dashboard():
                         key="sidebar_gallery_btn"):
                 st.session_state.admin_dashboard_mode = "gallery"
                 st.rerun()
+        with col4:
+            if st.button("⚡ Signals", use_container_width=True,
+                        type="primary" if current_mode == "signals_room" else "secondary",
+                        key="sidebar_signals_btn"):
+                st.session_state.admin_dashboard_mode = "signals_room"
+                st.rerun()
         
         st.markdown("---")
         
@@ -2590,6 +3362,21 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             # Premium mode uses its own sidebar built in render_premium_signal_dashboard
             pass
+        elif current_mode == "signals_room":
+            # Signals Room mode - show signal-specific options
+            st.subheader("Signal Actions")
+            if st.button("🚀 Launch Signal", use_container_width=True, key="sidebar_launch_signal"):
+                st.session_state.signals_room_view = 'launch_signal'
+                st.rerun()
+            if st.button("🔍 Confirm Signals", use_container_width=True, key="sidebar_confirm_signal"):
+                st.session_state.signals_room_view = 'confirm_signals'
+                st.rerun()
+            if st.button("📢 Published", use_container_width=True, key="sidebar_published_signals"):
+                st.session_state.signals_room_view = 'published_signals'
+                st.rerun()
+            if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
+                st.session_state.signals_room_view = 'active_signals'
+                st.rerun()
         else:
             # Gallery mode
             st.subheader("Gallery Actions")
@@ -2612,6 +3399,8 @@ def render_admin_dashboard():
         render_admin_management_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "premium":
         render_premium_signal_dashboard()
+    elif st.session_state.get('admin_dashboard_mode') == "signals_room":
+        render_trading_signals_room()
     else:
         render_image_gallery()
 
@@ -2648,7 +3437,7 @@ def render_admin_dashboard_selection():
     st.title("👑 Admin Portal - Choose Dashboard")
     st.markdown("---")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.subheader("🛠️ Admin Management Dashboard")
@@ -2696,6 +3485,22 @@ def render_admin_dashboard_selection():
         """)
         if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash_btn"):
             st.session_state.admin_dashboard_mode = "gallery"
+            st.rerun()
+    
+    with col4:
+        st.subheader("⚡ Trading Signals Room")
+        st.markdown("""
+        **Signal Workflow:**
+        - Launch trading signals
+        - Multi-confirmation system
+        - Publish to all users
+        - View active signals
+        - Track performance
+        - User feedback system
+        - Real-time updates
+        """)
+        if st.button("⚡ Go to Signals Room", use_container_width=True, key="signals_dash_btn"):
+            st.session_state.admin_dashboard_mode = "signals_room"
             st.rerun()
     
     st.markdown("---")
@@ -3067,6 +3872,13 @@ def main():
         margin: 0.5rem 0;
         background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
     }
+    .signals-feature {
+        border: 2px solid #EF4444;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
+    }
     .verification-badge {
         font-size: 0.7rem !important;
         padding: 2px 8px !important;
@@ -3129,6 +3941,55 @@ def main():
         gap: 10px;
         margin: 20px 0;
     }
+    .signal-card {
+        border: 2px solid #E5E7EB;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    .signal-card:hover {
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    .signal-buy {
+        border-left: 5px solid #10B981;
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+    }
+    .signal-sell {
+        border-left: 5px solid #EF4444;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
+    }
+    .signal-hold {
+        border-left: 5px solid #6B7280;
+        background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+    }
+    .timeframe-short {
+        background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
+        color: #DC2626;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .timeframe-medium {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        color: #059669;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .timeframe-long {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        color: #2563EB;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
     </style>
     """, unsafe_allow_html=True)
     
@@ -3138,7 +3999,7 @@ def main():
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery
+            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room
             # Add navigation for users to switch between dashboard and gallery
             
             # User navigation header
@@ -3147,7 +4008,7 @@ def main():
             # User mode selection
             user_mode = st.sidebar.radio(
                 "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery"],
+                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals"],
                 key="user_navigation_mode"
             )
             
@@ -3155,6 +4016,9 @@ def main():
             if user_mode == "🖼️ Image Gallery":
                 # For gallery, ensure user can only view (not upload)
                 render_user_image_gallery()
+            elif user_mode == "⚡ Trading Signals":
+                # Show the trading signals room in VIEW MODE
+                render_trading_signals_room()
             else:
                 # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
