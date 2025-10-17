@@ -1278,19 +1278,6 @@ def render_gallery_display():
 def render_image_card(img_data, index):
     """Render individual image card with ALWAYS VISIBLE thumbnail"""
     with st.container():
-        st.markdown("""
-        <div style='
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-            height: 100%;
-        '>
-        """, unsafe_allow_html=True)
-        
         # Display thumbnail ALWAYS VISIBLE
         st.image(img_data['bytes'], use_container_width=True)
         
@@ -1336,8 +1323,6 @@ def render_image_card(img_data, index):
             b64_img = base64.b64encode(img_data['bytes']).decode()
             href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
             st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
 
 def render_image_viewer():
     """Enhanced image viewer with navigation controls"""
