@@ -1221,7 +1221,7 @@ def render_image_uploader():
     )
     
     # Upload button
-    if st.button("🚀 Upload Images to Gallery", use_container_width=True):
+    if st.button("🚀 Upload Images to Gallery", use_container_width=True, key="upload_images_btn"):
         if uploaded_files:
             for uploaded_file in uploaded_files:
                 # Read image file
@@ -1352,7 +1352,7 @@ def render_gallery_display():
         if st.session_state.show_clear_gallery_confirmation:
             render_clear_gallery_confirmation()
         else:
-            if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True):
+            if st.button("🗑️ Clear Entire Gallery (Admin Only)", use_container_width=True, key="clear_gallery_btn"):
                 st.session_state.show_clear_gallery_confirmation = True
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
@@ -1393,7 +1393,7 @@ def render_image_card(img_data, index):
         # Interaction buttons
         col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
         with col_a:
-            if st.button("❤️", key=f"like_{index}", help="Like this image"):
+            if st.button("❤️", key=f"like_{index}_{img_data['name']}", help="Like this image"):
                 img_data['likes'] += 1
                 # Save gallery after like
                 save_gallery_images(st.session_state.uploaded_images)
@@ -1402,7 +1402,7 @@ def render_image_card(img_data, index):
             st.write(f" {img_data['likes']}")
         with col_c:
             # Full view button
-            if st.button("🖼️ Full View", key=f"view_{index}", help="View image in fullscreen mode"):
+            if st.button("🖼️ Full View", key=f"view_{index}_{img_data['name']}", help="View image in fullscreen mode"):
                 # Find the index of this image in the original list
                 original_index = st.session_state.uploaded_images.index(img_data)
                 st.session_state.current_image_index = original_index
@@ -1418,7 +1418,7 @@ def render_image_card(img_data, index):
                 st.error("Download unavailable")
 
 def render_image_viewer():
-    """Enhanced image viewer with navigation controls and persistence"""
+    """Enhanced image viewer with navigation controls and persistence - FIXED DUPLICATE KEY ISSUE"""
     if not st.session_state.uploaded_images:
         st.warning("No images in gallery")
         st.session_state.image_viewer_mode = False
@@ -1429,11 +1429,11 @@ def render_image_viewer():
     total_images = len(st.session_state.uploaded_images)
     img_data = st.session_state.uploaded_images[current_index]
     
-    # Header with navigation
+    # Header with navigation - FIXED: Unique keys for all buttons
     col1, col2, col3, col4 = st.columns([1, 2, 2, 1])
     
     with col1:
-        if st.button("⬅️ Back to Gallery", use_container_width=True):
+        if st.button("⬅️ Back to Gallery", use_container_width=True, key="image_viewer_back_btn"):
             st.session_state.image_viewer_mode = False
             st.rerun()
     
@@ -1444,17 +1444,17 @@ def render_image_viewer():
         st.markdown(f"### {img_data['name']}")
     
     with col4:
-        if st.button("📋 Gallery", use_container_width=True):
+        if st.button("📋 Gallery", use_container_width=True, key="image_viewer_gallery_btn"):
             st.session_state.image_viewer_mode = False
             st.rerun()
     
     st.markdown("---")
     
-    # Main image display
+    # Main image display - FIXED: Unique keys for navigation buttons
     col1, col2, col3 = st.columns([1, 8, 1])
     
     with col1:
-        if st.button("◀️ Previous", use_container_width=True, key="prev_img"):
+        if st.button("◀️ Previous", use_container_width=True, key="image_viewer_prev_btn"):
             st.session_state.current_image_index = (current_index - 1) % total_images
             st.rerun()
     
@@ -1466,7 +1466,7 @@ def render_image_viewer():
             st.error(f"Error displaying image: {str(e)}")
     
     with col3:
-        if st.button("Next ▶️", use_container_width=True, key="next_img"):
+        if st.button("Next ▶️", use_container_width=True, key="image_viewer_next_btn"):
             st.session_state.current_image_index = (current_index + 1) % total_images
             st.rerun()
     
@@ -1504,7 +1504,7 @@ def render_image_viewer():
             st.write(f"**Format:** {img_data['format']}")
     
     with col2:
-        # Quick navigation and actions
+        # Quick navigation and actions - FIXED: Unique keys
         st.subheader("Quick Navigation")
         
         # Image selector
@@ -1513,7 +1513,7 @@ def render_image_viewer():
             range(total_images),
             format_func=lambda i: f"Image {i+1}: {st.session_state.uploaded_images[i]['name'][:20]}...",
             index=current_index,
-            key="image_selector"
+            key="image_viewer_selector"
         )
         
         if selected_index != current_index:
@@ -1522,11 +1522,11 @@ def render_image_viewer():
         
         st.markdown("---")
         
-        # Action buttons
+        # Action buttons - FIXED: Unique keys
         st.subheader("Actions")
         
         # Like button
-        if st.button(f"❤️ Like ({img_data['likes']})", use_container_width=True, key="viewer_like"):
+        if st.button(f"❤️ Like ({img_data['likes']})", use_container_width=True, key="image_viewer_like_btn"):
             img_data['likes'] += 1
             # Save gallery after like
             save_gallery_images(st.session_state.uploaded_images)
@@ -1540,32 +1540,32 @@ def render_image_viewer():
         except Exception as e:
             st.error("Download unavailable")
     
-    # Navigation controls at bottom
+    # Navigation controls at bottom - FIXED: Unique keys for all bottom navigation buttons
     st.markdown("---")
     col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        if st.button("⏮️ First", use_container_width=True):
+        if st.button("⏮️ First", use_container_width=True, key="image_viewer_first_btn"):
             st.session_state.current_image_index = 0
             st.rerun()
     
     with col2:
-        if st.button("◀️ Previous", use_container_width=True):
+        if st.button("◀️ Previous", use_container_width=True, key="image_viewer_prev_bottom_btn"):
             st.session_state.current_image_index = (current_index - 1) % total_images
             st.rerun()
     
     with col3:
-        if st.button("📋 Gallery", use_container_width=True):
+        if st.button("📋 Gallery", use_container_width=True, key="image_viewer_gallery_bottom_btn"):
             st.session_state.image_viewer_mode = False
             st.rerun()
     
     with col4:
-        if st.button("Next ▶️", use_container_width=True):
+        if st.button("Next ▶️", use_container_width=True, key="image_viewer_next_bottom_btn"):
             st.session_state.current_image_index = (current_index + 1) % total_images
             st.rerun()
     
     with col5:
-        if st.button("Last ⏭️", use_container_width=True):
+        if st.button("Last ⏭️", use_container_width=True, key="image_viewer_last_btn"):
             st.session_state.current_image_index = total_images - 1
             st.rerun()
 
@@ -1589,7 +1589,7 @@ def render_clear_gallery_confirmation():
             placeholder="Enter your admin password to proceed",
             help="This is a security measure to prevent accidental data loss",
             value=st.session_state.clear_gallery_password,
-            key="admin_password_input"
+            key="admin_password_input_clear_gallery"
         )
         
         # Update session state with password input
@@ -1597,7 +1597,7 @@ def render_clear_gallery_confirmation():
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("✅ CONFIRM DELETE ALL IMAGES", use_container_width=True, type="primary"):
+            if st.button("✅ CONFIRM DELETE ALL IMAGES", use_container_width=True, type="primary", key="confirm_clear_gallery"):
                 if not admin_password:
                     st.session_state.clear_gallery_error = "❌ Please enter your admin password to confirm"
                     st.rerun()
@@ -1623,7 +1623,7 @@ def render_clear_gallery_confirmation():
                         st.rerun()
         
         with col2:
-            if st.button("❌ CANCEL", use_container_width=True):
+            if st.button("❌ CANCEL", use_container_width=True, key="cancel_clear_gallery"):
                 st.session_state.show_clear_gallery_confirmation = False
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
@@ -1655,7 +1655,7 @@ def render_admin_dashboard_selection():
         - Revenue reporting
         - Bulk operations
         """)
-        if st.button("🚀 Go to Admin Dashboard", use_container_width=True, key="admin_dash"):
+        if st.button("🚀 Go to Admin Dashboard", use_container_width=True, key="admin_dash_btn"):
             st.session_state.admin_dashboard_mode = "admin"
             st.rerun()
     
@@ -1671,7 +1671,7 @@ def render_admin_dashboard_selection():
         - Advanced analytics
         - Export functionality
         """)
-        if st.button("📈 Go to Premium Dashboard", use_container_width=True, key="premium_dash"):
+        if st.button("📈 Go to Premium Dashboard", use_container_width=True, key="premium_dash_btn"):
             st.session_state.admin_dashboard_mode = "premium"
             st.rerun()
     
@@ -1687,7 +1687,7 @@ def render_admin_dashboard_selection():
         - Enhanced image viewer
         - Navigation controls
         """)
-        if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash"):
+        if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash_btn"):
             st.session_state.admin_dashboard_mode = "gallery"
             st.rerun()
     
@@ -1849,21 +1849,21 @@ def render_admin_user_management():
     """Complete user management interface"""
     st.subheader("👥 User Management")
     
-    # User actions
+    # User actions - FIXED: Unique keys for all buttons
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh"):
+        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh_btn"):
             st.rerun()
     with col2:
-        if st.button("📧 Email Verification", use_container_width=True, key="um_email_verify"):
+        if st.button("📧 Email Verification", use_container_width=True, key="um_email_verify_btn"):
             st.session_state.admin_view = "email_verification"
             st.rerun()
     with col3:
-        if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials"):
+        if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials_btn"):
             st.session_state.show_user_credentials = True
             st.rerun()
     with col4:
-        if st.button("🆕 Create Test User", use_container_width=True, key="um_test"):
+        if st.button("🆕 Create Test User", use_container_width=True, key="um_test_btn"):
             created_username, msg = user_manager.create_test_user("trial")
             if created_username:
                 st.success(msg)
@@ -1871,11 +1871,11 @@ def render_admin_user_management():
                 st.error(msg)
             st.rerun()
     with col5:
-        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk"):
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk_btn"):
             st.session_state.show_bulk_delete = True
             st.rerun()
     with col6:
-        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password"):
+        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password_btn"):
             st.session_state.show_password_change = True
             st.rerun()
     
@@ -2069,10 +2069,10 @@ def render_premium_signal_dashboard():
         # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
         
-        # Date navigation
+        # Date navigation - FIXED: Unique keys
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
+            if st.button("◀️ Prev Day", use_container_width=True, key="premium_prev_day_btn"):
                 new_date = analysis_date - timedelta(days=1)
                 if new_date >= start_date:
                     st.query_params["date"] = new_date.strftime("%Y-%m-%d")
@@ -2080,13 +2080,13 @@ def render_premium_signal_dashboard():
                 else:
                     st.warning("Cannot go before start date")
         with col2:
-            if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
+            if st.button("Next Day ▶️", use_container_width=True, key="premium_next_day_btn"):
                 new_date = analysis_date + timedelta(days=1)
                 st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                 st.rerun()
         
         # Quick date reset button
-        if st.button("🔄 Today", use_container_width=True, key="today_btn"):
+        if st.button("🔄 Today", use_container_width=True, key="premium_today_btn"):
             st.query_params["date"] = date.today().strftime("%Y-%m-%d")
             st.rerun()
         
@@ -2105,12 +2105,12 @@ def render_premium_signal_dashboard():
         selected_strategy = st.selectbox(
             "Choose Strategy to Edit:", 
             daily_strategies,
-            key="strategy_selector"
+            key="premium_strategy_selector"
         )
         
         st.markdown("---")
         
-        # Navigation
+        # Navigation - FIXED: Unique keys
         st.subheader("📊 Navigation")
         nav_options = {
             "📈 Signal Dashboard": "main",
@@ -2119,7 +2119,7 @@ def render_premium_signal_dashboard():
         }
         
         for label, view in nav_options.items():
-            if st.button(label, use_container_width=True, key=f"nav_{view}"):
+            if st.button(label, use_container_width=True, key=f"premium_nav_{view}"):
                 st.session_state.dashboard_view = view
                 st.rerun()
         
@@ -2133,11 +2133,12 @@ def render_premium_signal_dashboard():
             data=csv_bytes,
             file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
+            key="premium_export_btn"
         )
         
         st.markdown("---")
-        if st.button("🚪 Secure Logout", use_container_width=True):
+        if st.button("🚪 Secure Logout", use_container_width=True, key="premium_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.session_state.admin_dashboard_mode = None
@@ -2211,7 +2212,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
             key=f"quick_note_{selected_strategy}"
         )
         
-        if st.form_submit_button("💾 Save Quick Analysis", use_container_width=True):
+        if st.form_submit_button("💾 Save Quick Analysis", use_container_width=True, key=f"save_quick_{selected_strategy}"):
             # Save quick analysis
             if 'saved_analyses' not in data:
                 data['saved_analyses'] = {}
@@ -2226,7 +2227,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     st.markdown("---")
     
     # Detailed analysis button
-    if st.button("📝 Open Detailed Analysis Editor", use_container_width=True):
+    if st.button("📝 Open Detailed Analysis Editor", use_container_width=True, key="detailed_analysis_btn"):
         st.session_state.dashboard_view = 'notes'
         st.rerun()
     
@@ -2250,7 +2251,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
     with col2:
         st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
     with col3:
-        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        if st.button("⬅️ Back to Dashboard", use_container_width=True, key="admin_back_dashboard_btn"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
     
@@ -2269,10 +2270,12 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         col1, col2 = st.columns(2)
         with col1:
             strategy_tag = st.selectbox("Strategy Tag:", ["Neutral", "Buy", "Sell"], 
-                                      index=["Neutral","Buy","Sell"].index(current_strategy_tag))
+                                      index=["Neutral","Buy","Sell"].index(current_strategy_tag),
+                                      key="admin_strategy_tag")
         with col2:
             strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], 
-                                       index=["Momentum","Extreme","Not Defined"].index(current_strategy_type))
+                                       index=["Momentum","Extreme","Not Defined"].index(current_strategy_type),
+                                       key="admin_strategy_type")
         
         st.markdown("---")
         
@@ -2305,7 +2308,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                 )
         
         # Save button
-        submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True)
+        submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True, key="admin_save_all_btn")
         if submitted:
             if selected_strategy not in strategy_data:
                 strategy_data[selected_strategy] = {}
@@ -2332,7 +2335,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
     st.subheader("📜 Saved Signals - ADMIN VIEW")
     
     view_options = ["Today's Focus"] + daily_strategies
-    filter_strategy = st.selectbox("Filter by strategy:", view_options, index=0)
+    filter_strategy = st.selectbox("Filter by strategy:", view_options, index=0, key="admin_filter_strategy")
     
     if filter_strategy == "Today's Focus":
         strategies_to_show = daily_strategies
@@ -2373,15 +2376,15 @@ def render_admin_account_settings():
     
     with col1:
         st.subheader("Admin Profile")
-        st.text_input("Full Name", value=user['name'], disabled=True)
-        st.text_input("Email", value=user['email'], disabled=True)
-        st.text_input("Username", value=user['username'], disabled=True)
+        st.text_input("Full Name", value=user['name'], disabled=True, key="admin_profile_name")
+        st.text_input("Email", value=user['email'], disabled=True, key="admin_profile_email")
+        st.text_input("Username", value=user['username'], disabled=True, key="admin_profile_username")
         
     with col2:
         st.subheader("Admin Privileges")
-        st.text_input("Role", value="System Administrator", disabled=True)
-        st.text_input("Access Level", value="Full System Access", disabled=True)
-        st.text_input("Signal Editing", value="Enabled", disabled=True)
+        st.text_input("Role", value="System Administrator", disabled=True, key="admin_role")
+        st.text_input("Access Level", value="Full System Access", disabled=True, key="admin_access")
+        st.text_input("Signal Editing", value="Enabled", disabled=True, key="admin_editing")
     
     st.markdown("---")
     st.subheader("Quick Actions")
@@ -2389,17 +2392,17 @@ def render_admin_account_settings():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🛠️ Switch to Admin Dashboard", use_container_width=True):
+        if st.button("🛠️ Switch to Admin Dashboard", use_container_width=True, key="switch_admin_dash_btn"):
             st.session_state.admin_dashboard_mode = "admin"
             st.rerun()
     
     with col2:
-        if st.button("📊 Refresh All Data", use_container_width=True):
+        if st.button("📊 Refresh All Data", use_container_width=True, key="refresh_admin_data_btn"):
             user_manager.load_data()
             st.rerun()
     
     with col3:
-        if st.button("⬅️ Back to Signals", use_container_width=True):
+        if st.button("⬅️ Back to Signals", use_container_width=True, key="back_signals_admin_btn"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
 
@@ -2468,10 +2471,10 @@ def render_user_dashboard():
         # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
         
-        # Date navigation - READ ONLY FOR USERS
+        # Date navigation - READ ONLY FOR USERS - FIXED: Unique keys
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("◀️ Prev Day", use_container_width=True, key="prev_day"):
+            if st.button("◀️ Prev Day", use_container_width=True, key="user_prev_day_btn"):
                 new_date = analysis_date - timedelta(days=1)
                 if new_date >= start_date:
                     st.query_params["date"] = new_date.strftime("%Y-%m-%d")
@@ -2479,13 +2482,13 @@ def render_user_dashboard():
                 else:
                     st.warning("Cannot go before start date")
         with col2:
-            if st.button("Next Day ▶️", use_container_width=True, key="next_day"):
+            if st.button("Next Day ▶️", use_container_width=True, key="user_next_day_btn"):
                 new_date = analysis_date + timedelta(days=1)
                 st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                 st.rerun()
         
         # Quick date reset button
-        if st.button("🔄 Today", use_container_width=True, key="today_btn"):
+        if st.button("🔄 Today", use_container_width=True, key="user_today_btn"):
             st.query_params["date"] = date.today().strftime("%Y-%m-%d")
             st.rerun()
         
@@ -2504,22 +2507,22 @@ def render_user_dashboard():
         selected_strategy = st.selectbox(
             "Choose Strategy to View:", 
             daily_strategies,
-            key="strategy_selector"
+            key="user_strategy_selector"
         )
         
         st.markdown("---")
         
-        # Navigation - SIMPLIFIED FOR USERS
+        # Navigation - SIMPLIFIED FOR USERS - FIXED: Unique keys
         st.subheader("📊 Navigation")
-        if st.button("📈 View Signals", use_container_width=True, key="nav_main"):
+        if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
         
-        if st.button("📋 Strategy Details", use_container_width=True, key="nav_notes"):
+        if st.button("📋 Strategy Details", use_container_width=True, key="user_nav_notes"):
             st.session_state.dashboard_view = 'notes'
             st.rerun()
         
-        if st.button("⚙️ Account Settings", use_container_width=True, key="nav_settings"):
+        if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
             st.session_state.dashboard_view = 'settings'
             st.rerun()
         
@@ -2533,11 +2536,12 @@ def render_user_dashboard():
             data=csv_bytes,
             file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            use_container_width=True,
+            key="user_export_btn"
         )
         
         st.markdown("---")
-        if st.button("🚪 Logout", use_container_width=True):
+        if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
@@ -2620,7 +2624,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         # Display analysis note - READ ONLY
         note = first_indicator.get("note", "")
         if note:
-            st.text_area("Analysis:", value=note, height=100, disabled=True, key=f"note_{selected_strategy}")
+            st.text_area("Analysis:", value=note, height=100, disabled=True, key=f"user_note_{selected_strategy}")
         else:
             st.info("No analysis available yet for this strategy.")
     else:
@@ -2629,7 +2633,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     st.markdown("---")
     
     # Detailed view button - LEADS TO READ-ONLY DETAILED VIEW
-    if st.button("📋 View Detailed Analysis", use_container_width=True):
+    if st.button("📋 View Detailed Analysis", use_container_width=True, key="user_detailed_view_btn"):
         st.session_state.dashboard_view = 'notes'
         st.rerun()
     
@@ -2653,7 +2657,7 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
     with col2:
         st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
     with col3:
-        if st.button("⬅️ Back to Dashboard", use_container_width=True):
+        if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_dashboard_btn"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
     
@@ -2699,7 +2703,7 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
                     value=note, 
                     height=120, 
                     disabled=True,
-                    key=f"view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}"
+                    key=f"user_view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}"
                 )
             else:
                 st.info("No analysis available for this indicator.")
@@ -2718,22 +2722,22 @@ def render_user_account_settings():
     
     with col1:
         st.subheader("Profile Information")
-        st.text_input("Full Name", value=user['name'], disabled=True)
-        st.text_input("Email", value=user['email'], disabled=True)
-        st.text_input("Username", value=user['username'], disabled=True)
+        st.text_input("Full Name", value=user['name'], disabled=True, key="user_profile_name")
+        st.text_input("Email", value=user['email'], disabled=True, key="user_profile_email")
+        st.text_input("Username", value=user['username'], disabled=True, key="user_profile_username")
     
     with col2:
         st.subheader("Subscription Details")
         plan_name = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
-        st.text_input("Current Plan", value=plan_name, disabled=True)
-        st.text_input("Expiry Date", value=user['expires'], disabled=True)
+        st.text_input("Current Plan", value=plan_name, disabled=True, key="user_plan")
+        st.text_input("Expiry Date", value=user['expires'], disabled=True, key="user_expires")
         
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
-        st.metric("Days Remaining", days_left)
+        st.metric("Days Remaining", days_left, key="user_days_left")
     
     st.markdown("---")
     
-    if st.button("⬅️ Back to Dashboard", use_container_width=True):
+    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_to_dash_btn"):
         st.session_state.dashboard_view = 'main'
         st.rerun()
 
@@ -2763,30 +2767,33 @@ def render_admin_dashboard():
         else:
             st.success("🖼️ Image Gallery Mode")
         
-        # Dashboard mode switcher
+        # Dashboard mode switcher - FIXED: Unique keys
         st.markdown("---")
         st.subheader("Dashboard Mode")
         col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
-                        type="primary" if current_mode == "admin" else "secondary"):
+                        type="primary" if current_mode == "admin" else "secondary",
+                        key="sidebar_admin_btn"):
                 st.session_state.admin_dashboard_mode = "admin"
                 st.rerun()
         with col2:
             if st.button("📊 Premium", use_container_width=True,
-                        type="primary" if current_mode == "premium" else "secondary"):
+                        type="primary" if current_mode == "premium" else "secondary",
+                        key="sidebar_premium_btn"):
                 st.session_state.admin_dashboard_mode = "premium"
                 st.rerun()
         with col3:
             if st.button("🖼️ Gallery", use_container_width=True,
-                        type="primary" if current_mode == "gallery" else "secondary"):
+                        type="primary" if current_mode == "gallery" else "secondary",
+                        key="sidebar_gallery_btn"):
                 st.session_state.admin_dashboard_mode = "gallery"
                 st.rerun()
         
         st.markdown("---")
         
         # Logout button should always work
-        if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout"):
+        if st.button("🚪 Logout", use_container_width=True, key="admin_sidebar_logout"):
             user_manager.logout(st.session_state.user['username'])
             st.session_state.user = None
             st.session_state.admin_dashboard_mode = None
@@ -2798,18 +2805,18 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             render_premium_sidebar_options()
         else:
-            # Gallery mode
+            # Gallery mode - FIXED: Unique keys
             st.subheader("Gallery Actions")
-            if st.button("🖼️ Full Gallery", use_container_width=True):
+            if st.button("🖼️ Full Gallery", use_container_width=True, key="sidebar_gallery_full"):
                 st.session_state.current_gallery_view = "gallery"
                 st.session_state.image_viewer_mode = False
                 st.rerun()
-            if st.button("📤 Upload Images", use_container_width=True):
+            if st.button("📤 Upload Images", use_container_width=True, key="sidebar_gallery_upload"):
                 st.session_state.current_gallery_view = "upload"
                 st.session_state.image_viewer_mode = False
                 st.rerun()
             if st.session_state.uploaded_images:
-                if st.button("👁️ Image Viewer", use_container_width=True, help="Open the first image in full viewer"):
+                if st.button("👁️ Image Viewer", use_container_width=True, key="sidebar_gallery_viewer", help="Open the first image in full viewer"):
                     st.session_state.current_image_index = 0
                     st.session_state.image_viewer_mode = True
                     st.rerun()
@@ -2823,50 +2830,50 @@ def render_admin_dashboard():
         render_image_gallery()
 
 def render_admin_sidebar_options():
-    """Sidebar options for admin management mode"""
+    """Sidebar options for admin management mode - FIXED: Unique keys"""
     st.subheader("Admin Actions")
     
-    if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh"):
+    if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh_btn"):
         user_manager.load_data()
         st.rerun()
     
-    if st.button("📊 Business Overview", use_container_width=True, key="sidebar_overview"):
+    if st.button("📊 Business Overview", use_container_width=True, key="sidebar_overview_btn"):
         st.session_state.admin_view = "overview"
         st.rerun()
     
-    if st.button("📈 View Analytics", use_container_width=True, key="sidebar_analytics"):
+    if st.button("📈 View Analytics", use_container_width=True, key="sidebar_analytics_btn"):
         st.session_state.admin_view = "analytics"
         st.rerun()
     
-    if st.button("👥 Manage Users", use_container_width=True, key="sidebar_users"):
+    if st.button("👥 Manage Users", use_container_width=True, key="sidebar_users_btn"):
         st.session_state.admin_view = "users"
         st.rerun()
     
-    if st.button("📧 Email Verification", use_container_width=True, key="sidebar_email_verify"):
+    if st.button("📧 Email Verification", use_container_width=True, key="sidebar_email_verify_btn"):
         st.session_state.admin_view = "email_verification"
         st.rerun()
     
-    if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue"):
+    if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue_btn"):
         st.session_state.admin_view = "revenue"
         st.rerun()
 
 def render_premium_sidebar_options():
-    """Sidebar options for premium signal mode"""
+    """Sidebar options for premium signal mode - FIXED: Unique keys"""
     st.subheader("Signal Actions")
     
-    if st.button("📈 Signal Dashboard", use_container_width=True, key="premium_today"):
+    if st.button("📈 Signal Dashboard", use_container_width=True, key="premium_sidebar_today"):
         st.session_state.dashboard_view = "main"
         st.rerun()
     
-    if st.button("📝 Edit Signals", use_container_width=True, key="premium_edit"):
+    if st.button("📝 Edit Signals", use_container_width=True, key="premium_sidebar_edit"):
         st.session_state.dashboard_view = "notes"
         st.rerun()
     
-    if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_settings"):
+    if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_sidebar_settings"):
         st.session_state.dashboard_view = "settings"
         st.rerun()
     
-    if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_refresh"):
+    if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_sidebar_refresh"):
         st.rerun()
 
 # -------------------------
