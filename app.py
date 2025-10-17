@@ -1634,383 +1634,7 @@ def render_clear_gallery_confirmation():
             st.error(st.session_state.clear_gallery_error)
 
 # -------------------------
-# ENHANCED ADMIN DASHBOARD SELECTION INTERFACE
-# -------------------------
-def render_admin_dashboard_selection():
-    """Interface for admin to choose between admin dashboard and premium dashboard"""
-    st.title("👑 Admin Portal - Choose Dashboard")
-    st.markdown("---")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.subheader("🛠️ Admin Management Dashboard")
-        st.markdown("""
-        **Full System Control:**
-        - User management & analytics
-        - Email verification
-        - Plan management
-        - Business metrics
-        - System configuration
-        - Revenue reporting
-        - Bulk operations
-        """)
-        if st.button("🚀 Go to Admin Dashboard", use_container_width=True, key="admin_dash_btn"):
-            st.session_state.admin_dashboard_mode = "admin"
-            st.rerun()
-    
-    with col2:
-        st.subheader("📊 Premium Signal Dashboard")
-        st.markdown("""
-        **Signal Management:**
-        - Edit trading signals & strategies
-        - Update market analysis
-        - Manage 5-day cycle
-        - Signal observation mode
-        - Real-time updates
-        - Advanced analytics
-        - Export functionality
-        """)
-        if st.button("📈 Go to Premium Dashboard", use_container_width=True, key="premium_dash_btn"):
-            st.session_state.admin_dashboard_mode = "premium"
-            st.rerun()
-    
-    with col3:
-        st.subheader("🖼️ Image Gallery Forum")
-        st.markdown("""
-        **Community Features:**
-        - Upload trading charts
-        - Share analysis images
-        - Community discussions
-        - Strategy visualization
-        - Market insights sharing
-        - Enhanced image viewer
-        - Navigation controls
-        """)
-        if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash_btn"):
-            st.session_state.admin_dashboard_mode = "gallery"
-            st.rerun()
-    
-    st.markdown("---")
-    st.info("💡 **Tip:** Use different dashboards for different management tasks.")
-
-# -------------------------
-# COMPLETE ADMIN MANAGEMENT DASHBOARD WITH ALL FEATURES
-# -------------------------
-def render_admin_management_dashboard():
-    """Complete admin management dashboard with all rich features"""
-    st.title("🛠️ Admin Management Dashboard")
-    
-    # Get business metrics
-    metrics = user_manager.get_business_metrics()
-    
-    # Key metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.metric("Total Users", metrics["total_users"])
-    with col2:
-        st.metric("Active Users", metrics["active_users"])
-    with col3:
-        st.metric("Online Now", metrics["online_users"])
-    with col4:
-        st.metric("Verified Users", metrics["verified_users"])
-    with col5:
-        st.metric("Unverified Users", metrics["unverified_users"])
-    
-    st.markdown("---")
-    
-    # Current view based on admin_view state
-    current_view = st.session_state.get('admin_view', 'overview')
-    
-    if current_view == 'analytics':
-        render_admin_analytics()
-    elif current_view == 'users':
-        render_admin_user_management()
-    elif current_view == 'email_verification':
-        render_email_verification_interface()
-    elif current_view == 'revenue':
-        render_admin_revenue()
-    else:
-        render_admin_overview()
-
-def render_admin_overview():
-    """Admin overview with business metrics"""
-    st.subheader("📈 Business Overview")
-    
-    # Get business metrics
-    metrics = user_manager.get_business_metrics()
-    
-    # Plan distribution
-    st.subheader("📊 Plan Distribution")
-    plan_data = metrics["plan_distribution"]
-    
-    if plan_data:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Users by Plan:**")
-            for plan, count in plan_data.items():
-                if plan != "admin":  # Don't show admin in distribution
-                    plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                    st.write(f"• {plan_name}: {count} users")
-        
-        with col2:
-            # Simple chart using progress bars
-            total = sum(count for plan, count in plan_data.items() if plan != "admin")
-            if total > 0:
-                for plan, count in plan_data.items():
-                    if plan != "admin":
-                        percentage = (count / total) * 100
-                        plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
-                        st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
-                        st.progress(percentage / 100)
-    
-    st.markdown("---")
-    
-    # Recent activity
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🕒 Recent Registrations")
-        recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
-        if recent_registrations:
-            for reg in reversed(recent_registrations):
-                plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
-                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
-        else:
-            st.info("No recent registrations")
-    
-    with col2:
-        st.subheader("🔄 Recent Plan Changes")
-        recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
-        if recent_plan_changes:
-            for change in reversed(recent_plan_changes):
-                old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
-                new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
-                st.write(f"• {change['username']}: {old_plan} → {new_plan}")
-                st.caption(f"{change['timestamp'][:16]}")
-        else:
-            st.info("No recent plan changes")
-
-def render_admin_analytics():
-    """Detailed analytics view"""
-    st.subheader("📈 Detailed Analytics")
-    
-    # Login analytics
-    st.write("**Login Activity**")
-    total_logins = user_manager.analytics.get("total_logins", 0)
-    successful_logins = len([x for x in user_manager.analytics.get("login_history", []) if x.get('success')])
-    failed_logins = total_logins - successful_logins
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Login Attempts", total_logins)
-    with col2:
-        st.metric("Successful Logins", successful_logins)
-    with col3:
-        st.metric("Failed Logins", failed_logins)
-    
-    # Email verification analytics
-    st.markdown("---")
-    st.subheader("📧 Email Verification Analytics")
-    
-    stats = user_manager.get_email_verification_stats()
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Users", stats["total_users"])
-    with col2:
-        st.metric("Verified", stats["verified_count"])
-    with col3:
-        st.metric("Unverified", stats["unverified_count"])
-    with col4:
-        st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
-    
-    # User growth
-    st.markdown("---")
-    st.subheader("📈 User Growth")
-    
-    registrations = user_manager.analytics.get("user_registrations", [])
-    if registrations:
-        # Group by date
-        reg_by_date = {}
-        for reg in registrations:
-            date_str = reg['timestamp'][:10]
-            reg_by_date[date_str] = reg_by_date.get(date_str, 0) + 1
-        
-        # Display as table
-        st.write("**Registrations by Date:**")
-        reg_df = pd.DataFrame(list(reg_by_date.items()), columns=['Date', 'Registrations'])
-        reg_df = reg_df.sort_values('Date', ascending=False).head(10)
-        st.dataframe(reg_df, use_container_width=True)
-    else:
-        st.info("No registration data available")
-
-def render_admin_user_management():
-    """Complete user management interface"""
-    st.subheader("👥 User Management")
-    
-    # User actions - FIXED: Unique keys for all buttons
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    with col1:
-        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh_btn"):
-            st.rerun()
-    with col2:
-        if st.button("📧 Email Verification", use_container_width=True, key="um_email_verify_btn"):
-            st.session_state.admin_view = "email_verification"
-            st.rerun()
-    with col3:
-        if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials_btn"):
-            st.session_state.show_user_credentials = True
-            st.rerun()
-    with col4:
-        if st.button("🆕 Create Test User", use_container_width=True, key="um_test_btn"):
-            created_username, msg = user_manager.create_test_user("trial")
-            if created_username:
-                st.success(msg)
-            else:
-                st.error(msg)
-            st.rerun()
-    with col5:
-        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk_btn"):
-            st.session_state.show_bulk_delete = True
-            st.rerun()
-    with col6:
-        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password_btn"):
-            st.session_state.show_password_change = True
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Enhanced User table with quick actions including email verification
-    st.write("**All Users - Quick Management:**")
-    
-    # Display users with quick plan change and verification options
-    for username, user_data in user_manager.users.items():
-        with st.container():
-            col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 2, 2, 1, 1, 1])
-            
-            with col1:
-                st.write(f"**{username}**")
-                st.caption(user_data['name'])
-            
-            with col2:
-                st.write(user_data['email'])
-            
-            with col3:
-                current_plan = user_data['plan']
-                plan_display = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
-                st.write(f"`{plan_display}`")
-            
-            with col4:
-                expires = user_data['expires']
-                days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
-                st.write(f"Expires: {expires}")
-                st.caption(f"{days_left} days left")
-            
-            with col5:
-                # Email verification status with better visual design
-                if user_data.get('email_verified', False):
-                    st.markdown(
-                        """
-                        <div style="
-                            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-                            color: white;
-                            padding: 2px 8px;
-                            border-radius: 12px;
-                            font-size: 0.7rem;
-                            font-weight: 600;
-                            text-align: center;
-                            border: 1px solid #047857;
-                            min-width: 60px;
-                            display: inline-block;
-                        ">✅ Verified</div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
-                else:
-                    st.markdown(
-                        """
-                        <div style="
-                            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-                            color: white;
-                            padding: 2px 8px;
-                            border-radius: 12px;
-                            font-size: 0.7rem;
-                            font-weight: 600;
-                            text-align: center;
-                            border: 1px solid #B91C1C;
-                            min-width: 60px;
-                            display: inline-block;
-                        ">❌ Unverified</div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
-            
-            with col6:
-                if username != "admin":
-                    # Quick upgrade to premium
-                    if current_plan != "premium":
-                        if st.button("⭐", key=f"quick_premium_{username}", help="Upgrade to Premium"):
-                            success, message = user_manager.change_user_plan(username, "premium")
-                            if success:
-                                st.success(message)
-                                time.sleep(1)
-                                st.rerun()
-                            else:
-                                st.error(message)
-                    else:
-                        st.write("⭐")
-            
-            with col7:
-                if username != "admin":
-                    if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
-                        st.session_state.manage_user_plan = username
-                        st.rerun()
-
-def render_admin_revenue():
-    """Revenue and financial reporting"""
-    st.subheader("💰 Revenue Analytics")
-    
-    # Revenue metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Estimated MRR", "$1,250")
-    with col2:
-        st.metric("Active Subscriptions", "28")
-    with col3:
-        st.metric("Trial Conversions", "12%")
-    
-    st.markdown("---")
-    
-    # Revenue by plan
-    st.write("**Revenue by Plan Type:**")
-    
-    revenue_data = {
-        "Trial": {"users": 0, "revenue": 0},
-        "Premium": {"users": 0, "revenue": 0}
-    }
-    
-    for user_data in user_manager.users.values():
-        plan = user_data.get("plan", "trial")
-        if plan == "premium":
-            revenue_data["Premium"]["users"] += 1
-            revenue_data["Premium"]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
-        else:
-            revenue_data["Trial"]["users"] += 1
-    
-    # Display revenue table
-    revenue_df = pd.DataFrame([
-        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
-        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]}
-    ])
-    
-    st.dataframe(revenue_df, use_container_width=True)
-    
-    st.markdown("---")
-    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
-
-# -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH ALL FEATURES - PROPER SIDEBAR LAYOUT
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH FIXED SIDEBAR LAYOUT
 # -------------------------
 def render_premium_signal_dashboard():
     """Premium signal dashboard where admin can edit signals with full functionality"""
@@ -2052,7 +1676,7 @@ def render_premium_signal_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
-    # CORRECTED SIDEBAR LAYOUT: 5-Day Cycle ABOVE Signal Actions, BELOW Logout
+    # FIXED: Clean sidebar with proper layout - 5-DAY CYCLE FIRST, then STRATEGY SELECTION, then SIGNAL ACTIONS
     with st.sidebar:
         st.title("🎛️ Admin Signal Control Panel")
         
@@ -2063,35 +1687,13 @@ def render_premium_signal_dashboard():
         
         st.markdown("---")
         
-        # Signal Actions section - MOVED ABOVE 5-Day Cycle
-        st.subheader("📊 Signal Actions")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📈 View Signals", use_container_width=True, key="premium_nav_main"):
-                st.session_state.dashboard_view = 'main'
-                st.rerun()
-        with col2:
-            if st.button("📝 Edit Signals", use_container_width=True, key="premium_nav_notes"):
-                st.session_state.dashboard_view = 'notes'
-                st.rerun()
-        
-        if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_nav_settings"):
-            st.session_state.dashboard_view = 'settings'
-            st.rerun()
-        
-        if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_nav_refresh"):
-            st.rerun()
-        
-        st.markdown("---")
-        
-        # 5-Day Cycle System - MOVED BELOW Signal Actions
+        # 5-Day Cycle System - MOVED TO TOP (FIRST SECTION)
         st.subheader("📅 5-Day Cycle")
         
         # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
         
-        # Date navigation - FIXED: Unique keys
+        # Date navigation
         col1, col2 = st.columns(2)
         with col1:
             if st.button("◀️ Prev Day", use_container_width=True, key="premium_prev_day_btn"):
@@ -2123,12 +1725,32 @@ def render_premium_signal_dashboard():
         
         st.markdown("---")
         
-        # Strategy selection - MOVED BELOW 5-Day Cycle info
+        # Strategy selection - MOVED TO SECOND SECTION (right after 5-day cycle)
         selected_strategy = st.selectbox(
             "Choose Strategy to Edit:", 
             daily_strategies,
             key="premium_strategy_selector"
         )
+        
+        st.markdown("---")
+        
+        # Signal Actions - MOVED TO THIRD SECTION (after strategy selection)
+        st.subheader("📊 Signal Actions")
+        
+        if st.button("📈 Signal Dashboard", use_container_width=True, key="premium_nav_main"):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+        
+        if st.button("📝 Edit Signals", use_container_width=True, key="premium_nav_notes"):
+            st.session_state.dashboard_view = 'notes'
+            st.rerun()
+        
+        if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_nav_settings"):
+            st.session_state.dashboard_view = 'settings'
+            st.rerun()
+        
+        if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_nav_refresh"):
+            st.rerun()
         
         st.markdown("---")
         
@@ -2414,7 +2036,7 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY) - PROPER SIDEBAR LAYOUT
+# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY) - FIXED SIDEBAR LAYOUT
 # -------------------------
 def render_user_dashboard():
     """User dashboard - READ ONLY for regular users with same layout as admin"""
@@ -2456,7 +2078,7 @@ def render_user_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
-    # CORRECTED SIDEBAR LAYOUT: 5-Day Cycle ABOVE Navigation, BELOW Logout
+    # FIXED: Clean sidebar with proper layout - 5-DAY CYCLE FIRST, then STRATEGY SELECTION, then NAVIGATION
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
         
@@ -2472,29 +2094,13 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Navigation section - MOVED ABOVE 5-Day Cycle
-        st.subheader("📊 Navigation")
-        if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
-            st.session_state.dashboard_view = 'main'
-            st.rerun()
-        
-        if st.button("📋 Strategy Details", use_container_width=True, key="user_nav_notes"):
-            st.session_state.dashboard_view = 'notes'
-            st.rerun()
-        
-        if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
-            st.session_state.dashboard_view = 'settings'
-            st.rerun()
-        
-        st.markdown("---")
-        
-        # 5-Day Cycle System - MOVED BELOW Navigation
+        # 5-Day Cycle System - MOVED TO TOP (FIRST SECTION)
         st.subheader("📅 5-Day Cycle")
         
         # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
         
-        # Date navigation - READ ONLY FOR USERS - FIXED: Unique keys
+        # Date navigation - READ ONLY FOR USERS
         col1, col2 = st.columns(2)
         with col1:
             if st.button("◀️ Prev Day", use_container_width=True, key="user_prev_day_btn"):
@@ -2526,12 +2132,28 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Strategy selection - READ ONLY - MOVED BELOW 5-Day Cycle info
+        # Strategy selection - READ ONLY - MOVED TO SECOND SECTION (right after 5-day cycle)
         selected_strategy = st.selectbox(
             "Choose Strategy to View:", 
             daily_strategies,
             key="user_strategy_selector"
         )
+        
+        st.markdown("---")
+        
+        # Navigation - SIMPLIFIED FOR USERS - MOVED TO THIRD SECTION (after strategy selection)
+        st.subheader("📊 Navigation")
+        if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+        
+        if st.button("📋 Strategy Details", use_container_width=True, key="user_nav_notes"):
+            st.session_state.dashboard_view = 'notes'
+            st.rerun()
+        
+        if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
+            st.session_state.dashboard_view = 'settings'
+            st.rerun()
         
         st.markdown("---")
         
@@ -2774,7 +2396,7 @@ def render_admin_dashboard():
         else:
             st.success("🖼️ Image Gallery Mode")
         
-        # Dashboard mode switcher - FIXED: Unique keys
+        # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
         col1, col2, col3 = st.columns(3)
@@ -2810,9 +2432,10 @@ def render_admin_dashboard():
         if current_mode == "admin":
             render_admin_sidebar_options()
         elif current_mode == "premium":
-            render_premium_sidebar_options()
+            # Premium mode uses its own sidebar built in render_premium_signal_dashboard
+            pass
         else:
-            # Gallery mode - FIXED: Unique keys
+            # Gallery mode
             st.subheader("Gallery Actions")
             if st.button("🖼️ Full Gallery", use_container_width=True, key="sidebar_gallery_full"):
                 st.session_state.current_gallery_view = "gallery"
@@ -2837,7 +2460,7 @@ def render_admin_dashboard():
         render_image_gallery()
 
 def render_admin_sidebar_options():
-    """Sidebar options for admin management mode - FIXED: Unique keys"""
+    """Sidebar options for admin management mode"""
     st.subheader("Admin Actions")
     
     if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh_btn"):
@@ -2864,28 +2487,382 @@ def render_admin_sidebar_options():
         st.session_state.admin_view = "revenue"
         st.rerun()
 
-def render_premium_sidebar_options():
-    """Sidebar options for premium signal mode - FIXED: Unique keys"""
-    st.subheader("Signal Actions")
+# -------------------------
+# ENHANCED ADMIN DASHBOARD SELECTION INTERFACE
+# -------------------------
+def render_admin_dashboard_selection():
+    """Interface for admin to choose between admin dashboard and premium dashboard"""
+    st.title("👑 Admin Portal - Choose Dashboard")
+    st.markdown("---")
     
-    if st.button("📈 Signal Dashboard", use_container_width=True, key="premium_sidebar_today"):
-        st.session_state.dashboard_view = "main"
-        st.rerun()
+    col1, col2, col3 = st.columns(3)
     
-    if st.button("📝 Edit Signals", use_container_width=True, key="premium_sidebar_edit"):
-        st.session_state.dashboard_view = "notes"
-        st.rerun()
+    with col1:
+        st.subheader("🛠️ Admin Management Dashboard")
+        st.markdown("""
+        **Full System Control:**
+        - User management & analytics
+        - Email verification
+        - Plan management
+        - Business metrics
+        - System configuration
+        - Revenue reporting
+        - Bulk operations
+        """)
+        if st.button("🚀 Go to Admin Dashboard", use_container_width=True, key="admin_dash_btn"):
+            st.session_state.admin_dashboard_mode = "admin"
+            st.rerun()
     
-    if st.button("⚙️ Admin Settings", use_container_width=True, key="premium_sidebar_settings"):
-        st.session_state.dashboard_view = "settings"
-        st.rerun()
+    with col2:
+        st.subheader("📊 Premium Signal Dashboard")
+        st.markdown("""
+        **Signal Management:**
+        - Edit trading signals & strategies
+        - Update market analysis
+        - Manage 5-day cycle
+        - Signal observation mode
+        - Real-time updates
+        - Advanced analytics
+        - Export functionality
+        """)
+        if st.button("📈 Go to Premium Dashboard", use_container_width=True, key="premium_dash_btn"):
+            st.session_state.admin_dashboard_mode = "premium"
+            st.rerun()
     
-    if st.button("🔄 Refresh Signals", use_container_width=True, key="premium_sidebar_refresh"):
-        st.rerun()
+    with col3:
+        st.subheader("🖼️ Image Gallery Forum")
+        st.markdown("""
+        **Community Features:**
+        - Upload trading charts
+        - Share analysis images
+        - Community discussions
+        - Strategy visualization
+        - Market insights sharing
+        - Enhanced image viewer
+        - Navigation controls
+        """)
+        if st.button("🖼️ Go to Image Gallery", use_container_width=True, key="gallery_dash_btn"):
+            st.session_state.admin_dashboard_mode = "gallery"
+            st.rerun()
+    
+    st.markdown("---")
+    st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
 # -------------------------
-# ADDITIONAL COMPONENTS FROM FIRST CODE (Email Verification, etc.)
+# COMPLETE ADMIN MANAGEMENT DASHBOARD WITH ALL FEATURES
 # -------------------------
+def render_admin_management_dashboard():
+    """Complete admin management dashboard with all rich features"""
+    st.title("🛠️ Admin Management Dashboard")
+    
+    # Get business metrics
+    metrics = user_manager.get_business_metrics()
+    
+    # Key metrics
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("Total Users", metrics["total_users"])
+    with col2:
+        st.metric("Active Users", metrics["active_users"])
+    with col3:
+        st.metric("Online Now", metrics["online_users"])
+    with col4:
+        st.metric("Verified Users", metrics["verified_users"])
+    with col5:
+        st.metric("Unverified Users", metrics["unverified_users"])
+    
+    st.markdown("---")
+    
+    # Current view based on admin_view state
+    current_view = st.session_state.get('admin_view', 'overview')
+    
+    if current_view == 'analytics':
+        render_admin_analytics()
+    elif current_view == 'users':
+        render_admin_user_management()
+    elif current_view == 'email_verification':
+        render_email_verification_interface()
+    elif current_view == 'revenue':
+        render_admin_revenue()
+    else:
+        render_admin_overview()
+
+def render_admin_overview():
+    """Admin overview with business metrics"""
+    st.subheader("📈 Business Overview")
+    
+    # Get business metrics
+    metrics = user_manager.get_business_metrics()
+    
+    # Plan distribution
+    st.subheader("📊 Plan Distribution")
+    plan_data = metrics["plan_distribution"]
+    
+    if plan_data:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Users by Plan:**")
+            for plan, count in plan_data.items():
+                if plan != "admin":  # Don't show admin in distribution
+                    plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                    st.write(f"• {plan_name}: {count} users")
+        
+        with col2:
+            # Simple chart using progress bars
+            total = sum(count for plan, count in plan_data.items() if plan != "admin")
+            if total > 0:
+                for plan, count in plan_data.items():
+                    if plan != "admin":
+                        percentage = (count / total) * 100
+                        plan_name = Config.PLANS.get(plan, {}).get('name', plan.title())
+                        st.write(f"{plan_name}: {count} ({percentage:.1f}%)")
+                        st.progress(percentage / 100)
+    
+    st.markdown("---")
+    
+    # Recent activity
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🕒 Recent Registrations")
+        recent_registrations = user_manager.analytics.get("user_registrations", [])[-5:]
+        if recent_registrations:
+            for reg in reversed(recent_registrations):
+                plan_name = Config.PLANS.get(reg['plan'], {}).get('name', reg['plan'].title())
+                st.write(f"• {reg['username']} - {plan_name} - {reg['timestamp'][:16]}")
+        else:
+            st.info("No recent registrations")
+    
+    with col2:
+        st.subheader("🔄 Recent Plan Changes")
+        recent_plan_changes = user_manager.analytics.get("plan_changes", [])[-5:]
+        if recent_plan_changes:
+            for change in reversed(recent_plan_changes):
+                old_plan = Config.PLANS.get(change['old_plan'], {}).get('name', change['old_plan'].title())
+                new_plan = Config.PLANS.get(change['new_plan'], {}).get('name', change['new_plan'].title())
+                st.write(f"• {change['username']}: {old_plan} → {new_plan}")
+                st.caption(f"{change['timestamp'][:16]}")
+        else:
+            st.info("No recent plan changes")
+
+def render_admin_analytics():
+    """Detailed analytics view"""
+    st.subheader("📈 Detailed Analytics")
+    
+    # Login analytics
+    st.write("**Login Activity**")
+    total_logins = user_manager.analytics.get("total_logins", 0)
+    successful_logins = len([x for x in user_manager.analytics.get("login_history", []) if x.get('success')])
+    failed_logins = total_logins - successful_logins
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Login Attempts", total_logins)
+    with col2:
+        st.metric("Successful Logins", successful_logins)
+    with col3:
+        st.metric("Failed Logins", failed_logins)
+    
+    # Email verification analytics
+    st.markdown("---")
+    st.subheader("📧 Email Verification Analytics")
+    
+    stats = user_manager.get_email_verification_stats()
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", stats["total_users"])
+    with col2:
+        st.metric("Verified", stats["verified_count"])
+    with col3:
+        st.metric("Unverified", stats["unverified_count"])
+    with col4:
+        st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
+    
+    # User growth
+    st.markdown("---")
+    st.subheader("📈 User Growth")
+    
+    registrations = user_manager.analytics.get("user_registrations", [])
+    if registrations:
+        # Group by date
+        reg_by_date = {}
+        for reg in registrations:
+            date_str = reg['timestamp'][:10]
+            reg_by_date[date_str] = reg_by_date.get(date_str, 0) + 1
+        
+        # Display as table
+        st.write("**Registrations by Date:**")
+        reg_df = pd.DataFrame(list(reg_by_date.items()), columns=['Date', 'Registrations'])
+        reg_df = reg_df.sort_values('Date', ascending=False).head(10)
+        st.dataframe(reg_df, use_container_width=True)
+    else:
+        st.info("No registration data available")
+
+def render_admin_user_management():
+    """Complete user management interface"""
+    st.subheader("👥 User Management")
+    
+    # User actions
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    with col1:
+        if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh_btn"):
+            st.rerun()
+    with col2:
+        if st.button("📧 Email Verification", use_container_width=True, key="um_email_verify_btn"):
+            st.session_state.admin_view = "email_verification"
+            st.rerun()
+    with col3:
+        if st.button("🔐 User Credentials", use_container_width=True, key="um_credentials_btn"):
+            st.session_state.show_user_credentials = True
+            st.rerun()
+    with col4:
+        if st.button("🆕 Create Test User", use_container_width=True, key="um_test_btn"):
+            created_username, msg = user_manager.create_test_user("trial")
+            if created_username:
+                st.success(msg)
+            else:
+                st.error(msg)
+            st.rerun()
+    with col5:
+        if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk_btn"):
+            st.session_state.show_bulk_delete = True
+            st.rerun()
+    with col6:
+        if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password_btn"):
+            st.session_state.show_password_change = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Enhanced User table with quick actions including email verification
+    st.write("**All Users - Quick Management:**")
+    
+    # Display users with quick plan change and verification options
+    for username, user_data in user_manager.users.items():
+        with st.container():
+            col1, col2, col3, col4, col5, col6, col7 = st.columns([2, 2, 2, 2, 1, 1, 1])
+            
+            with col1:
+                st.write(f"**{username}**")
+                st.caption(user_data['name'])
+            
+            with col2:
+                st.write(user_data['email'])
+            
+            with col3:
+                current_plan = user_data['plan']
+                plan_display = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+                st.write(f"`{plan_display}`")
+            
+            with col4:
+                expires = user_data['expires']
+                days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
+                st.write(f"Expires: {expires}")
+                st.caption(f"{days_left} days left")
+            
+            with col5:
+                # Email verification status with better visual design
+                if user_data.get('email_verified', False):
+                    st.markdown(
+                        """
+                        <div style="
+                            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+                            color: white;
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-align: center;
+                            border: 1px solid #047857;
+                            min-width: 60px;
+                            display: inline-block;
+                        ">✅ Verified</div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(
+                        """
+                        <div style="
+                            background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+                            color: white;
+                            padding: 2px 8px;
+                            border-radius: 12px;
+                            font-size: 0.7rem;
+                            font-weight: 600;
+                            text-align: center;
+                            border: 1px solid #B91C1C;
+                            min-width: 60px;
+                            display: inline-block;
+                        ">❌ Unverified</div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+            
+            with col6:
+                if username != "admin":
+                    # Quick upgrade to premium
+                    if current_plan != "premium":
+                        if st.button("⭐", key=f"quick_premium_{username}", help="Upgrade to Premium"):
+                            success, message = user_manager.change_user_plan(username, "premium")
+                            if success:
+                                st.success(message)
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error(message)
+                    else:
+                        st.write("⭐")
+            
+            with col7:
+                if username != "admin":
+                    if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
+                        st.session_state.manage_user_plan = username
+                        st.rerun()
+
+def render_admin_revenue():
+    """Revenue and financial reporting"""
+    st.subheader("💰 Revenue Analytics")
+    
+    # Revenue metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Estimated MRR", "$1,250")
+    with col2:
+        st.metric("Active Subscriptions", "28")
+    with col3:
+        st.metric("Trial Conversions", "12%")
+    
+    st.markdown("---")
+    
+    # Revenue by plan
+    st.write("**Revenue by Plan Type:**")
+    
+    revenue_data = {
+        "Trial": {"users": 0, "revenue": 0},
+        "Premium": {"users": 0, "revenue": 0}
+    }
+    
+    for user_data in user_manager.users.values():
+        plan = user_data.get("plan", "trial")
+        if plan == "premium":
+            revenue_data["Premium"]["users"] += 1
+            revenue_data["Premium"]["revenue"] += Config.PLANS.get(plan, {}).get("price", 0)
+        else:
+            revenue_data["Trial"]["users"] += 1
+    
+    # Display revenue table
+    revenue_df = pd.DataFrame([
+        {"Plan": "Trial", "Users": revenue_data["Trial"]["users"], "Monthly Revenue": revenue_data["Trial"]["revenue"]},
+        {"Plan": "Premium", "Users": revenue_data["Premium"]["users"], "Monthly Revenue": revenue_data["Premium"]["revenue"]}
+    ])
+    
+    st.dataframe(revenue_df, use_container_width=True)
+    
+    st.markdown("---")
+    st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
+
 def render_email_verification_interface():
     """Email verification interface (simplified for this version)"""
     st.subheader("📧 Email Verification")
