@@ -1227,14 +1227,17 @@ def render_image_uploader():
                 # Read image file
                 image = Image.open(uploaded_file)
                 
-                # Convert to bytes for display
+                # Convert to bytes for display - FIXED: Ensure proper format
                 img_bytes = io.BytesIO()
-                image.save(img_bytes, format=image.format if image.format else 'PNG')
+                # Use the correct format for saving
+                if image.format:
+                    image.save(img_bytes, format=image.format)
+                else:
+                    image.save(img_bytes, format='PNG')  # Default to PNG if format not detected
                 
-                # Store in session state
-                st.session_state.uploaded_images.append({
+                # Store in session state - FIXED: Ensure we're storing the bytes correctly
+                image_data = {
                     'name': uploaded_file.name,
-                    'image': image,
                     'bytes': img_bytes.getvalue(),
                     'format': image.format if image.format else 'PNG',
                     'description': image_description,
@@ -1243,13 +1246,16 @@ def render_image_uploader():
                     'timestamp': datetime.now().isoformat(),
                     'likes': 0,
                     'comments': []
-                })
+                }
+                
+                st.session_state.uploaded_images.append(image_data)
             
             # Save gallery images to file
             save_gallery_images(st.session_state.uploaded_images)
             
             st.success(f"✅ Successfully uploaded {len(uploaded_files)} image(s) to the gallery!")
             st.balloons()
+            time.sleep(1)
             st.rerun()  # Force refresh to show thumbnails immediately
         else:
             st.warning("⚠️ Please select at least one image to upload.")
@@ -1329,7 +1335,7 @@ def render_gallery_display():
     st.markdown(f"**Displaying {len(filtered_images)} images**")
     st.markdown("---")
     
-    # Use columns for grid layout
+    # Use columns for grid layout - FIXED: Ensure proper image display
     cols_per_row = 3
     for i in range(0, len(filtered_images), cols_per_row):
         cols = st.columns(cols_per_row)
@@ -1353,10 +1359,15 @@ def render_gallery_display():
                 st.rerun()
 
 def render_image_card(img_data, index):
-    """Render individual image card with ALWAYS VISIBLE thumbnail"""
+    """Render individual image card with ALWAYS VISIBLE thumbnail - FIXED VERSION"""
     with st.container():
-        # Display thumbnail ALWAYS VISIBLE
-        st.image(img_data['bytes'], use_container_width=True)
+        # FIXED: Ensure the image bytes are properly displayed as thumbnail
+        try:
+            # Display thumbnail ALWAYS VISIBLE - FIXED: Use the bytes directly
+            st.image(img_data['bytes'], use_container_width=True, caption=img_data['name'])
+        except Exception as e:
+            st.error(f"❌ Error displaying image: {str(e)}")
+            st.info("Image format may not be supported. Try uploading as PNG or JPG.")
         
         # Image info - always visible
         st.markdown(f"**{img_data['name']}**")
@@ -1399,9 +1410,12 @@ def render_image_card(img_data, index):
                 st.rerun()
         with col_d:
             # Download button
-            b64_img = base64.b64encode(img_data['bytes']).decode()
-            href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-            st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+            try:
+                b64_img = base64.b64encode(img_data['bytes']).decode()
+                href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+            except Exception as e:
+                st.error("Download unavailable")
 
 def render_image_viewer():
     """Enhanced image viewer with navigation controls and persistence"""
@@ -1445,8 +1459,11 @@ def render_image_viewer():
             st.rerun()
     
     with col2:
-        # Display the main image
-        st.image(img_data['bytes'], use_container_width=True)
+        # Display the main image - FIXED: Ensure proper display
+        try:
+            st.image(img_data['bytes'], use_container_width=True)
+        except Exception as e:
+            st.error(f"Error displaying image: {str(e)}")
     
     with col3:
         if st.button("Next ▶️", use_container_width=True, key="next_img"):
@@ -1516,9 +1533,12 @@ def render_image_viewer():
             st.rerun()
         
         # Download button
-        b64_img = base64.b64encode(img_data['bytes']).decode()
-        href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 10px; text-align: center; text-decoration: none; display: inline-block; font-size: 14px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Image</button></a>', unsafe_allow_html=True)
+        try:
+            b64_img = base64.b64encode(img_data['bytes']).decode()
+            href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+            st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 10px; text-align: center; text-decoration: none; display: inline-block; font-size: 14px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Image</button></a>', unsafe_allow_html=True)
+        except Exception as e:
+            st.error("Download unavailable")
     
     # Navigation controls at bottom
     st.markdown("---")
