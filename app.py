@@ -2010,7 +2010,7 @@ def render_admin_revenue():
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
 
 # -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH ALL FEATURES
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH ALL FEATURES - REORGANIZED SIDEBAR
 # -------------------------
 def render_premium_signal_dashboard():
     """Premium signal dashboard where admin can edit signals with full functionality"""
@@ -2052,7 +2052,7 @@ def render_premium_signal_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
-    # Clean sidebar with 5-day cycle system
+    # Clean sidebar with 5-day cycle system - REORGANIZED LAYOUT
     with st.sidebar:
         st.title("🎛️ Admin Signal Control Panel")
         
@@ -2063,7 +2063,7 @@ def render_premium_signal_dashboard():
         
         st.markdown("---")
         
-        # 5-Day Cycle System with Date Navigation
+        # 5-Day Cycle System with Date Navigation - MOVED TO TOP
         st.subheader("📅 5-Day Cycle")
         
         # Display current date
@@ -2101,7 +2101,7 @@ def render_premium_signal_dashboard():
         
         st.markdown("---")
         
-        # Strategy selection
+        # Strategy selection - MOVED RIGHT BELOW 5-DAY CYCLE
         selected_strategy = st.selectbox(
             "Choose Strategy to Edit:", 
             daily_strategies,
@@ -2110,20 +2110,7 @@ def render_premium_signal_dashboard():
         
         st.markdown("---")
         
-        # Navigation - FIXED: Unique keys
-        st.subheader("📊 Navigation")
-        nav_options = {
-            "📈 Signal Dashboard": "main",
-            "📝 Edit Signals": "notes", 
-            "⚙️ Admin Settings": "settings"
-        }
-        
-        for label, view in nav_options.items():
-            if st.button(label, use_container_width=True, key=f"premium_nav_{view}"):
-                st.session_state.dashboard_view = view
-                st.rerun()
-        
-        st.markdown("---")
+        # REMOVED DUPLICATE NAVIGATION SECTION - Using Signal Actions instead
         
         # Export functionality
         csv_bytes = generate_filtered_csv_bytes(strategy_data, analysis_date)
@@ -2407,7 +2394,7 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY)
+# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY) - REORGANIZED SIDEBAR
 # -------------------------
 def render_user_dashboard():
     """User dashboard - READ ONLY for regular users with same layout as admin"""
@@ -2449,7 +2436,7 @@ def render_user_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
-    # Clean sidebar with 5-day cycle system - SAME AS ADMIN BUT READ ONLY
+    # Clean sidebar with 5-day cycle system - REORGANIZED LAYOUT
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
         
@@ -2465,7 +2452,7 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # 5-Day Cycle System - SAME AS ADMIN
+        # 5-Day Cycle System - MOVED TO TOP
         st.subheader("📅 5-Day Cycle")
         
         # Display current date
@@ -2503,7 +2490,7 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Strategy selection - READ ONLY
+        # Strategy selection - READ ONLY - MOVED RIGHT BELOW 5-DAY CYCLE
         selected_strategy = st.selectbox(
             "Choose Strategy to View:", 
             daily_strategies,
