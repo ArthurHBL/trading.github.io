@@ -99,6 +99,9 @@ def init_session():
         st.session_state.signal_to_confirm = None
     if 'signal_confirmation_step' not in st.session_state:
         st.session_state.signal_confirmation_step = 1
+    # NEW: Strategy indicator images state
+    if 'strategy_indicator_images' not in st.session_state:
+        st.session_state.strategy_indicator_images = load_strategy_indicator_images()
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -130,7 +133,99 @@ def setup_data_persistence():
         except Exception as e:
             print(f"⚠️ Error saving signals data: {e}")
             
+        # Save strategy indicator images
+        try:
+            save_strategy_indicator_images(st.session_state.strategy_indicator_images)
+        except Exception as e:
+            print(f"⚠️ Error saving strategy indicator images: {e}")
+            
         st.session_state.last_save_time = current_time
+
+# -------------------------
+# STRATEGY INDICATOR IMAGES PERSISTENCE
+# -------------------------
+STRATEGY_IMAGES_FILE = "strategy_indicator_images.json"
+
+def load_strategy_indicator_images():
+    """Load strategy indicator images from file"""
+    if os.path.exists(STRATEGY_IMAGES_FILE):
+        try:
+            with open(STRATEGY_IMAGES_FILE, "r", encoding="utf-8") as f:
+                images_data = json.load(f)
+                print(f"✅ Loaded {len(images_data)} strategy indicator images from file")
+                
+                # Convert base64 strings back to bytes for images
+                for strategy_name, indicators in images_data.items():
+                    for indicator_name, img_data in indicators.items():
+                        if 'bytes_b64' in img_data:
+                            img_data['bytes'] = base64.b64decode(img_data['bytes_b64'])
+                
+                return images_data
+        except Exception as e:
+            print(f"❌ Error loading strategy indicator images: {e}")
+            # Create backup of corrupted file
+            backup_name = f"{STRATEGY_IMAGES_FILE}.backup.{int(time.time())}"
+            if os.path.exists(STRATEGY_IMAGES_FILE):
+                os.rename(STRATEGY_IMAGES_FILE, backup_name)
+                print(f"⚠️ Strategy indicator images data corrupted. Backed up to {backup_name}")
+            return {}
+    return {}
+
+def save_strategy_indicator_images(images_data):
+    """Save strategy indicator images to file"""
+    try:
+        # Create a serializable version of the images
+        serializable_data = {}
+        for strategy_name, indicators in images_data.items():
+            serializable_data[strategy_name] = {}
+            for indicator_name, img_data in indicators.items():
+                serializable_img = img_data.copy()
+                # Convert bytes to base64 for JSON serialization
+                if 'bytes' in serializable_img:
+                    serializable_img['bytes_b64'] = base64.b64encode(serializable_img['bytes']).decode('utf-8')
+                    # Remove the bytes object as it's not JSON serializable
+                    del serializable_img['bytes']
+                # Remove PIL Image objects as they're not serializable
+                if 'image' in serializable_img:
+                    del serializable_img['image']
+                serializable_data[strategy_name][indicator_name] = serializable_img
+        
+        # Create backup before saving
+        if os.path.exists(STRATEGY_IMAGES_FILE):
+            backup_file = f"{STRATEGY_IMAGES_FILE}.backup"
+            shutil.copy2(STRATEGY_IMAGES_FILE, backup_file)
+        
+        with open(STRATEGY_IMAGES_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable_data, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved strategy indicator images to file")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving strategy indicator images: {e}")
+        # Try to save to temporary file
+        try:
+            temp_file = f"{STRATEGY_IMAGES_FILE}.temp.{int(time.time())}"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(serializable_data, f, ensure_ascii=False, indent=2)
+            print(f"⚠️ Saved strategy indicator images backup to {temp_file}")
+        except Exception as e2:
+            print(f"❌ Failed to save strategy indicator images backup: {e2}")
+        return False
+
+def get_strategy_indicator_image(strategy_name, indicator_name):
+    """Get image for a specific strategy indicator"""
+    if strategy_name in st.session_state.strategy_indicator_images:
+        if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
+            return st.session_state.strategy_indicator_images[strategy_name][indicator_name]
+    return None
+
+def save_strategy_indicator_image(strategy_name, indicator_name, image_data):
+    """Save image for a specific strategy indicator"""
+    if strategy_name not in st.session_state.strategy_indicator_images:
+        st.session_state.strategy_indicator_images[strategy_name] = {}
+    
+    st.session_state.strategy_indicator_images[strategy_name][indicator_name] = image_data
+    save_strategy_indicator_images(st.session_state.strategy_indicator_images)
+    return True
 
 # -------------------------
 # TRADING SIGNALS DATA PERSISTENCE
@@ -2343,7 +2438,166 @@ def render_user_image_card(img_data, index):
                 st.error("Download unavailable")
 
 # -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH FIXED SIDEBAR LAYOUT
+# STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS
+# -------------------------
+def render_strategy_indicator_image_upload(strategy_name, indicator_name):
+    """Render image upload for a specific strategy indicator"""
+    st.subheader(f"🖼️ {indicator_name} - Chart Image")
+    
+    # Check if there's already an image for this indicator
+    existing_image = get_strategy_indicator_image(strategy_name, indicator_name)
+    
+    if existing_image:
+        st.success("✅ Image already uploaded for this indicator")
+        
+        # Display the existing image as thumbnail
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.image(existing_image['bytes'], use_container_width=True, caption=f"Current {indicator_name} Chart")
+        
+        with col2:
+            # Full view button
+            if st.button("🖼️ Full View", key=f"full_view_{strategy_name}_{indicator_name}", use_container_width=True):
+                # Set up the image viewer for strategy indicator images
+                st.session_state.current_strategy_indicator_image = existing_image
+                st.session_state.strategy_indicator_viewer_mode = True
+                st.session_state.current_strategy_indicator = f"{strategy_name}_{indicator_name}"
+                st.rerun()
+            
+            # Remove image button
+            if st.button("🗑️ Remove", key=f"remove_{strategy_name}_{indicator_name}", use_container_width=True):
+                if strategy_name in st.session_state.strategy_indicator_images:
+                    if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
+                        del st.session_state.strategy_indicator_images[strategy_name][indicator_name]
+                        save_strategy_indicator_images(st.session_state.strategy_indicator_images)
+                        st.success("✅ Image removed!")
+                        st.rerun()
+    
+    # Image upload section
+    st.markdown("---")
+    st.write("**Upload New Chart Image:**")
+    
+    uploaded_file = st.file_uploader(
+        f"Upload chart image for {indicator_name}",
+        type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
+        key=f"upload_{strategy_name}_{indicator_name}"
+    )
+    
+    if uploaded_file is not None:
+        # Display preview
+        st.image(uploaded_file, caption="Preview", use_container_width=True)
+        
+        # Upload button
+        if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
+            # Read and process the image
+            image = Image.open(uploaded_file)
+            img_bytes = io.BytesIO()
+            
+            # Use the correct format for saving
+            if image.format:
+                image.save(img_bytes, format=image.format)
+            else:
+                image.save(img_bytes, format='PNG')
+            
+            # Create image data
+            image_data = {
+                'name': f"{strategy_name}_{indicator_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                'bytes': img_bytes.getvalue(),
+                'format': image.format if image.format else 'PNG',
+                'strategy': strategy_name,
+                'indicator': indicator_name,
+                'uploaded_by': st.session_state.user['username'],
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            # Save the image
+            success = save_strategy_indicator_image(strategy_name, indicator_name, image_data)
+            if success:
+                st.success("✅ Image saved successfully!")
+                st.balloons()
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("❌ Error saving image")
+
+def render_strategy_indicator_image_viewer():
+    """Viewer for strategy indicator images"""
+    if not hasattr(st.session_state, 'current_strategy_indicator_image'):
+        st.warning("No image to display")
+        st.session_state.strategy_indicator_viewer_mode = False
+        st.rerun()
+        return
+    
+    img_data = st.session_state.current_strategy_indicator_image
+    strategy_indicator = st.session_state.current_strategy_indicator
+    
+    # Header
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col1:
+        if st.button("⬅️ Back", use_container_width=True, key="strategy_image_back"):
+            st.session_state.strategy_indicator_viewer_mode = False
+            st.rerun()
+    
+    with col2:
+        st.markdown(f"### {img_data['strategy']} - {img_data['indicator']}")
+        st.caption(f"Uploaded by: {img_data['uploaded_by']} | {datetime.fromisoformat(img_data['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+    
+    with col3:
+        if st.button("📋 Close", use_container_width=True, key="strategy_image_close"):
+            st.session_state.strategy_indicator_viewer_mode = False
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Main image display
+    st.image(img_data['bytes'], use_container_width=True)
+    
+    # Download button
+    st.markdown("---")
+    try:
+        b64_img = base64.b64encode(img_data['bytes']).decode()
+        href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Image</button></a>', unsafe_allow_html=True)
+    except Exception as e:
+        st.error("Download unavailable")
+
+def display_strategy_indicator_images_user(strategy_name):
+    """Display strategy indicator images for users (view only)"""
+    if strategy_name not in st.session_state.strategy_indicator_images:
+        return
+    
+    st.subheader("📊 Strategy Charts")
+    
+    indicators_with_images = st.session_state.strategy_indicator_images[strategy_name]
+    
+    if not indicators_with_images:
+        st.info("No chart images available for this strategy yet.")
+        return
+    
+    # Display images in a grid
+    cols = st.columns(2)
+    for i, (indicator_name, img_data) in enumerate(indicators_with_images.items()):
+        col = cols[i % 2]
+        
+        with col:
+            with st.container():
+                st.markdown(f"**{indicator_name}**")
+                
+                # Display thumbnail
+                st.image(img_data['bytes'], use_container_width=True, caption=f"{indicator_name} Chart")
+                
+                # Full view button
+                if st.button("🖼️ Full View", key=f"user_view_{strategy_name}_{indicator_name}", use_container_width=True):
+                    st.session_state.current_strategy_indicator_image = img_data
+                    st.session_state.strategy_indicator_viewer_mode = True
+                    st.session_state.current_strategy_indicator = f"{strategy_name}_{indicator_name}"
+                    st.rerun()
+                
+                st.caption(f"Updated: {datetime.fromisoformat(img_data['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+                st.markdown("---")
+
+# -------------------------
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES
 # -------------------------
 def render_premium_signal_dashboard():
     """Premium signal dashboard where admin can edit signals with full functionality"""
@@ -2550,7 +2804,9 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
             key=f"quick_note_{selected_strategy}"
         )
         
-        if st.form_submit_button("💾 Save Quick Analysis", use_container_width=True, key=f"save_quick_{selected_strategy}"):
+        submitted = st.form_submit_button("💾 Save Quick Analysis", use_container_width=True, key=f"save_quick_{selected_strategy}")
+        
+        if submitted:
             # Save quick analysis
             if 'saved_analyses' not in data:
                 data['saved_analyses'] = {}
@@ -2561,6 +2817,11 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                 "note": quick_note
             }
             st.success("✅ Quick analysis saved!")
+    
+    st.markdown("---")
+    
+    # NEW: Strategy indicator images section
+    render_strategy_indicator_image_upload(selected_strategy, "Overview")
     
     st.markdown("---")
     
@@ -2644,6 +2905,10 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     index=["Open", "In Progress", "Done", "Skipped"].index(default_status) if default_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
                     key=key_status
                 )
+                
+                # NEW: Image upload for each indicator
+                st.markdown("---")
+                render_strategy_indicator_image_upload(selected_strategy, indicator)
         
         # Save button
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True, key="admin_save_all_btn")
@@ -2745,7 +3010,7 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD - OBSERVE ONLY (SAME LAYOUT AS ADMIN BUT READ-ONLY) - FIXED SIDEBAR LAYOUT
+# ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES
 # -------------------------
 def render_user_dashboard():
     """User dashboard - READ ONLY for regular users with same layout as admin"""
@@ -2968,6 +3233,9 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     else:
         st.warning("No signal data available for this strategy yet.")
     
+    # NEW: Display strategy indicator images for users
+    display_strategy_indicator_images_user(selected_strategy)
+    
     st.markdown("---")
     
     # Detailed view button - LEADS TO READ-ONLY DETAILED VIEW
@@ -3019,6 +3287,11 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
         st.info(f"**Overall Signal:** {strategy_tag}")
     with col2:
         st.info(f"**Strategy Type:** {strategy_type}")
+    
+    st.markdown("---")
+    
+    # NEW: Display strategy indicator images
+    display_strategy_indicator_images_user(selected_strategy)
     
     st.markdown("---")
     
@@ -3088,6 +3361,11 @@ def render_admin_dashboard():
     # If admin hasn't chosen a dashboard mode, show selection
     if st.session_state.get('admin_dashboard_mode') is None:
         render_admin_dashboard_selection()
+        return
+    
+    # Check if we're in strategy indicator image viewer mode
+    if hasattr(st.session_state, 'strategy_indicator_viewer_mode') and st.session_state.strategy_indicator_viewer_mode:
+        render_strategy_indicator_image_viewer()
         return
     
     # Always render the sidebar first, regardless of current view
