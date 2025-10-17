@@ -102,6 +102,13 @@ def init_session():
     # NEW: Strategy indicator images state
     if 'strategy_indicator_images' not in st.session_state:
         st.session_state.strategy_indicator_images = load_strategy_indicator_images()
+    # NEW: Strategy indicator viewer state
+    if 'strategy_indicator_viewer_mode' not in st.session_state:
+        st.session_state.strategy_indicator_viewer_mode = False
+    if 'current_strategy_indicator_image' not in st.session_state:
+        st.session_state.current_strategy_indicator_image = None
+    if 'current_strategy_indicator' not in st.session_state:
+        st.session_state.current_strategy_indicator = None
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -2438,10 +2445,10 @@ def render_user_image_card(img_data, index):
                 st.error("Download unavailable")
 
 # -------------------------
-# STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS
+# STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS - FIXED VERSION
 # -------------------------
 def render_strategy_indicator_image_upload(strategy_name, indicator_name):
-    """Render image upload for a specific strategy indicator"""
+    """Render image upload for a specific strategy indicator - FIXED VERSION"""
     st.subheader(f"🖼️ {indicator_name} - Chart Image")
     
     # Check if there's already an image for this indicator
@@ -2473,7 +2480,7 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
                         st.success("✅ Image removed!")
                         st.rerun()
     
-    # Image upload section
+    # Image upload section - FIXED: Use a separate form to avoid conflicts
     st.markdown("---")
     st.write("**Upload New Chart Image:**")
     
@@ -2487,7 +2494,7 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
         # Display preview
         st.image(uploaded_file, caption="Preview", use_container_width=True)
         
-        # Upload button
+        # Upload button - FIXED: Use a separate form or regular button outside forms
         if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
             # Read and process the image
             image = Image.open(uploaded_file)
@@ -2522,14 +2529,13 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
 
 def render_strategy_indicator_image_viewer():
     """Viewer for strategy indicator images"""
-    if not hasattr(st.session_state, 'current_strategy_indicator_image'):
+    if not hasattr(st.session_state, 'current_strategy_indicator_image') or not st.session_state.current_strategy_indicator_image:
         st.warning("No image to display")
         st.session_state.strategy_indicator_viewer_mode = False
         st.rerun()
         return
     
     img_data = st.session_state.current_strategy_indicator_image
-    strategy_indicator = st.session_state.current_strategy_indicator
     
     # Header
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -2597,7 +2603,7 @@ def display_strategy_indicator_images_user(strategy_name):
                 st.markdown("---")
 
 # -------------------------
-# ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES
+# ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
 # -------------------------
 def render_premium_signal_dashboard():
     """Premium signal dashboard where admin can edit signals with full functionality"""
@@ -2820,7 +2826,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     
     st.markdown("---")
     
-    # NEW: Strategy indicator images section
+    # NEW: Strategy indicator images section - FIXED: Now properly placed outside forms
     render_strategy_indicator_image_upload(selected_strategy, "Overview")
     
     st.markdown("---")
@@ -2840,7 +2846,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                 st.write(analysis.get('note', 'No notes'))
 
 def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface with full admin editing"""
+    """Detailed strategy notes interface with full admin editing - FIXED VERSION"""
     st.title("📝 Admin Signal Editor")
     
     # Header with cycle info
@@ -2905,10 +2911,6 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     index=["Open", "In Progress", "Done", "Skipped"].index(default_status) if default_status in ["Open", "In Progress", "Done", "Skipped"] else 0,
                     key=key_status
                 )
-                
-                # NEW: Image upload for each indicator
-                st.markdown("---")
-                render_strategy_indicator_image_upload(selected_strategy, indicator)
         
         # Save button
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True, key="admin_save_all_btn")
@@ -2932,6 +2934,21 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
             
             save_data(strategy_data)
             st.success("✅ All signals saved successfully! (Admin Mode)")
+    
+    # FIXED: Strategy indicator images section - Now placed outside the main form
+    st.markdown("---")
+    st.subheader("🖼️ Strategy Indicator Images")
+    
+    # Display images for each indicator
+    indicators = STRATEGIES[selected_strategy]
+    col_objs = st.columns(3)
+    
+    for i, indicator in enumerate(indicators):
+        col = col_objs[i % 3]
+        with col:
+            with st.expander(f"📊 {indicator} Chart", expanded=False):
+                # FIXED: Call the image upload function outside any form
+                render_strategy_indicator_image_upload(selected_strategy, indicator)
     
     # Display saved analyses
     st.markdown("---")
@@ -3010,7 +3027,7 @@ def render_admin_account_settings():
             st.rerun()
 
 # -------------------------
-# ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES
+# ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
 # -------------------------
 def render_user_dashboard():
     """User dashboard - READ ONLY for regular users with same layout as admin"""
