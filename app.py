@@ -88,7 +88,7 @@ def init_session():
     # NEW: User navigation mode
     if 'user_navigation_mode' not in st.session_state:
         st.session_state.user_navigation_mode = "📊 Trading Dashboard"
-    # NEW: Trading Signals Room state
+    # NEW: Trading Signals Room state - SIMPLIFIED
     if 'signals_room_view' not in st.session_state:
         st.session_state.signals_room_view = 'active_signals'
     if 'active_signals' not in st.session_state:
@@ -283,7 +283,7 @@ STRATEGIES = {
 }
 
 # -------------------------
-# TRADING SIGNALS CONFIGURATION
+# TRADING SIGNALS CONFIGURATION - SIMPLIFIED
 # -------------------------
 SIGNAL_CONFIG = {
     "timeframes": {
@@ -1136,7 +1136,7 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# TRADING SIGNALS ROOM - NEW FEATURE
+# TRADING SIGNALS ROOM - SIMPLIFIED VERSION
 # -------------------------
 def render_trading_signals_room():
     """Main Trading Signals Room interface"""
@@ -1154,7 +1154,7 @@ def render_admin_signals_room():
     st.title("⚡ Trading Signals Room - Admin")
     st.markdown("---")
     
-    # Admin workflow navigation
+    # Admin workflow navigation - SIMPLIFIED
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🚀 Launch Signal", use_container_width=True, key="admin_launch_signal"):
@@ -1182,33 +1182,22 @@ def render_admin_signals_room():
         render_active_signals_overview()
 
 def render_user_signals_room():
-    """User Trading Signals Room - View Only"""
+    """User Trading Signals Room - VIEW ONLY (SIMPLIFIED)"""
     
     # Header
     st.title("📱 Trading Signals Room")
     st.markdown("---")
     
-    # User workflow navigation
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.button("📱 Active Signals", use_container_width=True, key="user_active_signals", 
-                 type="primary" if st.session_state.signals_room_view == 'active_signals' else "secondary")
-    with col2:
-        st.button("📊 Signal Results", use_container_width=True, key="user_signal_results",
-                 type="primary" if st.session_state.signals_room_view == 'signal_results' else "secondary")
-    with col3:
-        st.button("⭐ Provide Feedback", use_container_width=True, key="user_feedback",
-                 type="primary" if st.session_state.signals_room_view == 'provide_feedback' else "secondary")
+    # User workflow navigation - ONLY SHOW ACTIVE SIGNALS
+    if st.button("📱 Active Signals", use_container_width=True, 
+                type="primary", key="user_active_signals"):
+        st.session_state.signals_room_view = 'active_signals'
+        st.rerun()
     
     st.markdown("---")
     
-    # Render current view
-    if st.session_state.signals_room_view == 'signal_results':
-        render_signal_results_interface()
-    elif st.session_state.signals_room_view == 'provide_feedback':
-        render_feedback_interface()
-    else:
-        render_active_signals_overview()
+    # Render active signals overview
+    render_active_signals_overview()
 
 def render_signal_launch_interface():
     """Interface for admin to launch new trading signals"""
@@ -1283,8 +1272,6 @@ def render_quick_signal_form():
                     "status": "pending_confirmation",
                     "confirmations": [],
                     "published_at": None,
-                    "user_feedback": [],
-                    "performance": None,
                     "risk_level": "Medium",
                     "confidence": "Medium"
                 }
@@ -1374,8 +1361,6 @@ def render_detailed_signal_form():
                     "status": "pending_confirmation",
                     "confirmations": [],
                     "published_at": None,
-                    "user_feedback": [],
-                    "performance": None,
                     "risk_level": risk_level,
                     "confidence": confidence
                 }
@@ -1391,7 +1376,7 @@ def render_detailed_signal_form():
                 st.rerun()
 
 def render_signal_confirmation_interface():
-    """Interface for multi-confirmation system"""
+    """Interface for confirmation system - FIXED: Only 1 confirmation required"""
     
     st.subheader("🔍 Signal Confirmation Queue")
     
@@ -1456,7 +1441,7 @@ def render_signal_confirmation_interface():
                         if tech['resistance_level'] > 0:
                             st.write(f"**Resistance:** ${tech['resistance_level']:,.2f}")
             
-            # Confirmation actions
+            # Confirmation actions - FIXED: Only 1 confirmation required
             col1, col2, col3 = st.columns([1, 1, 2])
             
             with col1:
@@ -1470,6 +1455,12 @@ def render_signal_confirmation_interface():
                         })
                         save_signals_data(st.session_state.active_signals)
                         st.success("✅ Signal confirmed!")
+                        
+                        # AUTO-PUBLISH after 1 confirmation (FIXED)
+                        signal['status'] = 'published'
+                        signal['published_at'] = datetime.now().isoformat()
+                        save_signals_data(st.session_state.active_signals)
+                        st.success("🎉 Signal automatically published!")
                         st.rerun()
                     else:
                         st.warning("⚠️ You have already confirmed this signal")
@@ -1482,19 +1473,11 @@ def render_signal_confirmation_interface():
                     st.rerun()
             
             with col3:
-                # Show confirmation progress
+                # Show confirmation progress - FIXED: Only 1 required
                 confirm_count = len(signal['confirmations'])
-                required_confirmations = 2  # Could be configurable
+                required_confirmations = 1  # FIXED: Changed from 2 to 1
                 progress = confirm_count / required_confirmations
                 st.progress(progress, text=f"Confirmations: {confirm_count}/{required_confirmations}")
-                
-                # Auto-publish if enough confirmations
-                if confirm_count >= required_confirmations and signal['status'] == 'pending_confirmation':
-                    signal['status'] = 'published'
-                    signal['published_at'] = datetime.now().isoformat()
-                    save_signals_data(st.session_state.active_signals)
-                    st.success("🎉 Signal automatically published!")
-                    st.rerun()
 
 def render_published_signals_interface():
     """Interface for managing published signals"""
@@ -1555,31 +1538,13 @@ def render_published_signals_interface():
                 st.progress(current_progress, text=f"Progress: {current_progress:.1%}")
             
             with col4:
-                # Performance and actions
-                if signal.get('performance'):
-                    perf = signal['performance']
-                    if perf['result'] == 'win':
-                        st.success(f"✅ {perf['pips']} pips")
-                    else:
-                        st.error(f"❌ {perf['pips']} pips")
-                else:
-                    st.info("🔄 Active")
-                
-                if st.button("📊 Update Result", key=f"update_{signal['signal_id']}", use_container_width=True):
-                    st.session_state.signal_to_confirm = signal['signal_id']
-                    st.session_state.signals_room_view = 'update_result'
+                # Remove signal button for admin
+                if st.button("🗑️ Remove", key=f"remove_{signal['signal_id']}", use_container_width=True):
+                    # Remove signal from active signals
+                    st.session_state.active_signals = [s for s in st.session_state.active_signals if s['signal_id'] != signal['signal_id']]
+                    save_signals_data(st.session_state.active_signals)
+                    st.success("✅ Signal removed!")
                     st.rerun()
-            
-            # User feedback summary
-            if signal.get('user_feedback'):
-                with st.expander(f"⭐ User Feedback ({len(signal['user_feedback'])} reviews)"):
-                    for feedback in signal['user_feedback'][:3]:  # Show first 3
-                        col1, col2 = st.columns([1, 4])
-                        with col1:
-                            st.write(f"**{feedback['rating']}/5** ⭐")
-                        with col2:
-                            st.write(feedback['comment'])
-                            st.caption(f"by {feedback['user']} • {datetime.fromisoformat(feedback['timestamp']).strftime('%Y-%m-%d %H:%M')}")
 
 def render_active_signals_overview():
     """Overview of all active signals for both admin and users"""
@@ -1588,7 +1553,7 @@ def render_active_signals_overview():
     
     # Get active signals (published and not expired)
     active_signals = [s for s in st.session_state.active_signals 
-                     if s["status"] == "published" and not s.get('expired', False)]
+                     if s["status"] == "published"]
     
     if not active_signals:
         st.info("📭 No active signals available. Check back later for new trading opportunities!")
@@ -1638,182 +1603,8 @@ def render_active_signals_overview():
                 st.metric("Target", f"${signal['target_price']:,.2f}")
                 risk_reward = (signal['target_price'] - signal['entry_price']) / (signal['entry_price'] - signal['stop_loss'])
                 st.metric("R/R Ratio", f"{risk_reward:.2f}:1")
-            
-            # User actions
-            if st.session_state.user['plan'] != 'admin':
-                if st.button("⭐ Rate Signal", key=f"rate_{signal['signal_id']}", use_container_width=True):
-                    st.session_state.selected_signal_for_feedback = signal['signal_id']
-                    st.session_state.signals_room_view = 'provide_feedback'
-                    st.rerun()
         
         st.markdown("---")
-
-def render_signal_results_interface():
-    """Interface for users to view signal results and performance"""
-    
-    st.subheader("📊 Signal Results & Performance")
-    
-    # Get completed signals with results
-    completed_signals = [s for s in st.session_state.active_signals if s.get('performance')]
-    
-    if not completed_signals:
-        st.info("📊 No completed signals with results yet. Check back later for performance data!")
-        return
-    
-    # Performance metrics
-    total_signals = len(completed_signals)
-    winning_signals = len([s for s in completed_signals if s['performance']['result'] == 'win'])
-    win_rate = (winning_signals / total_signals) * 100 if total_signals > 0 else 0
-    
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Signals", total_signals)
-    with col2:
-        st.metric("Winning Signals", winning_signals)
-    with col3:
-        st.metric("Win Rate", f"{win_rate:.1f}%")
-    with col4:
-        avg_pips = sum(s['performance']['pips'] for s in completed_signals) / total_signals if total_signals > 0 else 0
-        st.metric("Avg Pips", f"{avg_pips:.1f}")
-    
-    st.markdown("---")
-    
-    # Results table
-    results_data = []
-    for signal in completed_signals:
-        results_data.append({
-            "Asset": signal['asset'],
-            "Type": signal['signal_type'],
-            "Timeframe": SIGNAL_CONFIG["timeframes"][signal['timeframe']]["name"],
-            "Result": signal['performance']['result'],
-            "Pips": signal['performance']['pips'],
-            "Duration": signal['performance'].get('duration', 'N/A'),
-            "Closed At": datetime.fromisoformat(signal['performance']['closed_at']).strftime('%Y-%m-%d %H:%M') if 'closed_at' in signal['performance'] else 'N/A'
-        })
-    
-    if results_data:
-        df = pd.DataFrame(results_data)
-        st.dataframe(df, use_container_width=True)
-        
-        # Download results
-        csv = df.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Results CSV",
-            data=csv,
-            file_name="signal_results.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
-
-def render_feedback_interface():
-    """Interface for users to provide feedback on signals"""
-    
-    st.subheader("⭐ Provide Feedback on Signals")
-    
-    # Get signals that user hasn't rated yet
-    user_rated_signals = set()
-    for signal in st.session_state.active_signals:
-        for feedback in signal.get('user_feedback', []):
-            if feedback['user'] == st.session_state.user['username']:
-                user_rated_signals.add(signal['signal_id'])
-    
-    rateable_signals = [s for s in st.session_state.active_signals 
-                       if s["status"] == "published" and s['signal_id'] not in user_rated_signals]
-    
-    if not rateable_signals:
-        st.success("🎉 You've rated all available signals! Thank you for your feedback.")
-        return
-    
-    # If a specific signal is selected for feedback
-    if hasattr(st.session_state, 'selected_signal_for_feedback'):
-        target_signal = next((s for s in rateable_signals if s['signal_id'] == st.session_state.selected_signal_for_feedback), None)
-        if target_signal:
-            render_single_signal_feedback(target_signal)
-            return
-        else:
-            # Clear the selection if signal not found or already rated
-            delattr(st.session_state, 'selected_signal_for_feedback')
-    
-    # Show all rateable signals
-    st.write("### Available Signals for Feedback")
-    
-    for signal in rateable_signals:
-        with st.container():
-            st.markdown("---")
-            
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                signal_color = "#10B981" if signal["signal_type"] in ["BUY", "STRONG_BUY"] else "#EF4444"
-                st.markdown(f"#### **{signal['asset']}** • <span style='color: {signal_color};'>{signal['signal_type']}</span>", unsafe_allow_html=True)
-                st.write(f"**{SIGNAL_CONFIG['timeframes'][signal['timeframe']]['name']}** • Entry: ${signal['entry_price']:,.2f}")
-                st.write(signal['description'])
-            
-            with col2:
-                if st.button("💬 Provide Feedback", key=f"fb_{signal['signal_id']}", use_container_width=True):
-                    st.session_state.selected_signal_for_feedback = signal['signal_id']
-                    st.rerun()
-
-def render_single_signal_feedback(signal):
-    """Render feedback form for a specific signal"""
-    
-    st.write(f"### Providing Feedback for: **{signal['asset']}** - {signal['signal_type']}")
-    st.markdown("---")
-    
-    with st.form(f"feedback_form_{signal['signal_id']}"):
-        # Rating
-        rating = st.slider("Rate this signal (1-5 stars)", 1, 5, 3, 
-                          help="1 = Poor, 3 = Average, 5 = Excellent")
-        
-        # Display stars visually
-        stars = "⭐" * rating + "☆" * (5 - rating)
-        st.write(f"**Your rating:** {stars}")
-        
-        # Comment
-        comment = st.text_area("Your feedback comment (optional)", 
-                             placeholder="What did you think of this signal? Was it helpful? Any suggestions?",
-                             height=100)
-        
-        # Trading experience
-        experience = st.selectbox("Your trading experience with this signal", 
-                                ["Didn't trade", "Profitable", "Break-even", "Small loss", "Significant loss"],
-                                help="How did this signal work out for you?")
-        
-        submitted = st.form_submit_button("📤 Submit Feedback", use_container_width=True)
-        
-        if submitted:
-            # Create feedback object
-            feedback = {
-                "user": st.session_state.user['username'],
-                "rating": rating,
-                "comment": comment,
-                "experience": experience,
-                "timestamp": datetime.now().isoformat()
-            }
-            
-            # Add to signal
-            if 'user_feedback' not in signal:
-                signal['user_feedback'] = []
-            signal['user_feedback'].append(feedback)
-            
-            # Save data
-            save_signals_data(st.session_state.active_signals)
-            
-            st.success("✅ Thank you for your feedback! Your insights help improve our signals.")
-            
-            # Clear selection and return to main view
-            if hasattr(st.session_state, 'selected_signal_for_feedback'):
-                delattr(st.session_state, 'selected_signal_for_feedback')
-            
-            time.sleep(2)
-            st.session_state.signals_room_view = 'active_signals'
-            st.rerun()
-    
-    # Back button
-    if st.button("⬅️ Back to All Signals", use_container_width=True):
-        if hasattr(st.session_state, 'selected_signal_for_feedback'):
-            delattr(st.session_state, 'selected_signal_for_feedback')
-        st.rerun()
 
 # -------------------------
 # ENHANCED AUTHENTICATION COMPONENTS
@@ -2600,7 +2391,7 @@ def render_premium_signal_dashboard():
         
         # Admin profile section
         st.markdown("---")
-        st.write(f"**👑 {user['name']}**")
+        st.write(f"👑 {user['name']}")
         st.success("🛠️ Admin Signal Editor")
         
         st.markdown("---")
@@ -3002,7 +2793,7 @@ def render_user_dashboard():
         
         # User profile section
         st.markdown("---")
-        st.write(f"**👤 {user['name']}**")
+        st.write(f"👤 {user['name']}")
         plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
         st.caption(f"🚀 {plan_display}")
         
