@@ -85,6 +85,9 @@ def init_session():
         st.session_state.gallery_filter_strategy = "All Strategies"
     if 'gallery_sort_by' not in st.session_state:
         st.session_state.gallery_sort_by = "Newest First"
+    # NEW: User navigation mode
+    if 'user_navigation_mode' not in st.session_state:
+        st.session_state.user_navigation_mode = "📊 Trading Dashboard"
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1634,6 +1637,159 @@ def render_clear_gallery_confirmation():
             st.error(st.session_state.clear_gallery_error)
 
 # -------------------------
+# USER IMAGE GALLERY - VIEW ONLY VERSION
+# -------------------------
+def render_user_image_gallery():
+    """Image gallery for regular users - VIEW ONLY (no upload)"""
+    
+    # If in image viewer mode, show the image viewer
+    if st.session_state.image_viewer_mode:
+        render_image_viewer()
+        return
+    
+    # Gallery header - VIEW ONLY for users
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("View trading charts, analysis screenshots, and market insights shared by the community.")
+    
+    # User-specific info
+    st.info(f"👤 **Viewing as:** {st.session_state.user['name']} | 📊 **Access:** View Only")
+    
+    if not st.session_state.uploaded_images:
+        st.info("""
+        🖼️ **No images in the gallery yet!**
+        
+        The gallery will show trading charts and analysis images once they are uploaded by administrators.
+        """)
+        return
+    
+    # Gallery stats for users
+    total_images = len(st.session_state.uploaded_images)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Images", total_images)
+    with col2:
+        your_images = len([img for img in st.session_state.uploaded_images if img['uploaded_by'] == st.session_state.user['username']])
+        st.metric("Your Images", your_images)
+    with col3:
+        total_likes = sum(img['likes'] for img in st.session_state.uploaded_images)
+        st.metric("Total Likes", total_likes)
+    
+    st.markdown("---")
+    
+    # Filter options for users
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filter_author = st.selectbox(
+            "Filter by Author:",
+            ["All Authors"] + list(set(img['uploaded_by'] for img in st.session_state.uploaded_images)),
+            key="user_gallery_filter_author"
+        )
+    with col2:
+        filter_strategy = st.selectbox(
+            "Filter by Strategy:",
+            ["All Strategies"] + list(STRATEGIES.keys()),
+            key="user_gallery_filter_strategy"
+        )
+    with col3:
+        sort_by = st.selectbox(
+            "Sort by:",
+            ["Newest First", "Oldest First", "Most Liked"],
+            key="user_gallery_sort_by"
+        )
+    
+    # Apply filters
+    filtered_images = st.session_state.uploaded_images.copy()
+    
+    if filter_author != "All Authors":
+        filtered_images = [img for img in filtered_images if img['uploaded_by'] == filter_author]
+    
+    if filter_strategy != "All Strategies":
+        filtered_images = [img for img in filtered_images if filter_strategy in img.get('strategies', [])]
+    
+    # Apply sorting
+    if sort_by == "Newest First":
+        filtered_images.sort(key=lambda x: x['timestamp'], reverse=True)
+    elif sort_by == "Oldest First":
+        filtered_images.sort(key=lambda x: x['timestamp'])
+    elif sort_by == "Most Liked":
+        filtered_images.sort(key=lambda x: x['likes'], reverse=True)
+    
+    # Display gallery in a grid - VIEW ONLY
+    if not filtered_images:
+        st.warning("No images match your current filters.")
+        return
+    
+    # Create responsive grid
+    st.markdown(f"**Displaying {len(filtered_images)} images**")
+    st.markdown("---")
+    
+    # Use columns for grid layout
+    cols_per_row = 3
+    for i in range(0, len(filtered_images), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j in range(cols_per_row):
+            if i + j < len(filtered_images):
+                img_data = filtered_images[i + j]
+                with cols[j]:
+                    render_user_image_card(img_data, i + j)
+
+def render_user_image_card(img_data, index):
+    """Render individual image card for users - VIEW ONLY"""
+    with st.container():
+        # Display thumbnail
+        try:
+            st.image(img_data['bytes'], use_container_width=True, caption=img_data['name'])
+        except Exception as e:
+            st.error(f"❌ Error displaying image: {str(e)}")
+            st.info("Image format may not be supported.")
+        
+        # Image info
+        st.markdown(f"**{img_data['name']}**")
+        
+        # Description preview
+        if img_data.get('description'):
+            preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
+            st.caption(preview)
+        
+        # Strategy tags preview
+        if img_data.get('strategies'):
+            tags_preview = ", ".join(img_data['strategies'][:2])
+            if len(img_data['strategies']) > 2:
+                tags_preview += f" +{len(img_data['strategies']) - 2} more"
+            st.caption(f"**Strategies:** {tags_preview}")
+        
+        # Author and date
+        st.caption(f"By: **{img_data['uploaded_by']}**")
+        upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+        st.caption(f"Uploaded: {upload_time}")
+        
+        # Interaction buttons - VIEW ONLY (can like and view, but not upload)
+        col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
+        with col_a:
+            if st.button("❤️", key=f"user_like_{index}_{img_data['name']}", help="Like this image"):
+                img_data['likes'] += 1
+                save_gallery_images(st.session_state.uploaded_images)
+                st.rerun()
+        with col_b:
+            st.write(f" {img_data['likes']}")
+        with col_c:
+            # Full view button
+            if st.button("🖼️ Full View", key=f"user_view_{index}_{img_data['name']}", help="View image in fullscreen mode"):
+                original_index = st.session_state.uploaded_images.index(img_data)
+                st.session_state.current_image_index = original_index
+                st.session_state.image_viewer_mode = True
+                st.rerun()
+        with col_d:
+            # Download button
+            try:
+                b64_img = base64.b64encode(img_data['bytes']).decode()
+                href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+            except Exception as e:
+                st.error("Download unavailable")
+
+# -------------------------
 # ENHANCED PREMIUM SIGNAL DASHBOARD WITH FIXED SIDEBAR LAYOUT
 # -------------------------
 def render_premium_signal_dashboard():
@@ -2487,9 +2643,6 @@ def render_admin_sidebar_options():
         st.session_state.admin_view = "revenue"
         st.rerun()
 
-# -------------------------
-# ENHANCED ADMIN DASHBOARD SELECTION INTERFACE
-# -------------------------
 def render_admin_dashboard_selection():
     """Interface for admin to choose between admin dashboard and premium dashboard"""
     st.title("👑 Admin Portal - Choose Dashboard")
@@ -2548,9 +2701,6 @@ def render_admin_dashboard_selection():
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
-# -------------------------
-# COMPLETE ADMIN MANAGEMENT DASHBOARD WITH ALL FEATURES
-# -------------------------
 def render_admin_management_dashboard():
     """Complete admin management dashboard with all rich features"""
     st.title("🛠️ Admin Management Dashboard")
@@ -2867,7 +3017,6 @@ def render_email_verification_interface():
     """Email verification interface (simplified for this version)"""
     st.subheader("📧 Email Verification")
     st.info("Email verification management interface would be implemented here")
-    # Full implementation from first code can be added here
 
 # -------------------------
 # STREAMLIT APP CONFIG
@@ -2880,7 +3029,7 @@ st.set_page_config(
 )
 
 # -------------------------
-# MAIN APPLICATION
+# MAIN APPLICATION - FIXED USER ACCESS
 # -------------------------
 def main():
     init_session()
@@ -2989,10 +3138,25 @@ def main():
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            # For regular users, show either trading dashboard or gallery
-            if st.session_state.get('current_gallery_view') == 'gallery' or st.session_state.image_viewer_mode:
-                render_image_gallery()
+            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery
+            # Add navigation for users to switch between dashboard and gallery
+            
+            # User navigation header
+            st.sidebar.title("👤 User Navigation")
+            
+            # User mode selection
+            user_mode = st.sidebar.radio(
+                "Select View:",
+                ["📊 Trading Dashboard", "🖼️ Image Gallery"],
+                key="user_navigation_mode"
+            )
+            
+            # Display appropriate view based on user selection
+            if user_mode == "🖼️ Image Gallery":
+                # For gallery, ensure user can only view (not upload)
+                render_user_image_gallery()
             else:
+                # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
 
 if __name__ == "__main__":
