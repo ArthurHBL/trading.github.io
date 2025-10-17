@@ -77,6 +77,13 @@ def init_session():
         st.session_state.current_image_index = 0
     if 'image_viewer_mode' not in st.session_state:
         st.session_state.image_viewer_mode = False
+    # NEW: Gallery filter and sort state
+    if 'gallery_filter_author' not in st.session_state:
+        st.session_state.gallery_filter_author = "All Authors"
+    if 'gallery_filter_strategy' not in st.session_state:
+        st.session_state.gallery_filter_strategy = "All Strategies"
+    if 'gallery_sort_by' not in st.session_state:
+        st.session_state.gallery_sort_by = "Newest First"
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1067,7 +1074,7 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# ENHANCED IMAGE GALLERY FORUM WITH NAVIGATION
+# ENHANCED IMAGE GALLERY FORUM WITH FIXED THUMBNAIL DISPLAY
 # -------------------------
 def render_image_gallery():
     """Professional image gallery forum with enhanced navigation"""
@@ -1171,7 +1178,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery with enhanced navigation - FIXED TO ALWAYS SHOW IMAGES"""
+    """Display the image gallery with ALWAYS VISIBLE thumbnails"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1198,22 +1205,25 @@ def render_gallery_display():
     
     st.markdown("---")
     
-    # Filter options
+    # Filter options - using session state to persist filter values
     col1, col2, col3 = st.columns(3)
     with col1:
         filter_author = st.selectbox(
             "Filter by Author:",
-            ["All Authors"] + list(set(img['uploaded_by'] for img in st.session_state.uploaded_images))
+            ["All Authors"] + list(set(img['uploaded_by'] for img in st.session_state.uploaded_images)),
+            key="gallery_filter_author"
         )
     with col2:
         filter_strategy = st.selectbox(
             "Filter by Strategy:",
-            ["All Strategies"] + list(STRATEGIES.keys())
+            ["All Strategies"] + list(STRATEGIES.keys()),
+            key="gallery_filter_strategy"
         )
     with col3:
         sort_by = st.selectbox(
             "Sort by:",
-            ["Newest First", "Oldest First", "Most Liked"]
+            ["Newest First", "Oldest First", "Most Liked"],
+            key="gallery_sort_by"
         )
     
     # Apply filters
@@ -1238,72 +1248,19 @@ def render_gallery_display():
         st.warning("No images match your current filters.")
         return
     
-    # Create responsive grid - FIXED: Always show images without requiring expander click
-    cols = st.columns(3)
+    # Create responsive grid - ALWAYS SHOW THUMBNAILS WITHOUT EXPANDER
+    st.markdown(f"**Displaying {len(filtered_images)} images**")
+    st.markdown("---")
     
-    for i, img_data in enumerate(filtered_images):
-        with cols[i % 3]:
-            with st.container():
-                # Card container with improved styling
-                st.markdown("""
-                <div style='
-                    border: 1px solid #e0e0e0;
-                    border-radius: 12px;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                    background: white;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                    transition: transform 0.2s, box-shadow 0.2s;
-                '>
-                """, unsafe_allow_html=True)
-                
-                # Display thumbnail - ALWAYS VISIBLE
-                st.image(img_data['bytes'], use_container_width=True)
-                
-                # Image info - always visible
-                st.markdown(f"**{img_data['name']}**")
-                
-                # Description preview
-                if img_data.get('description'):
-                    # Show first 50 characters of description
-                    preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
-                    st.caption(preview)
-                
-                # Strategy tags preview
-                if img_data.get('strategies'):
-                    tags_preview = ", ".join(img_data['strategies'][:2])  # Show first 2 strategies
-                    if len(img_data['strategies']) > 2:
-                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
-                    st.caption(f"**Strategies:** {tags_preview}")
-                
-                # Author and date
-                st.caption(f"By: **{img_data['uploaded_by']}**")
-                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
-                st.caption(f"Uploaded: {upload_time}")
-                
-                # Interaction buttons
-                col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
-                with col_a:
-                    if st.button("❤️", key=f"like_{i}", help="Like this image"):
-                        img_data['likes'] += 1
-                        st.rerun()
-                with col_b:
-                    st.write(f" {img_data['likes']}")
-                with col_c:
-                    # Full view button
-                    if st.button("🖼️ Full View", key=f"view_{i}", help="View image in fullscreen mode"):
-                        # Find the index of this image in the filtered list
-                        original_index = st.session_state.uploaded_images.index(img_data)
-                        st.session_state.current_image_index = original_index
-                        st.session_state.image_viewer_mode = True
-                        st.rerun()
-                with col_d:
-                    # Download button
-                    b64_img = base64.b64encode(img_data['bytes']).decode()
-                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
-                
-                st.markdown("</div>", unsafe_allow_html=True)
+    # Use columns for grid layout
+    cols_per_row = 3
+    for i in range(0, len(filtered_images), cols_per_row):
+        cols = st.columns(cols_per_row)
+        for j in range(cols_per_row):
+            if i + j < len(filtered_images):
+                img_data = filtered_images[i + j]
+                with cols[j]:
+                    render_image_card(img_data, i + j)
     
     # Clear gallery button (admin only)
     if st.session_state.user['plan'] == 'admin':
@@ -1317,6 +1274,70 @@ def render_gallery_display():
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
                 st.rerun()
+
+def render_image_card(img_data, index):
+    """Render individual image card with ALWAYS VISIBLE thumbnail"""
+    with st.container():
+        st.markdown("""
+        <div style='
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+            height: 100%;
+        '>
+        """, unsafe_allow_html=True)
+        
+        # Display thumbnail ALWAYS VISIBLE
+        st.image(img_data['bytes'], use_container_width=True)
+        
+        # Image info - always visible
+        st.markdown(f"**{img_data['name']}**")
+        
+        # Description preview
+        if img_data.get('description'):
+            # Show first 50 characters of description
+            preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
+            st.caption(preview)
+        
+        # Strategy tags preview
+        if img_data.get('strategies'):
+            tags_preview = ", ".join(img_data['strategies'][:2])  # Show first 2 strategies
+            if len(img_data['strategies']) > 2:
+                tags_preview += f" +{len(img_data['strategies']) - 2} more"
+            st.caption(f"**Strategies:** {tags_preview}")
+        
+        # Author and date
+        st.caption(f"By: **{img_data['uploaded_by']}**")
+        upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+        st.caption(f"Uploaded: {upload_time}")
+        
+        # Interaction buttons
+        col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
+        with col_a:
+            if st.button("❤️", key=f"like_{index}", help="Like this image"):
+                img_data['likes'] += 1
+                st.rerun()
+        with col_b:
+            st.write(f" {img_data['likes']}")
+        with col_c:
+            # Full view button
+            if st.button("🖼️ Full View", key=f"view_{index}", help="View image in fullscreen mode"):
+                # Find the index of this image in the original list
+                original_index = st.session_state.uploaded_images.index(img_data)
+                st.session_state.current_image_index = original_index
+                st.session_state.image_viewer_mode = True
+                st.rerun()
+        with col_d:
+            # Download button
+            b64_img = base64.b64encode(img_data['bytes']).decode()
+            href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+            st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
 def render_image_viewer():
     """Enhanced image viewer with navigation controls"""
@@ -2687,7 +2708,7 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             render_premium_sidebar_options()
         else:
-            # Gallery mode - UPDATED: Added "View First Image" button and renamed to "Images"
+            # Gallery mode
             st.subheader("Gallery Actions")
             if st.button("🖼️ Full Gallery", use_container_width=True):
                 st.session_state.current_gallery_view = "gallery"
@@ -2697,7 +2718,6 @@ def render_admin_dashboard():
                 st.session_state.current_gallery_view = "upload"
                 st.session_state.image_viewer_mode = False
                 st.rerun()
-            # ADDED: View First Image button in Gallery Actions section
             if st.session_state.uploaded_images:
                 if st.button("👁️ View First Image", use_container_width=True, help="Open the first image in full viewer"):
                     st.session_state.current_image_index = 0
