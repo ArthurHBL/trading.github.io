@@ -2809,7 +2809,7 @@ def render_admin_dashboard():
                 st.session_state.image_viewer_mode = False
                 st.rerun()
             if st.session_state.uploaded_images:
-                if st.button("👁️ View First Image", use_container_width=True, help="Open the first image in full viewer"):
+                if st.button("👁️ Images", use_container_width=True, help="Open the first image in full viewer"):
                     st.session_state.current_image_index = 0
                     st.session_state.image_viewer_mode = True
                     st.rerun()
