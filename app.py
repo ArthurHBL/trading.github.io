@@ -60,7 +60,8 @@ def init_session():
         st.session_state.admin_dashboard_mode = None
     # ENHANCED: Image gallery session state
     if 'uploaded_images' not in st.session_state:
-        st.session_state.uploaded_images = []
+        # Load images from file on session init
+        st.session_state.uploaded_images = load_gallery_images()
     if 'current_gallery_view' not in st.session_state:
         st.session_state.current_gallery_view = 'gallery'
     if 'selected_image' not in st.session_state:
@@ -102,8 +103,81 @@ def setup_data_persistence():
             save_data(strategy_data)
         except Exception as e:
             print(f"⚠️ Error saving strategy data: {e}")
+        
+        # Save gallery images
+        try:
+            save_gallery_images(st.session_state.uploaded_images)
+        except Exception as e:
+            print(f"⚠️ Error saving gallery images: {e}")
             
         st.session_state.last_save_time = current_time
+
+# -------------------------
+# GALLERY IMAGE PERSISTENCE
+# -------------------------
+GALLERY_FILE = "gallery_images.json"
+
+def load_gallery_images():
+    """Load gallery images from file"""
+    if os.path.exists(GALLERY_FILE):
+        try:
+            with open(GALLERY_FILE, "r", encoding="utf-8") as f:
+                gallery_data = json.load(f)
+                print(f"✅ Loaded {len(gallery_data)} images from gallery")
+                
+                # Convert base64 strings back to bytes for images
+                for img_data in gallery_data:
+                    if 'bytes_b64' in img_data:
+                        img_data['bytes'] = base64.b64decode(img_data['bytes_b64'])
+                
+                return gallery_data
+        except Exception as e:
+            print(f"❌ Error loading gallery images: {e}")
+            # Create backup of corrupted file
+            backup_name = f"{GALLERY_FILE}.backup.{int(time.time())}"
+            if os.path.exists(GALLERY_FILE):
+                os.rename(GALLERY_FILE, backup_name)
+                print(f"⚠️ Gallery data corrupted. Backed up to {backup_name}")
+            return []
+    return []
+
+def save_gallery_images(images):
+    """Save gallery images to file"""
+    try:
+        # Create a serializable version of the images
+        serializable_images = []
+        for img_data in images:
+            serializable_img = img_data.copy()
+            # Convert bytes to base64 for JSON serialization
+            if 'bytes' in serializable_img:
+                serializable_img['bytes_b64'] = base64.b64encode(serializable_img['bytes']).decode('utf-8')
+                # Remove the bytes object as it's not JSON serializable
+                del serializable_img['bytes']
+            # Remove PIL Image objects as they're not serializable
+            if 'image' in serializable_img:
+                del serializable_img['image']
+            serializable_images.append(serializable_img)
+        
+        # Create backup before saving
+        if os.path.exists(GALLERY_FILE):
+            backup_file = f"{GALLERY_FILE}.backup"
+            shutil.copy2(GALLERY_FILE, backup_file)
+        
+        with open(GALLERY_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable_images, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved {len(images)} images to gallery")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving gallery images: {e}")
+        # Try to save to temporary file
+        try:
+            temp_file = f"{GALLERY_FILE}.temp.{int(time.time())}"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(serializable_images, f, ensure_ascii=False, indent=2)
+            print(f"⚠️ Saved gallery backup to {temp_file}")
+        except Exception as e2:
+            print(f"❌ Failed to save gallery backup: {e2}")
+        return False
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -1074,10 +1148,10 @@ def render_login():
                             st.error(f"❌ {message}")
 
 # -------------------------
-# ENHANCED IMAGE GALLERY FORUM WITH FIXED THUMBNAIL DISPLAY
+# ENHANCED IMAGE GALLERY FORUM WITH FIXED THUMBNAIL DISPLAY AND PERSISTENCE
 # -------------------------
 def render_image_gallery():
-    """Professional image gallery forum with enhanced navigation"""
+    """Professional image gallery forum with enhanced navigation and persistence"""
     
     # If in image viewer mode, show the image viewer
     if st.session_state.image_viewer_mode:
@@ -1106,7 +1180,7 @@ def render_image_gallery():
         render_gallery_display()
 
 def render_image_uploader():
-    """Image upload interface"""
+    """Image upload interface with persistence"""
     st.subheader("📤 Upload New Images")
     
     with st.container():
@@ -1171,6 +1245,9 @@ def render_image_uploader():
                     'comments': []
                 })
             
+            # Save gallery images to file
+            save_gallery_images(st.session_state.uploaded_images)
+            
             st.success(f"✅ Successfully uploaded {len(uploaded_files)} image(s) to the gallery!")
             st.balloons()
             st.rerun()  # Force refresh to show thumbnails immediately
@@ -1178,7 +1255,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery with ALWAYS VISIBLE thumbnails"""
+    """Display the image gallery with ALWAYS VISIBLE thumbnails and persistence"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -1307,6 +1384,8 @@ def render_image_card(img_data, index):
         with col_a:
             if st.button("❤️", key=f"like_{index}", help="Like this image"):
                 img_data['likes'] += 1
+                # Save gallery after like
+                save_gallery_images(st.session_state.uploaded_images)
                 st.rerun()
         with col_b:
             st.write(f" {img_data['likes']}")
@@ -1325,7 +1404,7 @@ def render_image_card(img_data, index):
             st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
 
 def render_image_viewer():
-    """Enhanced image viewer with navigation controls"""
+    """Enhanced image viewer with navigation controls and persistence"""
     if not st.session_state.uploaded_images:
         st.warning("No images in gallery")
         st.session_state.image_viewer_mode = False
@@ -1432,6 +1511,8 @@ def render_image_viewer():
         # Like button
         if st.button(f"❤️ Like ({img_data['likes']})", use_container_width=True, key="viewer_like"):
             img_data['likes'] += 1
+            # Save gallery after like
+            save_gallery_images(st.session_state.uploaded_images)
             st.rerun()
         
         # Download button
@@ -1511,6 +1592,10 @@ def render_clear_gallery_confirmation():
                         st.session_state.clear_gallery_password = ""
                         st.session_state.clear_gallery_error = ""
                         st.session_state.image_viewer_mode = False  # Exit viewer if active
+                        
+                        # Save empty gallery to file
+                        save_gallery_images(st.session_state.uploaded_images)
+                        
                         st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
                         st.rerun()
                     else:
