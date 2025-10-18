@@ -31,14 +31,14 @@ def init_supabase():
     """Initialize Supabase client"""
     try:
         # You'll need to set these in your Streamlit Cloud secrets
-       SUPABASE_URL = "https://dmshwbwdupyqpqrqcndm.supabase.co"
-       SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc2h3YndkdXB5cXBxcnFjbmRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM5NzYwMSwiZXhwIjoyMDc1OTczNjAxfQ.TsxLuUB1dAOMWRdXBhw4KjNMhcieXNErTepiFLdbGzU"
+        SUPABASE_URL = "https://dmshwbwdupyqpqrqcndm.supabase.co"
+        SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc2h3YndkdXB5cXBxcnFjbmRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM5NzYwMSwiZXhwIjoyMDc1OTczNjAxfQ.TsxLuUB1dAOMWRdXBhw4KjNMhcieXNErTepiFLdbGzU"
         
-        if not supabase_url or not supabase_key:
+        if not SUPABASE_URL or not SUPABASE_KEY:
             st.error("Supabase credentials not found. Please set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
             return None
             
-        return create_client(supabase_url, supabase_key)
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
     except Exception as e:
         st.error(f"Error initializing Supabase: {e}")
         return None
