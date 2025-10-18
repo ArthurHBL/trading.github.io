@@ -3456,7 +3456,13 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
         note = existing.get("note", "")
         status = existing.get("status", "Open")
         
-        with col.expander(f"**{indicator}** - {status}", expanded=False):
+        # ✅ COSMETIC CHANGE: Add checkmark for "Done" status indicators
+        if status == "Done":
+            expander_title = f"**{indicator}** ✅ - {status}"
+        else:
+            expander_title = f"**{indicator}** - {status}"
+        
+        with col.expander(expander_title, expanded=False):
             if note:
                 st.text_area(
                     f"Analysis", 
