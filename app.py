@@ -16,6 +16,302 @@ import base64
 from PIL import Image
 
 # -------------------------
+# SUPABASE SETUP
+# -------------------------
+try:
+    from supabase import create_client, Client
+    import supabase
+except ImportError:
+    st.error("Required packages not installed. Please install: pip install supabase python-dotenv")
+    st.stop()
+
+# Initialize Supabase client
+@st.cache_resource
+def init_supabase():
+    """Initialize Supabase client"""
+    try:
+        # You'll need to set these in your Streamlit Cloud secrets
+       SUPABASE_URL = "https://dmshwbwdupyqpqrqcndm.supabase.co"
+       SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc2h3YndkdXB5cXBxcnFjbmRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM5NzYwMSwiZXhwIjoyMDc1OTczNjAxfQ.TsxLuUB1dAOMWRdXBhw4KjNMhcieXNErTepiFLdbGzU"
+        
+        if not supabase_url or not supabase_key:
+            st.error("Supabase credentials not found. Please set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
+            return None
+            
+        return create_client(supabase_url, supabase_key)
+    except Exception as e:
+        st.error(f"Error initializing Supabase: {e}")
+        return None
+
+supabase_client = init_supabase()
+
+# -------------------------
+# SUPABASE DATABASE FUNCTIONS
+# -------------------------
+
+# Users table functions
+def supabase_get_users():
+    """Get all users from Supabase"""
+    if not supabase_client:
+        return {}
+    try:
+        response = supabase_client.table('users').select('*').execute()
+        users = {}
+        for user in response.data:
+            users[user['username']] = user
+        return users
+    except Exception as e:
+        print(f"Error getting users: {e}")
+        return {}
+
+def supabase_save_users(users):
+    """Save users to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        # Convert users dict to list
+        users_list = []
+        for username, user_data in users.items():
+            user_data['username'] = username
+            users_list.append(user_data)
+        
+        # Upsert all users
+        response = supabase_client.table('users').upsert(users_list).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving users: {e}")
+        return False
+
+def supabase_delete_user(username):
+    """Delete user from Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        response = supabase_client.table('users').delete().eq('username', username).execute()
+        return True
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+        return False
+
+# Analytics table functions
+def supabase_get_analytics():
+    """Get analytics data from Supabase"""
+    if not supabase_client:
+        return {}
+    try:
+        response = supabase_client.table('analytics').select('*').execute()
+        if response.data:
+            return response.data[0]  # Assuming single analytics record
+        return {}
+    except Exception as e:
+        print(f"Error getting analytics: {e}")
+        return {}
+
+def supabase_save_analytics(analytics):
+    """Save analytics to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        analytics['id'] = 1  # Single analytics record
+        response = supabase_client.table('analytics').upsert(analytics).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving analytics: {e}")
+        return False
+
+# Strategy analyses table functions
+def supabase_get_strategy_analyses():
+    """Get strategy analyses from Supabase"""
+    if not supabase_client:
+        return {}
+    try:
+        response = supabase_client.table('strategy_analyses').select('*').execute()
+        strategies = {}
+        for item in response.data:
+            strategy_name = item['strategy_name']
+            indicator_name = item['indicator_name']
+            if strategy_name not in strategies:
+                strategies[strategy_name] = {}
+            strategies[strategy_name][indicator_name] = {
+                "note": item.get('note', ''),
+                "status": item.get('status', 'Open'),
+                "momentum": item.get('momentum', 'Not Defined'),
+                "strategy_tag": item.get('strategy_tag', 'Neutral'),
+                "analysis_date": item.get('analysis_date', ''),
+                "last_modified": item.get('last_modified', ''),
+                "modified_by": item.get('modified_by', 'system')
+            }
+        return strategies
+    except Exception as e:
+        print(f"Error getting strategy analyses: {e}")
+        return {}
+
+def supabase_save_strategy_analyses(strategy_data):
+    """Save strategy analyses to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        # First, clear existing data for today?
+        # Instead, we'll upsert based on strategy_name and indicator_name
+        
+        records = []
+        for strategy_name, indicators in strategy_data.items():
+            for indicator_name, meta in indicators.items():
+                records.append({
+                    'strategy_name': strategy_name,
+                    'indicator_name': indicator_name,
+                    'note': meta.get('note', ''),
+                    'status': meta.get('status', 'Open'),
+                    'momentum': meta.get('momentum', 'Not Defined'),
+                    'strategy_tag': meta.get('strategy_tag', 'Neutral'),
+                    'analysis_date': meta.get('analysis_date', ''),
+                    'last_modified': meta.get('last_modified', ''),
+                    'modified_by': meta.get('modified_by', 'system')
+                })
+        
+        if records:
+            response = supabase_client.table('strategy_analyses').upsert(records).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving strategy analyses: {e}")
+        return False
+
+# Gallery images table functions
+def supabase_get_gallery_images():
+    """Get gallery images from Supabase"""
+    if not supabase_client:
+        return []
+    try:
+        response = supabase_client.table('gallery_images').select('*').execute()
+        images = []
+        for img in response.data:
+            # Convert base64 back to bytes
+            if 'bytes_b64' in img:
+                img['bytes'] = base64.b64decode(img['bytes_b64'])
+            images.append(img)
+        return images
+    except Exception as e:
+        print(f"Error getting gallery images: {e}")
+        return []
+
+def supabase_save_gallery_images(images):
+    """Save gallery images to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        # First, clear all existing images (or we could update selectively)
+        supabase_client.table('gallery_images').delete().neq('id', 0).execute()
+        
+        records = []
+        for img in images:
+            record = img.copy()
+            # Convert bytes to base64 for storage
+            if 'bytes' in record:
+                record['bytes_b64'] = base64.b64encode(record['bytes']).decode('utf-8')
+                del record['bytes']
+            # Remove PIL Image objects
+            if 'image' in record:
+                del record['image']
+            records.append(record)
+        
+        if records:
+            response = supabase_client.table('gallery_images').insert(records).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving gallery images: {e}")
+        return False
+
+def supabase_clear_gallery_images():
+    """Clear all gallery images from Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        response = supabase_client.table('gallery_images').delete().neq('id', 0).execute()
+        return True
+    except Exception as e:
+        print(f"Error clearing gallery images: {e}")
+        return False
+
+# Trading signals table functions
+def supabase_get_trading_signals():
+    """Get trading signals from Supabase"""
+    if not supabase_client:
+        return []
+    try:
+        response = supabase_client.table('trading_signals').select('*').execute()
+        return response.data
+    except Exception as e:
+        print(f"Error getting trading signals: {e}")
+        return []
+
+def supabase_save_trading_signals(signals):
+    """Save trading signals to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        # Clear and replace all signals
+        supabase_client.table('trading_signals').delete().neq('id', 0).execute()
+        
+        if signals:
+            response = supabase_client.table('trading_signals').insert(signals).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving trading signals: {e}")
+        return False
+
+# Strategy indicator images table functions
+def supabase_get_strategy_indicator_images():
+    """Get strategy indicator images from Supabase"""
+    if not supabase_client:
+        return {}
+    try:
+        response = supabase_client.table('strategy_indicator_images').select('*').execute()
+        images_data = {}
+        for item in response.data:
+            strategy_name = item['strategy_name']
+            indicator_name = item['indicator_name']
+            if strategy_name not in images_data:
+                images_data[strategy_name] = {}
+            # Convert base64 back to bytes
+            if 'bytes_b64' in item:
+                item['bytes'] = base64.b64decode(item['bytes_b64'])
+            images_data[strategy_name][indicator_name] = item
+        return images_data
+    except Exception as e:
+        print(f"Error getting strategy indicator images: {e}")
+        return {}
+
+def supabase_save_strategy_indicator_images(images_data):
+    """Save strategy indicator images to Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        # Clear and replace all strategy indicator images
+        supabase_client.table('strategy_indicator_images').delete().neq('id', 0).execute()
+        
+        records = []
+        for strategy_name, indicators in images_data.items():
+            for indicator_name, img_data in indicators.items():
+                record = img_data.copy()
+                record['strategy_name'] = strategy_name
+                record['indicator_name'] = indicator_name
+                # Convert bytes to base64
+                if 'bytes' in record:
+                    record['bytes_b64'] = base64.b64encode(record['bytes']).decode('utf-8')
+                    del record['bytes']
+                # Remove PIL Image objects
+                if 'image' in record:
+                    del record['image']
+                records.append(record)
+        
+        if records:
+            response = supabase_client.table('strategy_indicator_images').insert(records).execute()
+        return True
+    except Exception as e:
+        print(f"Error saving strategy indicator images: {e}")
+        return False
+
+# -------------------------
 # SESSION MANAGEMENT
 # -------------------------
 def init_session():
@@ -60,7 +356,7 @@ def init_session():
         st.session_state.admin_dashboard_mode = None
     # ENHANCED: Image gallery session state
     if 'uploaded_images' not in st.session_state:
-        # Load images from file on session init
+        # Load images from Supabase on session init
         st.session_state.uploaded_images = load_gallery_images()
     if 'current_gallery_view' not in st.session_state:
         st.session_state.current_gallery_view = 'gallery'
@@ -151,72 +447,13 @@ def setup_data_persistence():
 # -------------------------
 # STRATEGY INDICATOR IMAGES PERSISTENCE
 # -------------------------
-STRATEGY_IMAGES_FILE = "strategy_indicator_images.json"
-
 def load_strategy_indicator_images():
-    """Load strategy indicator images from file"""
-    if os.path.exists(STRATEGY_IMAGES_FILE):
-        try:
-            with open(STRATEGY_IMAGES_FILE, "r", encoding="utf-8") as f:
-                images_data = json.load(f)
-                print(f"✅ Loaded {len(images_data)} strategy indicator images from file")
-                
-                # Convert base64 strings back to bytes for images
-                for strategy_name, indicators in images_data.items():
-                    for indicator_name, img_data in indicators.items():
-                        if 'bytes_b64' in img_data:
-                            img_data['bytes'] = base64.b64decode(img_data['bytes_b64'])
-                
-                return images_data
-        except Exception as e:
-            print(f"❌ Error loading strategy indicator images: {e}")
-            # Create backup of corrupted file
-            backup_name = f"{STRATEGY_IMAGES_FILE}.backup.{int(time.time())}"
-            if os.path.exists(STRATEGY_IMAGES_FILE):
-                os.rename(STRATEGY_IMAGES_FILE, backup_name)
-                print(f"⚠️ Strategy indicator images data corrupted. Backed up to {backup_name}")
-            return {}
-    return {}
+    """Load strategy indicator images from Supabase"""
+    return supabase_get_strategy_indicator_images()
 
 def save_strategy_indicator_images(images_data):
-    """Save strategy indicator images to file"""
-    try:
-        # Create a serializable version of the images
-        serializable_data = {}
-        for strategy_name, indicators in images_data.items():
-            serializable_data[strategy_name] = {}
-            for indicator_name, img_data in indicators.items():
-                serializable_img = img_data.copy()
-                # Convert bytes to base64 for JSON serialization
-                if 'bytes' in serializable_img:
-                    serializable_img['bytes_b64'] = base64.b64encode(serializable_img['bytes']).decode('utf-8')
-                    # Remove the bytes object as it's not JSON serializable
-                    del serializable_img['bytes']
-                # Remove PIL Image objects as they're not serializable
-                if 'image' in serializable_img:
-                    del serializable_img['image']
-                serializable_data[strategy_name][indicator_name] = serializable_img
-        
-        # Create backup before saving
-        if os.path.exists(STRATEGY_IMAGES_FILE):
-            backup_file = f"{STRATEGY_IMAGES_FILE}.backup"
-            shutil.copy2(STRATEGY_IMAGES_FILE, backup_file)
-        
-        with open(STRATEGY_IMAGES_FILE, "w", encoding="utf-8") as f:
-            json.dump(serializable_data, f, ensure_ascii=False, indent=2)
-        print(f"✅ Saved strategy indicator images to file")
-        return True
-    except Exception as e:
-        print(f"❌ Error saving strategy indicator images: {e}")
-        # Try to save to temporary file
-        try:
-            temp_file = f"{STRATEGY_IMAGES_FILE}.temp.{int(time.time())}"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(serializable_data, f, ensure_ascii=False, indent=2)
-            print(f"⚠️ Saved strategy indicator images backup to {temp_file}")
-        except Exception as e2:
-            print(f"❌ Failed to save strategy indicator images backup: {e2}")
-        return False
+    """Save strategy indicator images to Supabase"""
+    return supabase_save_strategy_indicator_images(images_data)
 
 def get_strategy_indicator_image(strategy_name, indicator_name):
     """Get image for a specific strategy indicator"""
@@ -237,116 +474,24 @@ def save_strategy_indicator_image(strategy_name, indicator_name, image_data):
 # -------------------------
 # TRADING SIGNALS DATA PERSISTENCE
 # -------------------------
-SIGNALS_FILE = "trading_signals.json"
-
 def load_signals_data():
-    """Load trading signals from file"""
-    if os.path.exists(SIGNALS_FILE):
-        try:
-            with open(SIGNALS_FILE, "r", encoding="utf-8") as f:
-                signals_data = json.load(f)
-                print(f"✅ Loaded {len(signals_data)} signals from file")
-                return signals_data
-        except Exception as e:
-            print(f"❌ Error loading signals data: {e}")
-            # Create backup of corrupted file
-            backup_name = f"{SIGNALS_FILE}.backup.{int(time.time())}"
-            if os.path.exists(SIGNALS_FILE):
-                os.rename(SIGNALS_FILE, backup_name)
-                print(f"⚠️ Signals data corrupted. Backed up to {backup_name}")
-            return []
-    return []
+    """Load trading signals from Supabase"""
+    return supabase_get_trading_signals()
 
 def save_signals_data(signals):
-    """Save trading signals to file"""
-    try:
-        # Create backup before saving
-        if os.path.exists(SIGNALS_FILE):
-            backup_file = f"{SIGNALS_FILE}.backup"
-            shutil.copy2(SIGNALS_FILE, backup_file)
-        
-        with open(SIGNALS_FILE, "w", encoding="utf-8") as f:
-            json.dump(signals, f, ensure_ascii=False, indent=2)
-        print(f"✅ Saved {len(signals)} signals to file")
-        return True
-    except Exception as e:
-        print(f"❌ Error saving signals data: {e}")
-        # Try to save to temporary file
-        try:
-            temp_file = f"{SIGNALS_FILE}.temp.{int(time.time())}"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(signals, f, ensure_ascii=False, indent=2)
-            print(f"⚠️ Saved signals backup to {temp_file}")
-        except Exception as e2:
-            print(f"❌ Failed to save signals backup: {e2}")
-        return False
+    """Save trading signals to Supabase"""
+    return supabase_save_trading_signals(signals)
 
 # -------------------------
 # GALLERY IMAGE PERSISTENCE
 # -------------------------
-GALLERY_FILE = "gallery_images.json"
-
 def load_gallery_images():
-    """Load gallery images from file"""
-    if os.path.exists(GALLERY_FILE):
-        try:
-            with open(GALLERY_FILE, "r", encoding="utf-8") as f:
-                gallery_data = json.load(f)
-                print(f"✅ Loaded {len(gallery_data)} images from gallery")
-                
-                # Convert base64 strings back to bytes for images
-                for img_data in gallery_data:
-                    if 'bytes_b64' in img_data:
-                        img_data['bytes'] = base64.b64decode(img_data['bytes_b64'])
-                
-                return gallery_data
-        except Exception as e:
-            print(f"❌ Error loading gallery images: {e}")
-            # Create backup of corrupted file
-            backup_name = f"{GALLERY_FILE}.backup.{int(time.time())}"
-            if os.path.exists(GALLERY_FILE):
-                os.rename(GALLERY_FILE, backup_name)
-                print(f"⚠️ Gallery data corrupted. Backed up to {backup_name}")
-            return []
-    return []
+    """Load gallery images from Supabase"""
+    return supabase_get_gallery_images()
 
 def save_gallery_images(images):
-    """Save gallery images to file"""
-    try:
-        # Create a serializable version of the images
-        serializable_images = []
-        for img_data in images:
-            serializable_img = img_data.copy()
-            # Convert bytes to base64 for JSON serialization
-            if 'bytes' in serializable_img:
-                serializable_img['bytes_b64'] = base64.b64encode(serializable_img['bytes']).decode('utf-8')
-                # Remove the bytes object as it's not JSON serializable
-                del serializable_img['bytes']
-            # Remove PIL Image objects as they're not serializable
-            if 'image' in serializable_img:
-                del serializable_img['image']
-            serializable_images.append(serializable_img)
-        
-        # Create backup before saving
-        if os.path.exists(GALLERY_FILE):
-            backup_file = f"{GALLERY_FILE}.backup"
-            shutil.copy2(GALLERY_FILE, backup_file)
-        
-        with open(GALLERY_FILE, "w", encoding="utf-8") as f:
-            json.dump(serializable_images, f, ensure_ascii=False, indent=2)
-        print(f"✅ Saved {len(images)} images to gallery")
-        return True
-    except Exception as e:
-        print(f"❌ Error saving gallery images: {e}")
-        # Try to save to temporary file
-        try:
-            temp_file = f"{GALLERY_FILE}.temp.{int(time.time())}"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(serializable_images, f, ensure_ascii=False, indent=2)
-            print(f"⚠️ Saved gallery backup to {temp_file}")
-        except Exception as e2:
-            print(f"❌ Failed to save gallery backup: {e2}")
-        return False
+    """Save gallery images to Supabase"""
+    return supabase_save_gallery_images(images)
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -435,46 +580,13 @@ def sanitize_key(s: str):
 # -------------------------
 # DATA MANAGEMENT
 # -------------------------
-SAVE_FILE = "strategy_analyses.json"
-
 def load_data():
-    """Load strategy analyses data"""
-    if os.path.exists(SAVE_FILE):
-        with open(SAVE_FILE, "r", encoding="utf-8") as f:
-            try:
-                data = json.load(f)
-                print(f"✅ Loaded strategy data from {SAVE_FILE}")
-                return data
-            except Exception as e:
-                print(f"❌ Error loading strategy data: {e}")
-                # Create backup of corrupted file
-                backup_name = f"{SAVE_FILE}.backup.{int(time.time())}"
-                os.rename(SAVE_FILE, backup_name)
-                print(f"⚠️ Strategy data corrupted. Backed up to {backup_name}")
-                return {}
-    return {}
+    """Load strategy analyses data from Supabase"""
+    return supabase_get_strategy_analyses()
 
 def save_data(data):
-    """Save strategy analyses data"""
-    try:
-        # Create backup before saving
-        if os.path.exists(SAVE_FILE):
-            backup_file = f"{SAVE_FILE}.backup"
-            shutil.copy2(SAVE_FILE, backup_file)
-        
-        with open(SAVE_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        print(f"✅ Saved strategy data to {SAVE_FILE}")
-    except Exception as e:
-        print(f"❌ Error saving strategy data: {e}")
-        # Try to save to temporary file
-        try:
-            temp_file = f"{SAVE_FILE}.temp.{int(time.time())}"
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-            print(f"⚠️ Saved strategy backup to {temp_file}")
-        except Exception as e2:
-            print(f"❌ Failed to save strategy backup: {e2}")
+    """Save strategy analyses data to Supabase"""
+    return supabase_save_strategy_analyses(data)
 
 def generate_filtered_csv_bytes(data, target_date):
     """Generate CSV data filtered by date"""
@@ -540,59 +652,25 @@ def check_email_quality(email):
     return issues
 
 # -------------------------
-# SECURE USER MANAGEMENT WITH PERSISTENCE - COMPLETE VERSION
+# SECURE USER MANAGEMENT WITH SUPABASE PERSISTENCE
 # -------------------------
 class UserManager:
     def __init__(self):
-        self.users_file = "users.json"
-        self.analytics_file = "analytics.json"
-        self._ensure_data_files()
         self.load_data()
     
-    def _ensure_data_files(self):
-        """Ensure data files exist and are valid"""
-        # Create files if they don't exist
-        if not os.path.exists(self.users_file):
-            self.users = {}
-            self.create_default_admin()
-            self.save_users()
-        else:
-            # Verify file is valid JSON
-            try:
-                with open(self.users_file, 'r') as f:
-                    json.load(f)
-            except json.JSONDecodeError:
-                # Backup corrupted file and create new one
-                backup_name = f"{self.users_file}.backup.{int(time.time())}"
-                os.rename(self.users_file, backup_name)
-                print(f"⚠️ Users file corrupted. Backed up to {backup_name}")
-                self.users = {}
+    def load_data(self):
+        """Load users and analytics data from Supabase"""
+        try:
+            self.users = supabase_get_users()
+            self.analytics = supabase_get_analytics()
+            
+            # Create default admin if it doesn't exist
+            if "admin" not in self.users:
                 self.create_default_admin()
                 self.save_users()
-        
-        if not os.path.exists(self.analytics_file):
-            self.analytics = {
-                "total_logins": 0,
-                "active_users": 0,
-                "revenue_today": 0,
-                "user_registrations": [],
-                "login_history": [],
-                "deleted_users": [],
-                "plan_changes": [],
-                "password_changes": [],
-                "email_verifications": []
-            }
-            self.save_analytics()
-        else:
-            # Verify analytics file is valid JSON
-            try:
-                with open(self.analytics_file, 'r') as f:
-                    json.load(f)
-            except json.JSONDecodeError:
-                # Backup corrupted file and create new one
-                backup_name = f"{self.analytics_file}.backup.{int(time.time())}"
-                os.rename(self.analytics_file, backup_name)
-                print(f"⚠️ Analytics file corrupted. Backed up to {backup_name}")
+            
+            # Initialize analytics if empty
+            if not self.analytics:
                 self.analytics = {
                     "total_logins": 0,
                     "active_users": 0,
@@ -605,26 +683,13 @@ class UserManager:
                     "email_verifications": []
                 }
                 self.save_analytics()
-    
-    def load_data(self):
-        """Load users and analytics data with robust error handling"""
-        try:
-            with open(self.users_file, 'r', encoding='utf-8') as f:
-                self.users = json.load(f)
-            print(f"✅ Loaded {len(self.users)} users from {self.users_file}")
+                
+            print(f"✅ Loaded {len(self.users)} users from database")
+            
         except Exception as e:
-            print(f"❌ Error loading users: {e}")
-            # Try to recover by creating default data
+            print(f"❌ Error loading data: {e}")
+            # Initialize with default data
             self.users = {}
-            self.create_default_admin()
-            self.save_users()
-        
-        try:
-            with open(self.analytics_file, 'r', encoding='utf-8') as f:
-                self.analytics = json.load(f)
-            print(f"✅ Loaded analytics data")
-        except Exception as e:
-            print(f"❌ Error loading analytics: {e}")
             self.analytics = {
                 "total_logins": 0,
                 "active_users": 0,
@@ -636,6 +701,8 @@ class UserManager:
                 "password_changes": [],
                 "email_verifications": []
             }
+            self.create_default_admin()
+            self.save_users()
             self.save_analytics()
     
     def create_default_admin(self):
@@ -664,38 +731,12 @@ class UserManager:
         return hashlib.sha256((password + salt).encode()).hexdigest()
     
     def save_users(self):
-        """Save users to file with robust error handling"""
-        try:
-            # Create backup before saving
-            if os.path.exists(self.users_file):
-                backup_file = f"{self.users_file}.backup"
-                shutil.copy2(self.users_file, backup_file)
-            
-            with open(self.users_file, 'w', encoding='utf-8') as f:
-                json.dump(self.users, f, indent=2, ensure_ascii=False)
-            print(f"✅ Saved {len(self.users)} users to {self.users_file}")
-            return True
-        except Exception as e:
-            print(f"❌ Error saving users: {e}")
-            # Try to save to temporary file as last resort
-            try:
-                temp_file = f"{self.users_file}.temp.{int(time.time())}"
-                with open(temp_file, 'w', encoding='utf-8') as f:
-                    json.dump(self.users, f, indent=2, ensure_ascii=False)
-                print(f"⚠️ Saved backup to {temp_file}")
-            except Exception as e2:
-                print(f"❌ Failed to save backup: {e2}")
-            return False
+        """Save users to Supabase"""
+        return supabase_save_users(self.users)
     
     def save_analytics(self):
-        """Save analytics data with robust error handling"""
-        try:
-            with open(self.analytics_file, 'w', encoding='utf-8') as f:
-                json.dump(self.analytics, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"❌ Error saving analytics: {e}")
-            return False
+        """Save analytics data to Supabase"""
+        return supabase_save_analytics(self.analytics)
     
     def periodic_cleanup(self):
         """Periodic cleanup that doesn't delete user data"""
@@ -838,6 +879,9 @@ class UserManager:
             "created": user_created,
             "deleted_at": datetime.now().isoformat()
         })
+        
+        # Delete from Supabase
+        supabase_delete_user(username)
         
         if self.save_users() and self.save_analytics():
             return True, f"User '{username}' has been permanently deleted"
@@ -1908,7 +1952,7 @@ def render_image_uploader():
                 
                 st.session_state.uploaded_images.append(image_data)
             
-            # Save gallery images to file
+            # Save gallery images to Supabase
             save_gallery_images(st.session_state.uploaded_images)
             
             st.success(f"✅ Successfully uploaded {len(uploaded_files)} image(s) to the gallery!")
@@ -2271,8 +2315,8 @@ def render_clear_gallery_confirmation():
                         st.session_state.clear_gallery_error = ""
                         st.session_state.image_viewer_mode = False  # Exit viewer if active
                         
-                        # Save empty gallery to file
-                        save_gallery_images(st.session_state.uploaded_images)
+                        # Save empty gallery to Supabase
+                        supabase_clear_gallery_images()
                         
                         st.success(f"✅ Gallery cleared! {image_count} images have been permanently deleted.")
                         st.rerun()
