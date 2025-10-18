@@ -46,7 +46,7 @@ def init_supabase():
 supabase_client = init_supabase()
 
 # -------------------------
-# SUPABASE DATABASE FUNCTIONS
+# SUPABASE DATABASE FUNCTIONS - FIXED STRATEGY INDICATOR IMAGES
 # -------------------------
 
 # Users table functions
@@ -259,9 +259,9 @@ def supabase_save_trading_signals(signals):
         print(f"Error saving trading signals: {e}")
         return False
 
-# Strategy indicator images table functions
+# Strategy indicator images table functions - FIXED VERSION
 def supabase_get_strategy_indicator_images():
-    """Get strategy indicator images from Supabase"""
+    """Get strategy indicator images from Supabase - FIXED"""
     if not supabase_client:
         return {}
     try:
@@ -274,45 +274,80 @@ def supabase_get_strategy_indicator_images():
                 images_data[strategy_name] = {}
             # Convert base64 back to bytes
             if 'bytes_b64' in item:
-                item['bytes'] = base64.b64decode(item['bytes_b64'])
-            images_data[strategy_name][indicator_name] = item
+                try:
+                    item['bytes'] = base64.b64decode(item['bytes_b64'])
+                    images_data[strategy_name][indicator_name] = item
+                except Exception as e:
+                    print(f"Error decoding image for {strategy_name}/{indicator_name}: {e}")
+                    continue
+        print(f"✅ Loaded {len(images_data)} strategies with indicator images from Supabase")
         return images_data
     except Exception as e:
         print(f"Error getting strategy indicator images: {e}")
         return {}
 
 def supabase_save_strategy_indicator_images(images_data):
-    """Save strategy indicator images to Supabase"""
+    """Save strategy indicator images to Supabase - FIXED"""
     if not supabase_client:
         return False
     try:
-        # Clear and replace all strategy indicator images
-        supabase_client.table('strategy_indicator_images').delete().neq('id', 0).execute()
+        # Get all existing records to delete only what we're replacing
+        existing_response = supabase_client.table('strategy_indicator_images').select('*').execute()
+        existing_records = existing_response.data if existing_response.data else []
         
         records = []
         for strategy_name, indicators in images_data.items():
             for indicator_name, img_data in indicators.items():
-                record = img_data.copy()
-                record['strategy_name'] = strategy_name
-                record['indicator_name'] = indicator_name
+                # Create a clean record
+                record = {
+                    'strategy_name': strategy_name,
+                    'indicator_name': indicator_name,
+                    'name': img_data.get('name', f"{strategy_name}_{indicator_name}"),
+                    'format': img_data.get('format', 'PNG'),
+                    'uploaded_by': img_data.get('uploaded_by', 'unknown'),
+                    'timestamp': img_data.get('timestamp', datetime.now().isoformat())
+                }
+                
                 # Convert bytes to base64
-                if 'bytes' in record:
-                    record['bytes_b64'] = base64.b64encode(record['bytes']).decode('utf-8')
-                    del record['bytes']
-                # Remove PIL Image objects
-                if 'image' in record:
-                    del record['image']
+                if 'bytes' in img_data:
+                    try:
+                        record['bytes_b64'] = base64.b64encode(img_data['bytes']).decode('utf-8')
+                    except Exception as e:
+                        print(f"Error encoding image for {strategy_name}/{indicator_name}: {e}")
+                        continue
+                
                 records.append(record)
         
+        # Delete existing records for the strategies we're updating
+        if records:
+            strategies_to_update = list(set([r['strategy_name'] for r in records]))
+            for strategy in strategies_to_update:
+                supabase_client.table('strategy_indicator_images').delete().eq('strategy_name', strategy).execute()
+        
+        # Insert new records
         if records:
             response = supabase_client.table('strategy_indicator_images').insert(records).execute()
+            print(f"✅ Saved {len(records)} strategy indicator images to Supabase")
+        
         return True
     except Exception as e:
-        print(f"Error saving strategy indicator images: {e}")
+        print(f"❌ Error saving strategy indicator images: {e}")
+        return False
+
+def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
+    """Delete specific strategy indicator image from Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        response = supabase_client.table('strategy_indicator_images').delete().eq('strategy_name', strategy_name).eq('indicator_name', indicator_name).execute()
+        print(f"✅ Deleted image for {strategy_name}/{indicator_name}")
+        return True
+    except Exception as e:
+        print(f"Error deleting strategy indicator image: {e}")
         return False
 
 # -------------------------
-# SESSION MANAGEMENT
+# SESSION MANAGEMENT - UPDATED
 # -------------------------
 def init_session():
     """Initialize session state variables"""
@@ -395,8 +430,9 @@ def init_session():
         st.session_state.signal_to_confirm = None
     if 'signal_confirmation_step' not in st.session_state:
         st.session_state.signal_confirmation_step = 1
-    # NEW: Strategy indicator images state
+    # NEW: Strategy indicator images state - UPDATED LOADING
     if 'strategy_indicator_images' not in st.session_state:
+        print("🔄 Loading strategy indicator images from Supabase...")
         st.session_state.strategy_indicator_images = load_strategy_indicator_images()
     # NEW: Strategy indicator viewer state
     if 'strategy_indicator_viewer_mode' not in st.session_state:
@@ -436,7 +472,7 @@ def setup_data_persistence():
         except Exception as e:
             print(f"⚠️ Error saving signals data: {e}")
             
-        # Save strategy indicator images
+        # Save strategy indicator images - FIXED: Now properly saves to Supabase
         try:
             save_strategy_indicator_images(st.session_state.strategy_indicator_images)
         except Exception as e:
@@ -445,31 +481,85 @@ def setup_data_persistence():
         st.session_state.last_save_time = current_time
 
 # -------------------------
-# STRATEGY INDICATOR IMAGES PERSISTENCE
+# STRATEGY INDICATOR IMAGES PERSISTENCE - FIXED VERSION
 # -------------------------
 def load_strategy_indicator_images():
-    """Load strategy indicator images from Supabase"""
-    return supabase_get_strategy_indicator_images()
+    """Load strategy indicator images from Supabase - FIXED"""
+    print("🔄 Loading strategy indicator images...")
+    images_data = supabase_get_strategy_indicator_images()
+    print(f"✅ Loaded {len(images_data)} strategies with indicator images")
+    return images_data
 
 def save_strategy_indicator_images(images_data):
-    """Save strategy indicator images to Supabase"""
-    return supabase_save_strategy_indicator_images(images_data)
+    """Save strategy indicator images to Supabase - FIXED"""
+    print("💾 Saving strategy indicator images...")
+    success = supabase_save_strategy_indicator_images(images_data)
+    if success:
+        print("✅ Strategy indicator images saved successfully!")
+    else:
+        print("❌ Failed to save strategy indicator images")
+    return success
 
 def get_strategy_indicator_image(strategy_name, indicator_name):
-    """Get image for a specific strategy indicator"""
+    """Get image for a specific strategy indicator - FIXED"""
     if strategy_name in st.session_state.strategy_indicator_images:
         if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
             return st.session_state.strategy_indicator_images[strategy_name][indicator_name]
     return None
 
 def save_strategy_indicator_image(strategy_name, indicator_name, image_data):
-    """Save image for a specific strategy indicator"""
+    """Save image for a specific strategy indicator - FIXED"""
+    print(f"💾 Saving image for {strategy_name}/{indicator_name}...")
+    
     if strategy_name not in st.session_state.strategy_indicator_images:
         st.session_state.strategy_indicator_images[strategy_name] = {}
     
+    # Ensure we have the required fields
+    if 'name' not in image_data:
+        image_data['name'] = f"{strategy_name}_{indicator_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    if 'uploaded_by' not in image_data:
+        image_data['uploaded_by'] = st.session_state.user['username']
+    if 'timestamp' not in image_data:
+        image_data['timestamp'] = datetime.now().isoformat()
+    
     st.session_state.strategy_indicator_images[strategy_name][indicator_name] = image_data
-    save_strategy_indicator_images(st.session_state.strategy_indicator_images)
-    return True
+    
+    # Save to Supabase immediately
+    success = save_strategy_indicator_images(st.session_state.strategy_indicator_images)
+    
+    if success:
+        print(f"✅ Image saved for {strategy_name}/{indicator_name}")
+    else:
+        print(f"❌ Failed to save image for {strategy_name}/{indicator_name}")
+    
+    return success
+
+def delete_strategy_indicator_image(strategy_name, indicator_name):
+    """Delete image for a specific strategy indicator"""
+    print(f"🗑️ Deleting image for {strategy_name}/{indicator_name}...")
+    
+    if strategy_name in st.session_state.strategy_indicator_images:
+        if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
+            del st.session_state.strategy_indicator_images[strategy_name][indicator_name]
+            
+            # If no more images for this strategy, remove the strategy entry
+            if not st.session_state.strategy_indicator_images[strategy_name]:
+                del st.session_state.strategy_indicator_images[strategy_name]
+            
+            # Save to Supabase immediately
+            success = save_strategy_indicator_images(st.session_state.strategy_indicator_images)
+            
+            # Also delete from Supabase directly
+            supabase_delete_strategy_indicator_image(strategy_name, indicator_name)
+            
+            if success:
+                print(f"✅ Image deleted for {strategy_name}/{indicator_name}")
+            else:
+                print(f"❌ Failed to delete image for {strategy_name}/{indicator_name}")
+            
+            return success
+    
+    return False
 
 # -------------------------
 # TRADING SIGNALS DATA PERSISTENCE
@@ -2517,14 +2607,14 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
             
             # Remove image button
             if st.button("🗑️ Remove", key=f"remove_{strategy_name}_{indicator_name}", use_container_width=True):
-                if strategy_name in st.session_state.strategy_indicator_images:
-                    if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
-                        del st.session_state.strategy_indicator_images[strategy_name][indicator_name]
-                        save_strategy_indicator_images(st.session_state.strategy_indicator_images)
-                        st.success("✅ Image removed!")
-                        st.rerun()
+                success = delete_strategy_indicator_image(strategy_name, indicator_name)
+                if success:
+                    st.success("✅ Image removed!")
+                    st.rerun()
+                else:
+                    st.error("❌ Error removing image")
     
-    # Image upload section - FIXED: Use a separate form to avoid conflicts
+    # Image upload section
     st.markdown("---")
     st.write("**Upload New Chart Image:**")
     
@@ -2538,7 +2628,7 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
         # Display preview
         st.image(uploaded_file, caption="Preview", use_container_width=True)
         
-        # Upload button - FIXED: Use a separate form or regular button outside forms
+        # Upload button
         if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
             # Read and process the image
             image = Image.open(uploaded_file)
@@ -2550,13 +2640,11 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
             else:
                 image.save(img_bytes, format='PNG')
             
-            # Create image data
+            # Create image data with all required fields
             image_data = {
                 'name': f"{strategy_name}_{indicator_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
                 'bytes': img_bytes.getvalue(),
                 'format': image.format if image.format else 'PNG',
-                'strategy': strategy_name,
-                'indicator': indicator_name,
                 'uploaded_by': st.session_state.user['username'],
                 'timestamp': datetime.now().isoformat()
             }
@@ -2589,7 +2677,7 @@ def render_strategy_indicator_image_viewer():
             st.rerun()
     
     with col2:
-        st.markdown(f"### {img_data['strategy']} - {img_data['indicator']}")
+        st.markdown(f"### {img_data['strategy_name']} - {img_data['indicator_name']}")
         st.caption(f"Uploaded by: {img_data['uploaded_by']} | {datetime.fromisoformat(img_data['timestamp']).strftime('%Y-%m-%d %H:%M')}")
     
     with col3:
@@ -4126,6 +4214,11 @@ def main():
     if not st.session_state.user:
         render_login()
     else:
+        # Check if we're in strategy indicator image viewer mode
+        if hasattr(st.session_state, 'strategy_indicator_viewer_mode') and st.session_state.strategy_indicator_viewer_mode:
+            render_strategy_indicator_image_viewer()
+            return
+            
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
