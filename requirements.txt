@@ -6,3 +6,5 @@ reportlab
 ccxt
 yfinance
 Pillow
+supabase
+python-dotenv
