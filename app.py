@@ -119,9 +119,9 @@ def supabase_save_analytics(analytics):
         print(f"Error saving analytics: {e}")
         return False
 
-# Strategy analyses table functions
+# Strategy analyses table functions - FIXED VERSION
 def supabase_get_strategy_analyses():
-    """Get strategy analyses from Supabase"""
+    """Get strategy analyses from Supabase - FIXED"""
     if not supabase_client:
         return {}
     try:
@@ -141,19 +141,17 @@ def supabase_get_strategy_analyses():
                 "last_modified": item.get('last_modified', ''),
                 "modified_by": item.get('modified_by', 'system')
             }
+        print(f"✅ Loaded {len(strategies)} strategies with analyses from Supabase")
         return strategies
     except Exception as e:
-        print(f"Error getting strategy analyses: {e}")
+        print(f"❌ Error getting strategy analyses: {e}")
         return {}
 
 def supabase_save_strategy_analyses(strategy_data):
-    """Save strategy analyses to Supabase"""
+    """Save strategy analyses to Supabase - FIXED VERSION"""
     if not supabase_client:
         return False
     try:
-        # First, clear existing data for today?
-        # Instead, we'll upsert based on strategy_name and indicator_name
-        
         records = []
         for strategy_name, indicators in strategy_data.items():
             for indicator_name, meta in indicators.items():
@@ -168,12 +166,17 @@ def supabase_save_strategy_analyses(strategy_data):
                     'last_modified': meta.get('last_modified', ''),
                     'modified_by': meta.get('modified_by', 'system')
                 })
-        
+
         if records:
-            response = supabase_client.table('strategy_analyses').upsert(records).execute()
+            # Use upsert with on_conflict to handle unique constraint
+            response = supabase_client.table('strategy_analyses').upsert(
+                records, 
+                on_conflict='strategy_name,indicator_name'
+            ).execute()
+            print(f"✅ Saved {len(records)} strategy analysis records to Supabase")
         return True
     except Exception as e:
-        print(f"Error saving strategy analyses: {e}")
+        print(f"❌ Error saving strategy analyses: {e}")
         return False
 
 # Gallery images table functions
@@ -441,6 +444,10 @@ def init_session():
         st.session_state.current_strategy_indicator_image = None
     if 'current_strategy_indicator' not in st.session_state:
         st.session_state.current_strategy_indicator = None
+    # NEW: Strategy analyses data state - CRITICAL FIX
+    if 'strategy_analyses_data' not in st.session_state:
+        print("🔄 Loading strategy analyses data from Supabase...")
+        st.session_state.strategy_analyses_data = load_data()
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -453,10 +460,11 @@ def setup_data_persistence():
         user_manager.save_users()
         user_manager.save_analytics()
         
-        # Save strategy analyses data
+        # Save strategy analyses data - FIXED: Save from session state
         try:
-            strategy_data = load_data()
-            save_data(strategy_data)
+            if hasattr(st.session_state, 'strategy_analyses_data'):
+                save_data(st.session_state.strategy_analyses_data)
+                print("✅ Strategy analyses data saved")
         except Exception as e:
             print(f"⚠️ Error saving strategy data: {e}")
         
@@ -479,6 +487,46 @@ def setup_data_persistence():
             print(f"⚠️ Error saving strategy indicator images: {e}")
             
         st.session_state.last_save_time = current_time
+
+# -------------------------
+# STRATEGY ANALYSES DATA PERSISTENCE - FIXED VERSION
+# -------------------------
+def load_data():
+    """Load strategy analyses data from Supabase - FIXED"""
+    print("🔄 Loading strategy analyses data...")
+    data = supabase_get_strategy_analyses()
+    print(f"✅ Loaded {len(data)} strategies with analyses")
+    return data
+
+def save_data(data):
+    """Save strategy analyses data to Supabase - FIXED"""
+    print("💾 Saving strategy analyses data...")
+    success = supabase_save_strategy_analyses(data)
+    if success:
+        print("✅ Strategy analyses data saved successfully!")
+    else:
+        print("❌ Failed to save strategy analyses data")
+    return success
+
+def generate_filtered_csv_bytes(data, target_date):
+    """Generate CSV data filtered by date"""
+    rows = []
+    target_str = target_date.strftime("%Y-%m-%d")
+    for strat, inds in data.items():
+        for ind_name, meta in inds.items():
+            if meta.get("analysis_date") == target_str:
+                rows.append({
+                    "Strategy": strat,
+                    "Indicator": ind_name,
+                    "Note": meta.get("note", ""),
+                    "Status": meta.get("status", ""),
+                    "Momentum": meta.get("momentum", "Not Defined"),
+                    "Tag": meta.get("strategy_tag", "Neutral"),
+                    "Analysis_Date": meta.get("analysis_date", ""),
+                    "Last_Modified": meta.get("last_modified", "")
+                })
+    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Strategy","Indicator","Note","Status","Momentum","Tag","Analysis_Date","Last_Modified"])
+    return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
 # STRATEGY INDICATOR IMAGES PERSISTENCE - FIXED VERSION
@@ -666,37 +714,6 @@ def sanitize_key(s: str):
          .replace(")", "")
          .replace(",", "_")
     )
-
-# -------------------------
-# DATA MANAGEMENT
-# -------------------------
-def load_data():
-    """Load strategy analyses data from Supabase"""
-    return supabase_get_strategy_analyses()
-
-def save_data(data):
-    """Save strategy analyses data to Supabase"""
-    return supabase_save_strategy_analyses(data)
-
-def generate_filtered_csv_bytes(data, target_date):
-    """Generate CSV data filtered by date"""
-    rows = []
-    target_str = target_date.strftime("%Y-%m-%d")
-    for strat, inds in data.items():
-        for ind_name, meta in inds.items():
-            if meta.get("analysis_date") == target_str:
-                rows.append({
-                    "Strategy": strat,
-                    "Indicator": ind_name,
-                    "Note": meta.get("note", ""),
-                    "Status": meta.get("status", ""),
-                    "Momentum": meta.get("momentum", "Not Defined"),
-                    "Tag": meta.get("strategy_tag", "Neutral"),
-                    "Analysis_Date": meta.get("analysis_date", ""),
-                    "Last_Modified": meta.get("last_modified", "")
-                })
-    df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=["Strategy","Indicator","Note","Status","Momentum","Tag","Analysis_Date","Last_Modified"])
-    return df.to_csv(index=False).encode("utf-8")
 
 # -------------------------
 # EMAIL VALIDATION TOOLS
@@ -2753,8 +2770,8 @@ def render_premium_signal_dashboard():
     
     data = st.session_state.user_data[user_data_key]
     
-    # Load strategy analyses data
-    strategy_data = load_data()
+    # Use session state strategy analyses data - FIXED: Now using session state
+    strategy_data = st.session_state.strategy_analyses_data
     
     # Date navigation
     start_date = date(2025, 8, 9)
@@ -2903,7 +2920,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     st.subheader("📋 Today's Strategy Progress")
     cols = st.columns(3)
     
-    strategy_data = load_data()
+    strategy_data = st.session_state.strategy_analyses_data
     for i, strategy in enumerate(daily_strategies):
         with cols[i]:
             strategy_completed = False
@@ -3044,17 +3061,17 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     key=key_status
                 )
         
-        # Save button
+        # Save button - FIXED: Now saves to session state and Supabase
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True, key="admin_save_all_btn")
         if submitted:
-            if selected_strategy not in strategy_data:
-                strategy_data[selected_strategy] = {}
+            if selected_strategy not in st.session_state.strategy_analyses_data:
+                st.session_state.strategy_analyses_data[selected_strategy] = {}
             
             for indicator in indicators:
                 key_note = f"note__{sanitize_key(selected_strategy)}__{sanitize_key(indicator)}"
                 key_status = f"status__{sanitize_key(selected_strategy)}__{sanitize_key(indicator)}"
                 
-                strategy_data[selected_strategy][indicator] = {
+                st.session_state.strategy_analyses_data[selected_strategy][indicator] = {
                     "note": st.session_state.get(key_note, ""),
                     "status": st.session_state.get(key_status, "Open"),
                     "momentum": strategy_type,
@@ -3064,7 +3081,8 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     "modified_by": "admin"  # Mark as admin-edited
                 }
             
-            save_data(strategy_data)
+            # Save to Supabase - FIXED: Now saves the entire session state data
+            save_data(st.session_state.strategy_analyses_data)
             st.success("✅ All signals saved successfully! (Admin Mode)")
     
     # FIXED: Strategy indicator images section - Now placed outside the main form
@@ -3177,8 +3195,8 @@ def render_user_dashboard():
     
     data = st.session_state.user_data[user_data_key]
     
-    # Load strategy analyses data
-    strategy_data = load_data()
+    # Use session state strategy analyses data - FIXED: Now using session state
+    strategy_data = st.session_state.strategy_analyses_data
     
     # Date navigation
     start_date = date(2025, 8, 9)
@@ -3285,7 +3303,7 @@ def render_user_dashboard():
         st.subheader("📄 Export Data")
         st.download_button(
             label="⬇️ Download CSV",
-            data=csv_bytes,
+            data=c64_bytes,
             file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
@@ -3331,7 +3349,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     st.subheader("📋 Today's Strategy Progress")
     cols = st.columns(3)
     
-    strategy_data = load_data()
+    strategy_data = st.session_state.strategy_analyses_data
     for i, strategy in enumerate(daily_strategies):
         with cols[i]:
             strategy_completed = False
@@ -3355,7 +3373,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     st.subheader(f"🔍 {selected_strategy} Analysis - VIEW MODE")
     
     # Display existing analysis - NO EDITING CAPABILITY
-    strategy_data = load_data()
+    strategy_data = st.session_state.strategy_analyses_data
     existing_data = strategy_data.get(selected_strategy, {})
     
     if existing_data:
