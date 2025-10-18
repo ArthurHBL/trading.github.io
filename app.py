@@ -3303,7 +3303,7 @@ def render_user_dashboard():
         st.subheader("📄 Export Data")
         st.download_button(
             label="⬇️ Download CSV",
-            data=c64_bytes,
+            data=csv_bytes,
             file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
