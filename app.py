@@ -2941,7 +2941,15 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     st.markdown("---")
     
     # Selected strategy analysis - ADMIN EDITING ENABLED
-    st.subheader(f"🔍 {selected_strategy} Analysis - ADMIN EDIT MODE")
+    # CHANGED: Removed " - ADMIN EDIT MODE" and added green BUY button
+    col_header1, col_header2 = st.columns([3, 1])
+    with col_header1:
+        st.subheader(f"🔍 {selected_strategy} Analysis")
+    with col_header2:
+        st.button("🟢 BUY Indicator Bundle", 
+                 use_container_width=True, 
+                 key=f"buy_bundle_{selected_strategy}",
+                 help="Purchase Pine code for TradingView")
     
     # Quick analysis form
     with st.form(f"quick_analysis_{selected_strategy}"):
@@ -2998,13 +3006,18 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
     """Detailed strategy notes interface with full admin editing - FIXED VERSION"""
     st.title("📝 Admin Signal Editor")
     
-    # Header with cycle info
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Header with cycle info - CHANGED: Removed " - ADMIN EDIT MODE" and added green BUY button
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     with col1:
-        st.subheader(f"Day {cycle_day} - {selected_strategy} - ADMIN EDIT MODE")
+        st.subheader(f"Day {cycle_day} - {selected_strategy}")
     with col2:
         st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
     with col3:
+        st.button("🟢 BUY Indicator Bundle", 
+                 use_container_width=True, 
+                 key=f"buy_bundle_notes_{selected_strategy}",
+                 help="Purchase Pine code for TradingView")
+    with col4:
         if st.button("⬅️ Back to Dashboard", use_container_width=True, key="admin_back_dashboard_btn"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
@@ -3370,7 +3383,15 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     st.markdown("---")
     
     # Selected strategy analysis - READ ONLY FOR USERS
-    st.subheader(f"🔍 {selected_strategy} Analysis - VIEW MODE")
+    # CHANGED: Removed " - VIEW MODE" and added green BUY button
+    col_header1, col_header2 = st.columns([3, 1])
+    with col_header1:
+        st.subheader(f"🔍 {selected_strategy} Analysis")
+    with col_header2:
+        st.button("🟢 BUY Indicator Bundle", 
+                 use_container_width=True, 
+                 key=f"user_buy_bundle_{selected_strategy}",
+                 help="Purchase Pine code for TradingView")
     
     # Display existing analysis - NO EDITING CAPABILITY
     strategy_data = st.session_state.strategy_analyses_data
@@ -3423,13 +3444,18 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
     """Detailed strategy notes interface - READ ONLY FOR USERS"""
     st.title("📋 Strategy Details")
     
-    # Header with cycle info
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Header with cycle info - CHANGED: Removed " - VIEW MODE" and added green BUY button
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     with col1:
-        st.subheader(f"Day {cycle_day} - {selected_strategy} - VIEW MODE")
+        st.subheader(f"Day {cycle_day} - {selected_strategy}")
     with col2:
-        st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
+        st.button("🟢 BUY Indicator Bundle", 
+                 use_container_width=True, 
+                 key=f"user_buy_bundle_notes_{selected_strategy}",
+                 help="Purchase Pine code for TradingView")
     with col3:
+        st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
+    with col4:
         if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_dashboard_btn"):
             st.session_state.dashboard_view = 'main'
             st.rerun()
