@@ -3441,7 +3441,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
                 st.write(analysis.get('note', 'No notes'))
 
 def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface - READ ONLY FOR USERS"""
+    """Detailed strategy notes interface - READ ONLY FOR USERS - FIXED DUPLICATE KEY ISSUE"""
     st.title("📋 Strategy Details")
     
     # Header with cycle info - CHANGED: Removed " - VIEW MODE" and added green BUY button
@@ -3488,7 +3488,7 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
     
     st.markdown("---")
     
-    # Indicator analysis in columns - READ ONLY
+    # Indicator analysis in columns - READ ONLY - FIXED: Using unique keys
     st.subheader("📊 Indicator Analysis")
     
     indicators = STRATEGIES[selected_strategy]
@@ -3508,12 +3508,13 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
         
         with col.expander(expander_title, expanded=False):
             if note:
+                # FIXED: Using unique keys for each text_area
                 st.text_area(
                     f"Analysis", 
                     value=note, 
                     height=120, 
                     disabled=True,
-                    key=f"user_view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}"
+                    key=f"user_view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}_{i}"  # Added index for uniqueness
                 )
             else:
                 st.info("No analysis available for this indicator.")
