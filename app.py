@@ -457,6 +457,12 @@ def init_session():
         st.session_state.signals_password_input = ""
     if 'signals_password_error' not in st.session_state:
         st.session_state.signals_password_error = ""
+    # NEW: Signals Room Password Change
+    if 'show_signals_password_change' not in st.session_state:
+        st.session_state.show_signals_password_change = False
+    # NEW: Manage User Plan Modal
+    if 'show_manage_user_plan' not in st.session_state:
+        st.session_state.show_manage_user_plan = False
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1394,8 +1400,597 @@ class UserManager:
             "recently_verified": recently_verified
         }
 
+    # NEW FUNCTION: Get inactive users for bulk deletion
+    def get_inactive_users(self, days_threshold=30):
+        """Get users who haven't logged in for more than specified days"""
+        inactive_users = []
+        cutoff_date = datetime.now() - timedelta(days=days_threshold)
+        
+        for username, user_data in self.users.items():
+            if username == "admin":
+                continue
+                
+            last_login = user_data.get('last_login')
+            if not last_login:
+                # If user never logged in, check creation date
+                created_date = datetime.fromisoformat(user_data.get('created', datetime.now().isoformat()))
+                if created_date < cutoff_date:
+                    inactive_users.append(username)
+            else:
+                login_date = datetime.fromisoformat(last_login)
+                if login_date < cutoff_date:
+                    inactive_users.append(username)
+        
+        return inactive_users
+
+    # NEW FUNCTION: Bulk delete inactive users
+    def bulk_delete_inactive_users(self, usernames):
+        """Bulk delete specified users"""
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        for username in usernames:
+            if username == "admin":
+                errors.append(f"Cannot delete admin account: {username}")
+                error_count += 1
+                continue
+                
+            if username not in self.users:
+                errors.append(f"User not found: {username}")
+                error_count += 1
+                continue
+                
+            # Check if user has active sessions
+            if self.users[username].get('active_sessions', 0) > 0:
+                errors.append(f"User has active sessions: {username}")
+                error_count += 1
+                continue
+                
+            # Delete the user
+            user_data = self.users[username]
+            user_plan = user_data.get('plan', 'unknown')
+            user_created = user_data.get('created', 'unknown')
+            
+            del self.users[username]
+            
+            # Update analytics
+            if 'deleted_users' not in self.analytics:
+                self.analytics['deleted_users'] = []
+            
+            self.analytics['deleted_users'].append({
+                "username": username,
+                "plan": user_plan,
+                "created": user_created,
+                "deleted_at": datetime.now().isoformat(),
+                "reason": "bulk_delete_inactive"
+            })
+            
+            # Delete from Supabase
+            supabase_delete_user(username)
+            
+            success_count += 1
+        
+        # Save changes
+        if success_count > 0:
+            self.save_users()
+            self.save_analytics()
+        
+        return success_count, error_count, errors
+
 # Initialize user manager
 user_manager = UserManager()
+
+# -------------------------
+# FIXED: BULK DELETE INACTIVE USERS INTERFACE
+# -------------------------
+def render_bulk_delete_inactive():
+    """Render the bulk delete inactive users interface"""
+    st.subheader("🗑️ Bulk Delete Inactive Users")
+    
+    # Configuration
+    col1, col2 = st.columns(2)
+    with col1:
+        days_threshold = st.number_input(
+            "Inactivity Threshold (days):",
+            min_value=1,
+            max_value=365,
+            value=30,
+            help="Delete users who haven't logged in for more than this many days"
+        )
+    
+    with col2:
+        include_trial_only = st.checkbox(
+            "Only Trial Users",
+            value=True,
+            help="Only delete inactive trial users (safer option)"
+        )
+    
+    # Get inactive users
+    inactive_users = user_manager.get_inactive_users(days_threshold)
+    
+    if include_trial_only:
+        inactive_users = [user for user in inactive_users if user_manager.users[user].get('plan') == 'trial']
+    
+    if not inactive_users:
+        st.success("✅ No inactive users found matching your criteria!")
+        if st.button("🔙 Back to User Management", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
+        return
+    
+    # Display inactive users
+    st.warning(f"🚨 Found {len(inactive_users)} inactive users matching your criteria:")
+    
+    users_to_display = []
+    for username in inactive_users:
+        user_data = user_manager.users[username]
+        last_login = user_data.get('last_login', 'Never')
+        if last_login != 'Never':
+            last_login = datetime.fromisoformat(last_login).strftime("%Y-%m-%d")
+        
+        users_to_display.append({
+            "Username": username,
+            "Name": user_data.get('name', ''),
+            "Email": user_data.get('email', ''),
+            "Plan": user_data.get('plan', ''),
+            "Last Login": last_login,
+            "Created": datetime.fromisoformat(user_data.get('created')).strftime("%Y-%m-%d")
+        })
+    
+    df = pd.DataFrame(users_to_display)
+    st.dataframe(df, use_container_width=True)
+    
+    # Confirmation
+    st.error("""
+    ⚠️ **DANGER ZONE - IRREVERSIBLE ACTION**
+    
+    This will permanently delete all selected user accounts. This action cannot be undone!
+    User data, analyses, and all associated information will be lost forever.
+    """)
+    
+    confirm_text = st.text_input(
+        "Type 'DELETE INACTIVE USERS' to confirm:",
+        placeholder="Enter confirmation text...",
+        help="This is a safety measure to prevent accidental mass deletion"
+    )
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("✅ CONFIRM DELETE", use_container_width=True, type="primary"):
+            if confirm_text == "DELETE INACTIVE USERS":
+                with st.spinner(f"Deleting {len(inactive_users)} inactive users..."):
+                    success_count, error_count, errors = user_manager.bulk_delete_inactive_users(inactive_users)
+                    
+                    if success_count > 0:
+                        st.success(f"✅ Successfully deleted {success_count} inactive users!")
+                    
+                    if error_count > 0:
+                        st.error(f"❌ Failed to delete {error_count} users:")
+                        for error in errors:
+                            st.error(error)
+                    
+                    # Close the bulk delete interface
+                    st.session_state.show_bulk_delete = False
+                    time.sleep(2)
+                    st.rerun()
+            else:
+                st.error("❌ Confirmation text does not match. Please type 'DELETE INACTIVE USERS' exactly.")
+    
+    with col2:
+        if st.button("🔄 REFRESH LIST", use_container_width=True):
+            st.rerun()
+    
+    with col3:
+        if st.button("🔙 CANCEL", use_container_width=True):
+            st.session_state.show_bulk_delete = False
+            st.rerun()
+
+# -------------------------
+# FIXED: MANAGE USER PLAN INTERFACE
+# -------------------------
+def render_manage_user_plan():
+    """Render the manage user plan interface"""
+    if not st.session_state.manage_user_plan:
+        return
+    
+    username = st.session_state.manage_user_plan
+    user_data = user_manager.users.get(username)
+    
+    if not user_data:
+        st.error("User not found")
+        st.session_state.manage_user_plan = None
+        st.rerun()
+        return
+    
+    st.subheader(f"⚙️ Manage User: {username}")
+    
+    with st.form(f"manage_user_{username}"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # User information (read-only)
+            st.write("**User Information:**")
+            st.text_input("Name", value=user_data.get('name', ''), disabled=True)
+            st.text_input("Email", value=user_data.get('email', ''), disabled=True)
+            st.text_input("Created", value=user_data.get('created', '')[:10], disabled=True)
+            
+            # Email verification status
+            email_verified = user_data.get('email_verified', False)
+            verification_status = "✅ Verified" if email_verified else "❌ Unverified"
+            st.text_input("Email Status", value=verification_status, disabled=True)
+        
+        with col2:
+            # Plan management
+            st.write("**Plan Management:**")
+            current_plan = user_data.get('plan', 'trial')
+            new_plan = st.selectbox(
+                "Change Plan:",
+                list(Config.PLANS.keys()) + ['admin'],
+                index=list(Config.PLANS.keys() + ['admin']).index(current_plan) if current_plan in list(Config.PLANS.keys()) + ['admin'] else 0,
+                key=f"plan_select_{username}"
+            )
+            
+            # Expiry date
+            current_expiry = user_data.get('expires', '')
+            new_expiry = st.date_input(
+                "Expiry Date:",
+                value=datetime.strptime(current_expiry, "%Y-%m-%d").date() if current_expiry else datetime.now().date() + timedelta(days=30),
+                key=f"expiry_{username}"
+            )
+            
+            # Active status
+            is_active = st.checkbox(
+                "Account Active",
+                value=user_data.get('is_active', True),
+                key=f"active_{username}"
+            )
+            
+            # Max sessions
+            max_sessions = st.number_input(
+                "Max Concurrent Sessions",
+                min_value=1,
+                max_value=10,
+                value=user_data.get('max_sessions', 1),
+                key=f"sessions_{username}"
+            )
+        
+        # Email verification actions
+        st.write("**Email Verification:**")
+        col_v1, col_v2 = st.columns(2)
+        
+        with col_v1:
+            if not email_verified:
+                if st.form_submit_button("✅ Verify Email", use_container_width=True):
+                    success, message = user_manager.verify_user_email(username, st.session_state.user['username'], "Manually verified by admin")
+                    if success:
+                        st.success(message)
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
+            else:
+                if st.form_submit_button("❌ Revoke Verification", use_container_width=True):
+                    success, message = user_manager.revoke_email_verification(username, st.session_state.user['username'], "Revoked by admin")
+                    if success:
+                        st.success(message)
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
+        
+        with col_v2:
+            # Password reset
+            if st.form_submit_button("🔑 Reset Password", use_container_width=True):
+                new_password = f"TempPass{int(time.time()) % 10000}"
+                success, message = user_manager.change_user_password(username, new_password, st.session_state.user['username'])
+                if success:
+                    st.success(f"✅ Password reset! New temporary password: {new_password}")
+                    st.info("🔒 User should change this password immediately after login.")
+                else:
+                    st.error(message)
+        
+        # Main action buttons
+        col_b1, col_b2, col_b3 = st.columns(3)
+        
+        with col_b1:
+            save_changes = st.form_submit_button("💾 Save Changes", use_container_width=True, type="primary")
+        
+        with col_b2:
+            delete_user = st.form_submit_button("🗑️ Delete User", use_container_width=True, type="secondary")
+        
+        with col_b3:
+            cancel = st.form_submit_button("🔙 Cancel", use_container_width=True)
+        
+        if save_changes:
+            # Update user data
+            user_data['plan'] = new_plan
+            user_data['expires'] = new_expiry.strftime("%Y-%m-%d")
+            user_data['is_active'] = is_active
+            user_data['max_sessions'] = max_sessions
+            
+            # Save changes
+            if user_manager.save_users():
+                st.success("✅ User settings updated successfully!")
+                time.sleep(2)
+                st.session_state.manage_user_plan = None
+                st.rerun()
+            else:
+                st.error("❌ Error saving user settings")
+        
+        if delete_user:
+            st.session_state.user_to_delete = username
+            st.session_state.show_delete_confirmation = True
+            st.rerun()
+        
+        if cancel:
+            st.session_state.manage_user_plan = None
+            st.rerun()
+
+# -------------------------
+# FIXED: EMAIL VERIFICATION INTERFACE
+# -------------------------
+def render_email_verification_interface():
+    """Complete email verification management interface"""
+    st.subheader("📧 Email Verification Management")
+    
+    # Get verification stats
+    stats = user_manager.get_email_verification_stats()
+    
+    # Stats overview
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Users", stats["total_users"])
+    with col2:
+        st.metric("Verified", stats["verified_count"])
+    with col3:
+        st.metric("Unverified", stats["unverified_count"])
+    with col4:
+        st.metric("Verification Rate", f"{stats['verification_rate']:.1f}%")
+    
+    st.markdown("---")
+    
+    # Tabs for different views
+    tab1, tab2, tab3 = st.tabs(["📋 Pending Verification", "✅ Verified Users", "📈 Verification Analytics"])
+    
+    with tab1:
+        render_pending_verification_tab(stats)
+    
+    with tab2:
+        render_verified_users_tab(stats)
+    
+    with tab3:
+        render_verification_analytics_tab(stats)
+
+def render_pending_verification_tab(stats):
+    """Tab for pending email verification"""
+    st.write("**Users Pending Email Verification:**")
+    
+    if not stats["pending_verification"]:
+        st.success("🎉 All users are verified! No pending verifications.")
+        return
+    
+    # Display pending users
+    for user_info in stats["pending_verification"]:
+        with st.container():
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 1, 1, 1])
+            
+            with col1:
+                st.write(f"**{user_info['username']}**")
+                st.caption(user_info['email'])
+            
+            with col2:
+                created_date = datetime.fromisoformat(user_info['created']).strftime("%Y-%m-%d")
+                st.write(f"Created: {created_date}")
+                st.write(f"Plan: {user_info['plan']}")
+            
+            with col3:
+                # Email quality check
+                email_issues = check_email_quality(user_info['email'])
+                if "✅" in email_issues[0]:
+                    st.success("✅ Valid")
+                else:
+                    st.warning("⚠️ Check")
+            
+            with col4:
+                if st.button("✅ Verify", key=f"verify_{user_info['username']}", use_container_width=True):
+                    success, message = user_manager.verify_user_email(
+                        user_info['username'], 
+                        st.session_state.user['username'],
+                        "Verified via admin panel"
+                    )
+                    if success:
+                        st.success(message)
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
+            
+            with col5:
+                if st.button("👀 View", key=f"view_{user_info['username']}", use_container_width=True):
+                    st.session_state.manage_user_plan = user_info['username']
+                    st.session_state.show_manage_user_plan = True
+                    st.rerun()
+            
+            st.markdown("---")
+
+def render_verified_users_tab(stats):
+    """Tab for verified users"""
+    st.write("**Recently Verified Users (Last 7 days):**")
+    
+    if not stats["recently_verified"]:
+        st.info("No users verified in the last 7 days.")
+        return
+    
+    for user_info in stats["recently_verified"]:
+        with st.container():
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            
+            with col1:
+                st.write(f"**{user_info['username']}**")
+                st.caption(user_info['email'])
+            
+            with col2:
+                verified_date = datetime.fromisoformat(user_info['verified_date']).strftime("%Y-%m-%d %H:%M")
+                st.write(f"Verified: {verified_date}")
+            
+            with col3:
+                st.write(f"By: {user_info['verified_by']}")
+            
+            with col4:
+                if st.button("👀 Manage", key=f"manage_{user_info['username']}", use_container_width=True):
+                    st.session_state.manage_user_plan = user_info['username']
+                    st.session_state.show_manage_user_plan = True
+                    st.rerun()
+            
+            st.markdown("---")
+
+def render_verification_analytics_tab(stats):
+    """Tab for verification analytics"""
+    st.write("**Verification Analytics**")
+    
+    # Verification rate visualization
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Verification Status Distribution:**")
+        labels = ['Verified', 'Unverified']
+        values = [stats['verified_count'], stats['unverified_count']]
+        
+        if sum(values) > 0:
+            fig = px.pie(
+                values=values, 
+                names=labels,
+                title=f"Verification Rate: {stats['verification_rate']:.1f}%",
+                color=labels,
+                color_discrete_map={'Verified':'#10B981', 'Unverified':'#EF4444'}
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No user data available for chart")
+    
+    with col2:
+        st.write("**Verification Actions:**")
+        
+        if st.button("🔄 Refresh Analytics", use_container_width=True):
+            st.rerun()
+        
+        if st.button("📧 Bulk Verify All", use_container_width=True):
+            pending_users = stats["pending_verification"]
+            if pending_users:
+                success_count = 0
+                for user_info in pending_users:
+                    success, message = user_manager.verify_user_email(
+                        user_info['username'],
+                        st.session_state.user['username'],
+                        "Bulk verified by admin"
+                    )
+                    if success:
+                        success_count += 1
+                
+                st.success(f"✅ Bulk verification completed! {success_count} users verified.")
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.info("No pending users to verify.")
+        
+        if st.button("📊 Export Report", use_container_width=True):
+            # Create verification report
+            report_data = []
+            for username, user_data in user_manager.users.items():
+                if username == "admin":
+                    continue
+                    
+                report_data.append({
+                    "Username": username,
+                    "Name": user_data.get('name', ''),
+                    "Email": user_data.get('email', ''),
+                    "Plan": user_data.get('plan', ''),
+                    "Email Verified": "Yes" if user_data.get('email_verified') else "No",
+                    "Verification Date": user_data.get('verification_date', ''),
+                    "Verified By": user_data.get('verification_admin', ''),
+                    "Last Login": user_data.get('last_login', 'Never')
+                })
+            
+            df = pd.DataFrame(report_data)
+            csv_bytes = df.to_csv(index=False).encode('utf-8')
+            
+            st.download_button(
+                label="⬇️ Download Verification Report",
+                data=csv_bytes,
+                file_name=f"email_verification_report_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+# -------------------------
+# FIXED: TRADING SIGNALS ROOM PASSWORD MANAGEMENT
+# -------------------------
+def render_signals_password_management():
+    """Interface for managing Trading Signals Room password"""
+    st.subheader("🔐 Trading Signals Room Password Management")
+    
+    st.info("""
+    **Trading Signals Room Security**
+    
+    This password controls access to the Trading Signals Room for all users (including admins).
+    Change this password regularly to maintain security.
+    """)
+    
+    with st.form("signals_password_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            current_password = st.text_input(
+                "Current Signals Room Password:",
+                type="password",
+                placeholder="Enter current password",
+                help="The current password that users are using"
+            )
+        
+        with col2:
+            new_password = st.text_input(
+                "New Signals Room Password:",
+                type="password",
+                placeholder="Enter new password",
+                help="The new password that will be required"
+            )
+        
+        # Display current password (masked)
+        st.write(f"**Current Password Setting:** `{'*' * len(st.session_state.signals_room_password)}`")
+        
+        col_b1, col_b2 = st.columns(2)
+        
+        with col_b1:
+            submit = st.form_submit_button("✅ Update Password", use_container_width=True, type="primary")
+        
+        with col_b2:
+            cancel = st.form_submit_button("🔙 Cancel", use_container_width=True)
+        
+        if submit:
+            if not current_password or not new_password:
+                st.error("❌ Please fill in both password fields")
+            elif current_password != st.session_state.signals_room_password:
+                st.error("❌ Current password is incorrect")
+            elif len(new_password) < 4:
+                st.error("❌ New password must be at least 4 characters")
+            else:
+                # Update the password
+                st.session_state.signals_room_password = new_password
+                st.success("✅ Trading Signals Room password updated successfully!")
+                st.info("🔒 All users will need to use the new password to access the Signals Room.")
+                
+                # Also revoke access for everyone
+                st.session_state.signals_room_access_granted = False
+                
+                time.sleep(2)
+                st.session_state.show_signals_password_change = False
+                st.rerun()
+        
+        if cancel:
+            st.session_state.show_signals_password_change = False
+            st.rerun()
 
 # -------------------------
 # TRADING SIGNALS ROOM - PASSWORD PROTECTED VERSION
@@ -3759,6 +4354,11 @@ def render_admin_sidebar_options():
     if st.button("💰 Revenue Report", use_container_width=True, key="sidebar_revenue_btn"):
         st.session_state.admin_view = "revenue"
         st.rerun()
+    
+    # NEW: Signals Room Password Management
+    if st.button("🔐 Signals Room Password", use_container_width=True, key="sidebar_signals_password_btn"):
+        st.session_state.show_signals_password_change = True
+        st.rerun()
 
 def render_admin_dashboard_selection():
     """Interface for admin to choose between admin dashboard and premium dashboard"""
@@ -3855,6 +4455,19 @@ def render_admin_management_dashboard():
         st.metric("Unverified Users", metrics["unverified_users"])
     
     st.markdown("---")
+    
+    # NEW: Check for modals that should be displayed
+    if st.session_state.show_signals_password_change:
+        render_signals_password_management()
+        return
+    
+    if st.session_state.show_bulk_delete:
+        render_bulk_delete_inactive()
+        return
+    
+    if st.session_state.show_manage_user_plan:
+        render_manage_user_plan()
+        return
     
     # Current view based on admin_view state
     current_view = st.session_state.get('admin_view', 'overview')
@@ -4102,6 +4715,7 @@ def render_admin_user_management():
                 if username != "admin":
                     if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
                         st.session_state.manage_user_plan = username
+                        st.session_state.show_manage_user_plan = True
                         st.rerun()
 
     # Render the password change interface if activated
@@ -4230,11 +4844,6 @@ def render_admin_revenue():
     
     st.markdown("---")
     st.info("💡 **Note:** Revenue analytics are simulated. Integrate with Stripe or PayPal for real payment data.")
-
-def render_email_verification_interface():
-    """Email verification interface (simplified for this version)"""
-    st.subheader("📧 Email Verification")
-    st.info("Email verification management interface would be implemented here")
 
 # -------------------------
 # STREAMLIT APP CONFIG
