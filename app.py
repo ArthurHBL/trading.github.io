@@ -31,8 +31,8 @@ def init_supabase():
     """Initialize Supabase client"""
     try:
         # You'll need to set these in your Streamlit Cloud secrets
-        SUPABASE_URL = "https://dmshwbwdupyqpqrqcndm.supabase.co"
-        SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtc2h3YndkdXB5cXBxcnFjbmRtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDM5NzYwMSwiZXhwIjoyMDc1OTczNjAxfQ.TsxLuUB1dAOMWRdXBhw4KjNMhcieXNErTepiFLdbGzU"
+        SUPABASE_URL = "https://mowuitmupjyhczczzslw.supabase.co"
+        SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vd3VpdG11cGp5aGN6Y3p6c2x3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDkyNDE4NSwiZXhwIjoyMDc2NTAwMTg1fQ._iSHD2E5dyAzcUjWRuKIqP7e1OYd7R3y7wJawPlVqTY"
         
         if not SUPABASE_URL or not SUPABASE_KEY:
             st.error("Supabase credentials not found. Please set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
