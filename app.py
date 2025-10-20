@@ -350,7 +350,7 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
         return False
 
 # -------------------------
-# SESSION MANAGEMENT - UPDATED
+# SESSION MANAGEMENT - UPDATED WITH SIGNALS PASSWORD
 # -------------------------
 def init_session():
     """Initialize session state variables"""
@@ -448,6 +448,15 @@ def init_session():
     if 'strategy_analyses_data' not in st.session_state:
         print("🔄 Loading strategy analyses data from Supabase...")
         st.session_state.strategy_analyses_data = load_data()
+    # NEW: Signals Room Password Protection
+    if 'signals_room_password' not in st.session_state:
+        st.session_state.signals_room_password = "trading123"  # Default password
+    if 'signals_room_access_granted' not in st.session_state:
+        st.session_state.signals_room_access_granted = False
+    if 'signals_password_input' not in st.session_state:
+        st.session_state.signals_password_input = ""
+    if 'signals_password_error' not in st.session_state:
+        st.session_state.signals_password_error = ""
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1389,16 +1398,66 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# TRADING SIGNALS ROOM - SIMPLIFIED VERSION
+# TRADING SIGNALS ROOM - PASSWORD PROTECTED VERSION
 # -------------------------
 def render_trading_signals_room():
-    """Main Trading Signals Room interface"""
+    """Main Trading Signals Room interface with password protection"""
+    
+    # Check if user has access to Signals Room
+    if not st.session_state.signals_room_access_granted:
+        render_signals_room_password_gate()
+        return
     
     # Admin vs User view logic
     if st.session_state.user['plan'] == 'admin':
         render_admin_signals_room()
     else:
         render_user_signals_room()
+
+def render_signals_room_password_gate():
+    """Password gate for Trading Signals Room"""
+    st.title("🔒 Trading Signals Room - Secure Access")
+    st.markdown("---")
+    
+    st.warning("""
+    ⚠️ **SECURE ACCESS REQUIRED**
+    
+    The Trading Signals Room contains sensitive trading information and strategies.
+    Please enter the password to continue.
+    """)
+    
+    with st.form("signals_room_password_form"):
+        password_input = st.text_input(
+            "🔑 Enter Signals Room Password:",
+            type="password",
+            placeholder="Enter password to access trading signals...",
+            value=st.session_state.signals_password_input
+        )
+        
+        submitted = st.form_submit_button("🚀 Access Trading Signals Room", use_container_width=True)
+        
+        if submitted:
+            if not password_input:
+                st.session_state.signals_password_error = "❌ Please enter the password"
+                st.rerun()
+            elif password_input == st.session_state.signals_room_password:
+                st.session_state.signals_room_access_granted = True
+                st.session_state.signals_password_error = ""
+                st.success("✅ Access granted! Loading Trading Signals Room...")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.session_state.signals_password_error = "❌ Incorrect password. Please try again."
+                st.rerun()
+    
+    # Display error message if any
+    if st.session_state.signals_password_error:
+        st.error(st.session_state.signals_password_error)
+    
+    # Admin hint
+    if st.session_state.user['plan'] == 'admin':
+        st.markdown("---")
+        st.info("💡 **Admin Note:** You can change the Signals Room password in Admin Settings.")
 
 def render_admin_signals_room():
     """Admin Trading Signals Room with full workflow"""
@@ -2002,7 +2061,7 @@ def render_image_uploader():
             margin-bottom: 2rem;
         ">
         <h3 style="color: white; margin-bottom: 1rem;">🎯 Upload Trading Analysis Images</h3>
-        <p style="margin-bottom: 0;">Share your trading charts, technical analysis, market insights, and strategy screenshots.</p>
+        <p style="margin-bottom: 0;">Share your trading charts, technical analysis, market insights and strategy screenshots.</p>
         <p><strong>Supported formats:</strong> PNG, JPG, JPEG, GIF, BMP</p>
         </div>
         """, unsafe_allow_html=True)
@@ -3553,7 +3612,7 @@ def render_user_account_settings():
         st.rerun()
 
 # -------------------------
-# COMPLETE ADMIN DASHBOARD WITH DUAL MODE
+# COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard with dual mode selection"""
@@ -4044,6 +4103,91 @@ def render_admin_user_management():
                     if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
                         st.session_state.manage_user_plan = username
                         st.rerun()
+
+    # Render the password change interface if activated
+    if st.session_state.show_password_change:
+        render_admin_password_change()
+    
+    # Render the user credentials interface if activated
+    if st.session_state.show_user_credentials:
+        render_user_credentials_display()
+
+def render_admin_password_change():
+    """Admin password change interface - FIXED VERSION"""
+    st.markdown("---")
+    st.subheader("🔐 Change Admin Password")
+    
+    with st.form("admin_password_change_form"):
+        current_password = st.text_input("Current Password", type="password", 
+                                        placeholder="Enter current admin password")
+        new_password = st.text_input("New Password", type="password", 
+                                    placeholder="Enter new password (min 8 characters)")
+        confirm_password = st.text_input("Confirm New Password", type="password", 
+                                        placeholder="Confirm new password")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            submitted = st.form_submit_button("✅ Change Password", use_container_width=True)
+        with col2:
+            if st.form_submit_button("❌ Cancel", use_container_width=True):
+                st.session_state.show_password_change = False
+                st.rerun()
+        
+        if submitted:
+            if not current_password or not new_password or not confirm_password:
+                st.error("❌ Please fill in all password fields")
+            elif new_password != confirm_password:
+                st.error("❌ New passwords do not match")
+            elif len(new_password) < 8:
+                st.error("❌ New password must be at least 8 characters")
+            else:
+                success, message = user_manager.change_admin_password(current_password, new_password)
+                if success:
+                    st.success(f"✅ {message}")
+                    st.session_state.show_password_change = False
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+
+def render_user_credentials_display():
+    """Display user credentials - FIXED VERSION"""
+    st.markdown("---")
+    st.subheader("🔐 User Credentials Export")
+    
+    # Get user credentials for display
+    users_list = user_manager.get_user_credentials_display()
+    
+    if users_list:
+        # Display as a table
+        st.write("**All User Accounts:**")
+        df = pd.DataFrame(users_list)
+        st.dataframe(df, use_container_width=True)
+        
+        # Export functionality
+        col1, col2 = st.columns(2)
+        with col1:
+            csv_bytes, error = user_manager.export_user_credentials()
+            if csv_bytes:
+                st.download_button(
+                    label="📄 Export to CSV",
+                    data=csv_bytes,
+                    file_name=f"user_credentials_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            else:
+                st.error(f"Error exporting: {error}")
+        
+        with col2:
+            if st.button("❌ Close", use_container_width=True):
+                st.session_state.show_user_credentials = False
+                st.rerun()
+    else:
+        st.info("No user data available")
+        if st.button("❌ Close", use_container_width=True):
+            st.session_state.show_user_credentials = False
+            st.rerun()
 
 def render_admin_revenue():
     """Revenue and financial reporting"""
