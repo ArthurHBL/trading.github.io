@@ -538,7 +538,9 @@ def init_session():
         st.session_state.strategy_analyses_data = load_data()
     # NEW: Signals Room Password Protection
     if 'signals_room_password' not in st.session_state:
-        st.session_state.signals_room_password = "trading123"  # Default password
+        # Load from Supabase instead of using hardcoded default
+        app_settings = supabase_get_app_settings()
+        st.session_state.signals_room_password = app_settings.get('signals_room_password', 'trading123')
     if 'signals_room_access_granted' not in st.session_state:
         st.session_state.signals_room_access_granted = False
     if 'signals_password_input' not in st.session_state:
