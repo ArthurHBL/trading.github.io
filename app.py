@@ -2075,6 +2075,7 @@ def render_signals_password_management():
             else:
                 # Update the password
                 st.session_state.signals_room_password = new_password
+                supabase_save_app_settings({'signals_room_password': new_password})
                 st.success("✅ Trading Signals Room password updated successfully!")
                 st.info("🔒 All users will need to use the new password to access the Signals Room.")
                 
