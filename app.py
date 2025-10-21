@@ -1484,9 +1484,9 @@ class UserManager:
             "recently_verified": recently_verified
         }
 
-    # NEW FUNCTION: Get inactive users for bulk deletion
+    # NEW FUNCTION: Get inactive users for bulk deletion - FIXED COMPARISON ERROR
     def get_inactive_users(self, days_threshold=30):
-        """Get users who haven't logged in for more than specified days"""
+        """Get users who haven't logged in for more than specified days - FIXED VERSION"""
         inactive_users = []
         cutoff_date = datetime.now() - timedelta(days=days_threshold)
         
@@ -1498,11 +1498,11 @@ class UserManager:
             if not last_login:
                 # If user never logged in, check creation date
                 created_date = datetime.fromisoformat(user_data.get('created', datetime.now().isoformat()))
-                if created_date < cutoff_date:
+                if created_date.date() < cutoff_date.date():  # FIXED: Compare dates, not datetime with date
                     inactive_users.append(username)
             else:
                 login_date = datetime.fromisoformat(last_login)
-                if login_date < cutoff_date:
+                if login_date.date() < cutoff_date.date():  # FIXED: Compare dates, not datetime with date
                     inactive_users.append(username)
         
         return inactive_users
@@ -1603,10 +1603,10 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION
+# FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION WITH BACK BUTTON
 # -------------------------
 def render_delete_user_confirmation():
-    """Render the delete user confirmation dialog - FIXED VERSION"""
+    """Render the delete user confirmation dialog - FIXED VERSION WITH BACK BUTTON"""
     if not st.session_state.show_delete_confirmation or not st.session_state.user_to_delete:
         return
     
@@ -1646,6 +1646,7 @@ def render_delete_user_confirmation():
                 st.session_state.show_delete_confirmation = False
                 st.session_state.user_to_delete = None
                 st.session_state.manage_user_plan = None
+                st.session_state.show_manage_user_plan = False
                 time.sleep(2)
                 st.rerun()
             else:
@@ -1658,14 +1659,28 @@ def render_delete_user_confirmation():
             st.rerun()
     
     with col3:
-        st.write("")  # Spacer
+        # ADDED: Back to User Management button
+        if st.button("🔙 Back to User Management", use_container_width=True, key="back_to_user_mgmt"):
+            st.session_state.show_delete_confirmation = False
+            st.session_state.user_to_delete = None
+            st.session_state.manage_user_plan = None
+            st.session_state.show_manage_user_plan = False
+            st.session_state.admin_view = "users"  # Ensure we go back to user management
+            st.rerun()
 
 # -------------------------
-# FIXED: BULK DELETE INACTIVE USERS INTERFACE - WORKING VERSION
+# FIXED: BULK DELETE INACTIVE USERS INTERFACE - WORKING VERSION WITH BACK BUTTON
 # -------------------------
 def render_bulk_delete_inactive():
-    """Render the bulk delete inactive users interface - FIXED VERSION"""
+    """Render the bulk delete inactive users interface - FIXED VERSION WITH BACK BUTTON"""
     st.subheader("🗑️ Bulk Delete Inactive Users")
+    
+    # ADDED: Back button at the top
+    if st.button("🔙 Back to User Management", key="bulk_delete_back_top"):
+        st.session_state.show_bulk_delete = False
+        st.rerun()
+    
+    st.markdown("---")
     
     # Configuration
     col1, col2 = st.columns(2)
@@ -1685,7 +1700,7 @@ def render_bulk_delete_inactive():
             help="Only delete inactive trial users (safer option)"
         )
     
-    # Get inactive users
+    # Get inactive users - FIXED: Now uses the corrected method
     inactive_users = user_manager.get_inactive_users(days_threshold)
     
     if include_trial_only:
@@ -1768,10 +1783,10 @@ def render_bulk_delete_inactive():
             st.rerun()
 
 # -------------------------
-# FIXED: MANAGE USER PLAN INTERFACE - WORKING VERSION
+# FIXED: MANAGE USER PLAN INTERFACE - WORKING VERSION WITH BACK BUTTON
 # -------------------------
 def render_manage_user_plan():
-    """Render the manage user plan interface - FIXED WORKING VERSION"""
+    """Render the manage user plan interface - FIXED WORKING VERSION WITH BACK BUTTON"""
     if not st.session_state.manage_user_plan:
         return
     
@@ -1781,8 +1796,15 @@ def render_manage_user_plan():
     if not user_data:
         st.error("User not found")
         st.session_state.manage_user_plan = None
+        st.session_state.show_manage_user_plan = False
         st.rerun()
         return
+    
+    # ADDED: Back button at the top
+    if st.button("🔙 Back to User Management", key="manage_user_back_top"):
+        st.session_state.manage_user_plan = None
+        st.session_state.show_manage_user_plan = False
+        st.rerun()
     
     st.subheader(f"⚙️ Manage User: {username}")
     
@@ -1863,6 +1885,7 @@ def render_manage_user_plan():
                 st.success("✅ User settings updated successfully!")
                 time.sleep(2)
                 st.session_state.manage_user_plan = None
+                st.session_state.show_manage_user_plan = False
                 st.rerun()
             else:
                 st.error("❌ Error saving user settings")
@@ -1874,6 +1897,7 @@ def render_manage_user_plan():
         
         if cancel:
             st.session_state.manage_user_plan = None
+            st.session_state.show_manage_user_plan = False
             st.rerun()
     
     # Email verification and password reset outside the main form
