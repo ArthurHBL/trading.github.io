@@ -562,6 +562,9 @@ def init_session():
     # NEW: Manage User Plan Modal
     if 'show_manage_user_plan' not in st.session_state:
         st.session_state.show_manage_user_plan = False
+    # NEW: User password change state
+    if 'show_user_password_change' not in st.session_state:
+        st.session_state.show_user_password_change = False
 
 # -------------------------
 # APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD)
@@ -1595,8 +1598,103 @@ class UserManager:
         
         return success_count, error_count, errors
 
+    # NEW FUNCTION: User change their own password
+    def change_own_password(self, username, current_password, new_password):
+        """Allow user to change their own password"""
+        if username not in self.users:
+            return False, "User not found"
+        
+        user_data = self.users[username]
+        
+        # Verify current password
+        if not self.verify_password(current_password, user_data["password_hash"]):
+            return False, "Current password is incorrect"
+        
+        if len(new_password) < 8:
+            return False, "New password must be at least 8 characters"
+        
+        # Check if new password is same as current
+        if self.verify_password(new_password, user_data["password_hash"]):
+            return False, "New password cannot be the same as current password"
+        
+        # Update password
+        user_data["password_hash"] = self.hash_password(new_password)
+        
+        # Update analytics
+        if 'password_changes' not in self.analytics:
+            self.analytics['password_changes'] = []
+        
+        self.analytics['password_changes'].append({
+            "username": username,
+            "timestamp": datetime.now().isoformat(),
+            "changed_by": username,
+            "type": "user_self_change"
+        })
+        
+        if self.save_users() and self.save_analytics():
+            return True, "Password changed successfully!"
+        else:
+            return False, "Error saving password change"
+
 # Initialize user manager
 user_manager = UserManager()
+
+# -------------------------
+# FIXED: DELETE USER CONFIRMATION DIALOG
+# -------------------------
+def render_delete_user_confirmation():
+    """Render the delete user confirmation dialog"""
+    if not st.session_state.show_delete_confirmation or not st.session_state.user_to_delete:
+        return
+    
+    username = st.session_state.user_to_delete
+    user_data = user_manager.users.get(username)
+    
+    if not user_data:
+        st.session_state.show_delete_confirmation = False
+        st.session_state.user_to_delete = None
+        return
+    
+    st.warning(f"🚨 Confirm Deletion of User: {username}")
+    
+    # Show user details
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Name:** {user_data.get('name', 'N/A')}")
+        st.write(f"**Email:** {user_data.get('email', 'N/A')}")
+    with col2:
+        st.write(f"**Plan:** {user_data.get('plan', 'N/A')}")
+        st.write(f"**Created:** {user_data.get('created', 'N/A')[:10]}")
+    
+    st.error("""
+    ⚠️ **This action cannot be undone!**
+    
+    The user account and all associated data will be permanently deleted.
+    """)
+    
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        if st.button("✅ Confirm Delete", use_container_width=True, type="primary"):
+            success, message = user_manager.delete_user(username)
+            if success:
+                st.success(message)
+                st.session_state.show_delete_confirmation = False
+                st.session_state.user_to_delete = None
+                st.session_state.manage_user_plan = None
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(message)
+    
+    with col2:
+        if st.button("❌ Cancel", use_container_width=True):
+            st.session_state.show_delete_confirmation = False
+            st.session_state.user_to_delete = None
+            st.rerun()
+    
+    with col3:
+        st.write("")  # Spacer
 
 # -------------------------
 # FIXED: BULK DELETE INACTIVE USERS INTERFACE
@@ -3538,6 +3636,93 @@ def display_strategy_indicator_images_user(strategy_name):
                 st.markdown("---")
 
 # -------------------------
+# FIXED: USER PASSWORD CHANGE FUNCTIONALITY
+# -------------------------
+def render_user_password_change():
+    """Allow users to change their own password"""
+    st.subheader("🔐 Change Password")
+    
+    with st.form("user_password_change_form"):
+        current_password = st.text_input("Current Password", type="password", 
+                                        placeholder="Enter your current password")
+        new_password = st.text_input("New Password", type="password", 
+                                    placeholder="Enter new password (min 8 characters)")
+        confirm_password = st.text_input("Confirm New Password", type="password", 
+                                        placeholder="Confirm new password")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            submitted = st.form_submit_button("✅ Change Password", use_container_width=True)
+        with col2:
+            if st.form_submit_button("❌ Cancel", use_container_width=True):
+                st.session_state.show_user_password_change = False
+                st.rerun()
+        
+        if submitted:
+            if not current_password or not new_password or not confirm_password:
+                st.error("❌ Please fill in all password fields")
+            elif new_password != confirm_password:
+                st.error("❌ New passwords do not match")
+            elif len(new_password) < 8:
+                st.error("❌ New password must be at least 8 characters")
+            else:
+                success, message = user_manager.change_own_password(
+                    st.session_state.user['username'], 
+                    current_password, 
+                    new_password
+                )
+                if success:
+                    st.success(f"✅ {message}")
+                    st.session_state.show_user_password_change = False
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error(f"❌ {message}")
+
+# -------------------------
+# FIXED: USER ACCOUNT SETTINGS - REMOVED KEY PARAMETER FROM ST.METRIC
+# -------------------------
+def render_user_account_settings():
+    """User account settings - FIXED VERSION"""
+    st.title("⚙️ Account Settings")
+    
+    user = st.session_state.user
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Profile Information")
+        st.text_input("Full Name", value=user['name'], disabled=True, key="user_profile_name")
+        st.text_input("Email", value=user['email'], disabled=True, key="user_profile_email")
+        st.text_input("Username", value=user['username'], disabled=True, key="user_profile_username")
+    
+    with col2:
+        st.subheader("Subscription Details")
+        plan_name = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
+        st.text_input("Current Plan", value=plan_name, disabled=True, key="user_plan")
+        st.text_input("Expiry Date", value=user['expires'], disabled=True, key="user_expires")
+        
+        # FIXED: Removed the 'key' parameter from st.metric to fix the error
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
+    
+    st.markdown("---")
+    
+    # Password change section
+    if st.session_state.show_user_password_change:
+        render_user_password_change()
+    else:
+        if st.button("🔑 Change Password", use_container_width=True, key="user_change_password_btn"):
+            st.session_state.show_user_password_change = True
+            st.rerun()
+    
+    st.markdown("---")
+    
+    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_to_dash_btn"):
+        st.session_state.dashboard_view = 'main'
+        st.rerun()
+
+# -------------------------
 # ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
 # -------------------------
 def render_premium_signal_dashboard():
@@ -4309,35 +4494,6 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
             if existing.get("last_modified"):
                 st.caption(f"Last updated: {existing['last_modified'][:16]}")
 
-def render_user_account_settings():
-    """User account settings"""
-    st.title("⚙️ Account Settings")
-    
-    user = st.session_state.user
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("Profile Information")
-        st.text_input("Full Name", value=user['name'], disabled=True, key="user_profile_name")
-        st.text_input("Email", value=user['email'], disabled=True, key="user_profile_email")
-        st.text_input("Username", value=user['username'], disabled=True, key="user_profile_username")
-    
-    with col2:
-        st.subheader("Subscription Details")
-        plan_name = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
-        st.text_input("Current Plan", value=plan_name, disabled=True, key="user_plan")
-        st.text_input("Expiry Date", value=user['expires'], disabled=True, key="user_expires")
-        
-        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
-        st.metric("Days Remaining", days_left, key="user_days_left")
-    
-    st.markdown("---")
-    
-    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_to_dash_btn"):
-        st.session_state.dashboard_view = 'main'
-        st.rerun()
-
 # -------------------------
 # COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION
 # -------------------------
@@ -4599,6 +4755,11 @@ def render_admin_management_dashboard():
     
     if st.session_state.show_manage_user_plan:
         render_manage_user_plan()
+        return
+    
+    # Check for delete user confirmation
+    if st.session_state.show_delete_confirmation:
+        render_delete_user_confirmation()
         return
     
     # Current view based on admin_view state
