@@ -305,6 +305,46 @@ def supabase_save_trading_signals(signals):
         print(f"Error saving trading signals: {e}")
         return False
 
+# NEW: App settings table functions for Signals Room Password
+def supabase_get_app_settings():
+    """Get app settings from Supabase - FIXED VERSION"""
+    if not supabase_client:
+        return {}
+    try:
+        response = supabase_client.table('app_settings').select('*').execute()
+        if hasattr(response, 'error') and response.error:
+            print(f"Supabase error getting app settings: {response.error}")
+            return {}
+        settings = {}
+        for item in response.data:
+            settings[item['setting_name']] = item['setting_value']
+        return settings
+    except Exception as e:
+        print(f"Error getting app settings: {e}")
+        return {}
+
+def supabase_save_app_settings(settings):
+    """Save app settings to Supabase - FIXED VERSION"""
+    if not supabase_client:
+        return False
+    try:
+        records = []
+        for setting_name, setting_value in settings.items():
+            records.append({
+                'setting_name': setting_name,
+                'setting_value': setting_value
+            })
+        
+        if records:
+            response = supabase_client.table('app_settings').upsert(records).execute()
+            if hasattr(response, 'error') and response.error:
+                print(f"Supabase error saving app settings: {response.error}")
+                return False
+        return True
+    except Exception as e:
+        print(f"Error saving app settings: {e}")
+        return False
+
 # Strategy indicator images table functions - FIXED VERSION
 def supabase_get_strategy_indicator_images():
     """Get strategy indicator images from Supabase - FIXED"""
@@ -408,7 +448,7 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
         return False
 
 # -------------------------
-# SESSION MANAGEMENT - UPDATED WITH SIGNALS PASSWORD
+# SESSION MANAGEMENT - UPDATED WITH PASSWORD PERSISTENCE
 # -------------------------
 def init_session():
     """Initialize session state variables"""
@@ -506,9 +546,10 @@ def init_session():
     if 'strategy_analyses_data' not in st.session_state:
         print("🔄 Loading strategy analyses data from Supabase...")
         st.session_state.strategy_analyses_data = load_data()
-    # NEW: Signals Room Password Protection
+    # NEW: Signals Room Password Protection - LOAD FROM SUPABASE
     if 'signals_room_password' not in st.session_state:
-        st.session_state.signals_room_password = "trading123"  # Default password
+        app_settings = load_app_settings()
+        st.session_state.signals_room_password = app_settings.get('signals_room_password', 'trading123')
     if 'signals_room_access_granted' not in st.session_state:
         st.session_state.signals_room_access_granted = False
     if 'signals_password_input' not in st.session_state:
@@ -521,6 +562,17 @@ def init_session():
     # NEW: Manage User Plan Modal
     if 'show_manage_user_plan' not in st.session_state:
         st.session_state.show_manage_user_plan = False
+
+# -------------------------
+# APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD)
+# -------------------------
+def load_app_settings():
+    """Load app settings from Supabase"""
+    return supabase_get_app_settings()
+
+def save_app_settings(settings):
+    """Save app settings to Supabase"""
+    return supabase_save_app_settings(settings)
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1653,10 +1705,10 @@ def render_bulk_delete_inactive():
             st.rerun()
 
 # -------------------------
-# FIXED: MANAGE USER PLAN INTERFACE
+# FIXED: MANAGE USER PLAN INTERFACE - COMPLETELY REWRITTEN
 # -------------------------
 def render_manage_user_plan():
-    """Render the manage user plan interface"""
+    """Render the manage user plan interface - FIXED VERSION"""
     if not st.session_state.manage_user_plan:
         return
     
@@ -1671,6 +1723,7 @@ def render_manage_user_plan():
     
     st.subheader(f"⚙️ Manage User: {username}")
     
+    # Main form for user details
     with st.form(f"manage_user_{username}"):
         col1, col2 = st.columns(2)
         
@@ -1690,10 +1743,12 @@ def render_manage_user_plan():
             # Plan management
             st.write("**Plan Management:**")
             current_plan = user_data.get('plan', 'trial')
+            available_plans = list(Config.PLANS.keys()) + ['admin']
+            index = available_plans.index(current_plan) if current_plan in available_plans else 0
             new_plan = st.selectbox(
                 "Change Plan:",
-                list(Config.PLANS.keys()) + ['admin'],
-                index=list(Config.PLANS.keys() + ['admin']).index(current_plan) if current_plan in list(Config.PLANS.keys()) + ['admin'] else 0,
+                available_plans,
+                index=index,
                 key=f"plan_select_{username}"
             )
             
@@ -1720,41 +1775,6 @@ def render_manage_user_plan():
                 value=user_data.get('max_sessions', 1),
                 key=f"sessions_{username}"
             )
-        
-        # Email verification actions
-        st.write("**Email Verification:**")
-        col_v1, col_v2 = st.columns(2)
-        
-        with col_v1:
-            if not email_verified:
-                if st.form_submit_button("✅ Verify Email", use_container_width=True):
-                    success, message = user_manager.verify_user_email(username, st.session_state.user['username'], "Manually verified by admin")
-                    if success:
-                        st.success(message)
-                        time.sleep(2)
-                        st.rerun()
-                    else:
-                        st.error(message)
-            else:
-                if st.form_submit_button("❌ Revoke Verification", use_container_width=True):
-                    success, message = user_manager.revoke_email_verification(username, st.session_state.user['username'], "Revoked by admin")
-                    if success:
-                        st.success(message)
-                        time.sleep(2)
-                        st.rerun()
-                    else:
-                        st.error(message)
-        
-        with col_v2:
-            # Password reset
-            if st.form_submit_button("🔑 Reset Password", use_container_width=True):
-                new_password = f"TempPass{int(time.time()) % 10000}"
-                success, message = user_manager.change_user_password(username, new_password, st.session_state.user['username'])
-                if success:
-                    st.success(f"✅ Password reset! New temporary password: {new_password}")
-                    st.info("🔒 User should change this password immediately after login.")
-                else:
-                    st.error(message)
         
         # Main action buttons
         col_b1, col_b2, col_b3 = st.columns(3)
@@ -1792,6 +1812,45 @@ def render_manage_user_plan():
         if cancel:
             st.session_state.manage_user_plan = None
             st.rerun()
+    
+    # Email verification and password reset outside the main form
+    st.markdown("---")
+    st.write("**Email Verification & Password Reset:**")
+    col_v1, col_v2 = st.columns(2)
+    
+    with col_v1:
+        # Email verification form
+        with st.form(f"verify_email_{username}"):
+            if not email_verified:
+                if st.form_submit_button("✅ Verify Email", use_container_width=True):
+                    success, message = user_manager.verify_user_email(username, st.session_state.user['username'], "Manually verified by admin")
+                    if success:
+                        st.success(message)
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
+            else:
+                if st.form_submit_button("❌ Revoke Verification", use_container_width=True):
+                    success, message = user_manager.revoke_email_verification(username, st.session_state.user['username'], "Revoked by admin")
+                    if success:
+                        st.success(message)
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(message)
+    
+    with col_v2:
+        # Password reset form
+        with st.form(f"reset_password_{username}"):
+            if st.form_submit_button("🔑 Reset Password", use_container_width=True):
+                new_password = f"TempPass{int(time.time()) % 10000}"
+                success, message = user_manager.change_user_password(username, new_password, st.session_state.user['username'])
+                if success:
+                    st.success(f"✅ Password reset! New temporary password: {new_password}")
+                    st.info("🔒 User should change this password immediately after login.")
+                else:
+                    st.error(message)
 
 # -------------------------
 # FIXED: EMAIL VERIFICATION INTERFACE
@@ -1990,10 +2049,10 @@ def render_verification_analytics_tab(stats):
             )
 
 # -------------------------
-# FIXED: TRADING SIGNALS ROOM PASSWORD MANAGEMENT
+# FIXED: TRADING SIGNALS ROOM PASSWORD MANAGEMENT WITH SUPABASE PERSISTENCE
 # -------------------------
 def render_signals_password_management():
-    """Interface for managing Trading Signals Room password"""
+    """Interface for managing Trading Signals Room password with Supabase persistence"""
     st.subheader("🔐 Trading Signals Room Password Management")
     
     st.info("""
@@ -2041,24 +2100,32 @@ def render_signals_password_management():
             elif len(new_password) < 4:
                 st.error("❌ New password must be at least 4 characters")
             else:
-                # Update the password
+                # Update the password in both session state and Supabase
                 st.session_state.signals_room_password = new_password
-                st.success("✅ Trading Signals Room password updated successfully!")
-                st.info("🔒 All users will need to use the new password to access the Signals Room.")
                 
-                # Also revoke access for everyone
-                st.session_state.signals_room_access_granted = False
+                # Save to Supabase for persistence
+                app_settings = {'signals_room_password': new_password}
+                save_success = save_app_settings(app_settings)
                 
-                time.sleep(2)
-                st.session_state.show_signals_password_change = False
-                st.rerun()
+                if save_success:
+                    st.success("✅ Trading Signals Room password updated successfully!")
+                    st.info("🔒 All users will need to use the new password to access the Signals Room.")
+                    
+                    # Also revoke access for everyone
+                    st.session_state.signals_room_access_granted = False
+                    
+                    time.sleep(2)
+                    st.session_state.show_signals_password_change = False
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save password to database. Please try again.")
         
         if cancel:
             st.session_state.show_signals_password_change = False
             st.rerun()
 
 # -------------------------
-# TRADING SIGNALS ROOM - PASSWORD PROTECTED VERSION
+# TRADING SIGNALS ROOM - PASSWORD PROTECTED VERSION WITH PERSISTENCE
 # -------------------------
 def render_trading_signals_room():
     """Main Trading Signals Room interface with password protection"""
