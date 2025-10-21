@@ -304,37 +304,7 @@ def supabase_save_trading_signals(signals):
     except Exception as e:
         print(f"Error saving trading signals: {e}")
         return False
-# App settings table functions - NEW
-def supabase_get_app_settings():
-    """Get app settings from Supabase"""
-    if not supabase_client:
-        return {}
-    try:
-        response = supabase_client.table('app_settings').select('*').execute()
-        settings = {}
-        for setting in response.data:
-            settings[setting['setting_key']] = setting['setting_value']
-        return settings
-    except:
-        return {}
 
-def supabase_save_app_settings(settings):
-    """Save app settings to Supabase"""
-    if not supabase_client:
-        return False
-    try:
-        records = []
-        for key, value in settings.items():
-            records.append({
-                'setting_key': key,
-                'setting_value': value,
-                'updated_at': datetime.now().isoformat()
-            })
-        
-        response = supabase_client.table('app_settings').upsert(records).execute()
-        return True
-    except:
-        return False
 # Strategy indicator images table functions - FIXED VERSION
 def supabase_get_strategy_indicator_images():
     """Get strategy indicator images from Supabase - FIXED"""
@@ -538,9 +508,7 @@ def init_session():
         st.session_state.strategy_analyses_data = load_data()
     # NEW: Signals Room Password Protection
     if 'signals_room_password' not in st.session_state:
-        # Load from Supabase instead of using hardcoded default
-        app_settings = supabase_get_app_settings()
-        st.session_state.signals_room_password = app_settings.get('signals_room_password', 'trading123')
+        st.session_state.signals_room_password = "trading123"  # Default password
     if 'signals_room_access_granted' not in st.session_state:
         st.session_state.signals_room_access_granted = False
     if 'signals_password_input' not in st.session_state:
@@ -2075,7 +2043,6 @@ def render_signals_password_management():
             else:
                 # Update the password
                 st.session_state.signals_room_password = new_password
-                supabase_save_app_settings({'signals_room_password': new_password})
                 st.success("✅ Trading Signals Room password updated successfully!")
                 st.info("🔒 All users will need to use the new password to access the Signals Room.")
                 
