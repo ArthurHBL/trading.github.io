@@ -50,7 +50,7 @@ supabase_client = init_supabase()
 # SUPABASE DATABASE FUNCTIONS - FIXED WITH PROPER ERROR HANDLING
 # -------------------------
 
-# Users table functions
+# Users table functions - FIXED DELETION FUNCTIONS
 def supabase_get_users():
     """Get all users from Supabase - FIXED VERSION"""
     if not supabase_client:
@@ -58,14 +58,14 @@ def supabase_get_users():
     try:
         response = supabase_client.table('users').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting users: {response.error}")
+            st.error(f"Supabase error getting users: {response.error}")
             return {}
         users = {}
         for user in response.data:
             users[user['username']] = user
         return users
     except Exception as e:
-        print(f"Error getting users: {e}")
+        st.error(f"Error getting users: {e}")
         return {}
 
 def supabase_save_users(users):
@@ -82,11 +82,11 @@ def supabase_save_users(users):
         # Upsert all users
         response = supabase_client.table('users').upsert(users_list).execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error saving users: {response.error}")
+            st.error(f"Supabase error saving users: {response.error}")
             return False
         return True
     except Exception as e:
-        print(f"Error saving users: {e}")
+        st.error(f"Error saving users: {e}")
         return False
 
 def supabase_delete_user(username):
@@ -96,11 +96,12 @@ def supabase_delete_user(username):
     try:
         response = supabase_client.table('users').delete().eq('username', username).execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error deleting user: {response.error}")
+            st.error(f"Supabase error deleting user: {response.error}")
             return False
+        st.success(f"✅ User '{username}' deleted from Supabase")
         return True
     except Exception as e:
-        print(f"Error deleting user: {e}")
+        st.error(f"Error deleting user: {e}")
         return False
 
 # Analytics table functions
@@ -111,13 +112,13 @@ def supabase_get_analytics():
     try:
         response = supabase_client.table('analytics').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting analytics: {response.error}")
+            st.error(f"Supabase error getting analytics: {response.error}")
             return {}
         if response.data:
             return response.data[0]  # Assuming single analytics record
         return {}
     except Exception as e:
-        print(f"Error getting analytics: {e}")
+        st.error(f"Error getting analytics: {e}")
         return {}
 
 def supabase_save_analytics(analytics):
@@ -128,11 +129,11 @@ def supabase_save_analytics(analytics):
         analytics['id'] = 1  # Single analytics record
         response = supabase_client.table('analytics').upsert(analytics).execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error saving analytics: {response.error}")
+            st.error(f"Supabase error saving analytics: {response.error}")
             return False
         return True
     except Exception as e:
-        print(f"Error saving analytics: {e}")
+        st.error(f"Error saving analytics: {e}")
         return False
 
 # Strategy analyses table functions - FIXED VERSION
@@ -143,7 +144,7 @@ def supabase_get_strategy_analyses():
     try:
         response = supabase_client.table('strategy_analyses').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting strategy analyses: {response.error}")
+            st.error(f"Supabase error getting strategy analyses: {response.error}")
             return {}
         strategies = {}
         for item in response.data:
@@ -160,10 +161,9 @@ def supabase_get_strategy_analyses():
                 "last_modified": item.get('last_modified', ''),
                 "modified_by": item.get('modified_by', 'system')
             }
-        print(f"✅ Loaded {len(strategies)} strategies with analyses from Supabase")
         return strategies
     except Exception as e:
-        print(f"❌ Error getting strategy analyses: {e}")
+        st.error(f"❌ Error getting strategy analyses: {e}")
         return {}
 
 def supabase_save_strategy_analyses(strategy_data):
@@ -193,12 +193,11 @@ def supabase_save_strategy_analyses(strategy_data):
                 on_conflict='strategy_name,indicator_name'
             ).execute()
             if hasattr(response, 'error') and response.error:
-                print(f"Supabase error saving strategy analyses: {response.error}")
+                st.error(f"Supabase error saving strategy analyses: {response.error}")
                 return False
-            print(f"✅ Saved {len(records)} strategy analysis records to Supabase")
         return True
     except Exception as e:
-        print(f"❌ Error saving strategy analyses: {e}")
+        st.error(f"❌ Error saving strategy analyses: {e}")
         return False
 
 # Gallery images table functions
@@ -209,7 +208,7 @@ def supabase_get_gallery_images():
     try:
         response = supabase_client.table('gallery_images').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting gallery images: {response.error}")
+            st.error(f"Supabase error getting gallery images: {response.error}")
             return []
         images = []
         for img in response.data:
@@ -219,7 +218,7 @@ def supabase_get_gallery_images():
             images.append(img)
         return images
     except Exception as e:
-        print(f"Error getting gallery images: {e}")
+        st.error(f"Error getting gallery images: {e}")
         return []
 
 def supabase_save_gallery_images(images):
@@ -230,7 +229,7 @@ def supabase_save_gallery_images(images):
         # First, clear all existing images (or we could update selectively)
         delete_response = supabase_client.table('gallery_images').delete().neq('id', 0).execute()
         if hasattr(delete_response, 'error') and delete_response.error:
-            print(f"Supabase error clearing gallery images: {delete_response.error}")
+            st.error(f"Supabase error clearing gallery images: {delete_response.error}")
             return False
         
         records = []
@@ -248,11 +247,11 @@ def supabase_save_gallery_images(images):
         if records:
             response = supabase_client.table('gallery_images').insert(records).execute()
             if hasattr(response, 'error') and response.error:
-                print(f"Supabase error saving gallery images: {response.error}")
+                st.error(f"Supabase error saving gallery images: {response.error}")
                 return False
         return True
     except Exception as e:
-        print(f"Error saving gallery images: {e}")
+        st.error(f"Error saving gallery images: {e}")
         return False
 
 def supabase_clear_gallery_images():
@@ -262,11 +261,11 @@ def supabase_clear_gallery_images():
     try:
         response = supabase_client.table('gallery_images').delete().neq('id', 0).execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error clearing gallery images: {response.error}")
+            st.error(f"Supabase error clearing gallery images: {response.error}")
             return False
         return True
     except Exception as e:
-        print(f"Error clearing gallery images: {e}")
+        st.error(f"Error clearing gallery images: {e}")
         return False
 
 # Trading signals table functions
@@ -277,11 +276,11 @@ def supabase_get_trading_signals():
     try:
         response = supabase_client.table('trading_signals').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting trading signals: {response.error}")
+            st.error(f"Supabase error getting trading signals: {response.error}")
             return []
         return response.data
     except Exception as e:
-        print(f"Error getting trading signals: {e}")
+        st.error(f"Error getting trading signals: {e}")
         return []
 
 def supabase_save_trading_signals(signals):
@@ -292,17 +291,17 @@ def supabase_save_trading_signals(signals):
         # Clear and replace all signals
         delete_response = supabase_client.table('trading_signals').delete().neq('id', 0).execute()
         if hasattr(delete_response, 'error') and delete_response.error:
-            print(f"Supabase error clearing trading signals: {delete_response.error}")
+            st.error(f"Supabase error clearing trading signals: {delete_response.error}")
             return False
         
         if signals:
             response = supabase_client.table('trading_signals').insert(signals).execute()
             if hasattr(response, 'error') and response.error:
-                print(f"Supabase error saving trading signals: {response.error}")
+                st.error(f"Supabase error saving trading signals: {response.error}")
                 return False
         return True
     except Exception as e:
-        print(f"Error saving trading signals: {e}")
+        st.error(f"Error saving trading signals: {e}")
         return False
 
 # NEW: App settings table functions for Signals Room Password
@@ -313,14 +312,14 @@ def supabase_get_app_settings():
     try:
         response = supabase_client.table('app_settings').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting app settings: {response.error}")
+            st.error(f"Supabase error getting app settings: {response.error}")
             return {}
         settings = {}
         for item in response.data:
             settings[item['setting_name']] = item['setting_value']
         return settings
     except Exception as e:
-        print(f"Error getting app settings: {e}")
+        st.error(f"Error getting app settings: {e}")
         return {}
 
 def supabase_save_app_settings(settings):
@@ -338,11 +337,11 @@ def supabase_save_app_settings(settings):
         if records:
             response = supabase_client.table('app_settings').upsert(records).execute()
             if hasattr(response, 'error') and response.error:
-                print(f"Supabase error saving app settings: {response.error}")
+                st.error(f"Supabase error saving app settings: {response.error}")
                 return False
         return True
     except Exception as e:
-        print(f"Error saving app settings: {e}")
+        st.error(f"Error saving app settings: {e}")
         return False
 
 # Strategy indicator images table functions - FIXED VERSION
@@ -353,7 +352,7 @@ def supabase_get_strategy_indicator_images():
     try:
         response = supabase_client.table('strategy_indicator_images').select('*').execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error getting strategy indicator images: {response.error}")
+            st.error(f"Supabase error getting strategy indicator images: {response.error}")
             return {}
         images_data = {}
         for item in response.data:
@@ -367,12 +366,11 @@ def supabase_get_strategy_indicator_images():
                     item['bytes'] = base64.b64decode(item['bytes_b64'])
                     images_data[strategy_name][indicator_name] = item
                 except Exception as e:
-                    print(f"Error decoding image for {strategy_name}/{indicator_name}: {e}")
+                    st.error(f"Error decoding image for {strategy_name}/{indicator_name}: {e}")
                     continue
-        print(f"✅ Loaded {len(images_data)} strategies with indicator images from Supabase")
         return images_data
     except Exception as e:
-        print(f"Error getting strategy indicator images: {e}")
+        st.error(f"Error getting strategy indicator images: {e}")
         return {}
 
 def supabase_save_strategy_indicator_images(images_data):
@@ -383,7 +381,7 @@ def supabase_save_strategy_indicator_images(images_data):
         # Get all existing records to delete only what we're replacing
         existing_response = supabase_client.table('strategy_indicator_images').select('*').execute()
         if hasattr(existing_response, 'error') and existing_response.error:
-            print(f"Supabase error getting existing strategy indicator images: {existing_response.error}")
+            st.error(f"Supabase error getting existing strategy indicator images: {existing_response.error}")
             return False
         existing_records = existing_response.data if existing_response.data else []
         
@@ -405,7 +403,7 @@ def supabase_save_strategy_indicator_images(images_data):
                     try:
                         record['bytes_b64'] = base64.b64encode(img_data['bytes']).decode('utf-8')
                     except Exception as e:
-                        print(f"Error encoding image for {strategy_name}/{indicator_name}: {e}")
+                        st.error(f"Error encoding image for {strategy_name}/{indicator_name}: {e}")
                         continue
                 
                 records.append(record)
@@ -416,20 +414,19 @@ def supabase_save_strategy_indicator_images(images_data):
             for strategy in strategies_to_update:
                 delete_response = supabase_client.table('strategy_indicator_images').delete().eq('strategy_name', strategy).execute()
                 if hasattr(delete_response, 'error') and delete_response.error:
-                    print(f"Supabase error deleting strategy indicator images for {strategy}: {delete_response.error}")
+                    st.error(f"Supabase error deleting strategy indicator images for {strategy}: {delete_response.error}")
                     return False
         
         # Insert new records
         if records:
             response = supabase_client.table('strategy_indicator_images').insert(records).execute()
             if hasattr(response, 'error') and response.error:
-                print(f"Supabase error saving strategy indicator images: {response.error}")
+                st.error(f"Supabase error saving strategy indicator images: {response.error}")
                 return False
-            print(f"✅ Saved {len(records)} strategy indicator images to Supabase")
         
         return True
     except Exception as e:
-        print(f"❌ Error saving strategy indicator images: {e}")
+        st.error(f"❌ Error saving strategy indicator images: {e}")
         return False
 
 def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
@@ -439,12 +436,11 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
     try:
         response = supabase_client.table('strategy_indicator_images').delete().eq('strategy_name', strategy_name).eq('indicator_name', indicator_name).execute()
         if hasattr(response, 'error') and response.error:
-            print(f"Supabase error deleting strategy indicator image: {response.error}")
+            st.error(f"Supabase error deleting strategy indicator image: {response.error}")
             return False
-        print(f"✅ Deleted image for {strategy_name}/{indicator_name}")
         return True
     except Exception as e:
-        print(f"Error deleting strategy indicator image: {e}")
+        st.error(f"Error deleting strategy indicator image: {e}")
         return False
 
 # -------------------------
@@ -533,7 +529,6 @@ def init_session():
         st.session_state.signal_confirmation_step = 1
     # NEW: Strategy indicator images state - UPDATED LOADING
     if 'strategy_indicator_images' not in st.session_state:
-        print("🔄 Loading strategy indicator images from Supabase...")
         st.session_state.strategy_indicator_images = load_strategy_indicator_images()
     # NEW: Strategy indicator viewer state
     if 'strategy_indicator_viewer_mode' not in st.session_state:
@@ -544,7 +539,6 @@ def init_session():
         st.session_state.current_strategy_indicator = None
     # NEW: Strategy analyses data state - CRITICAL FIX
     if 'strategy_analyses_data' not in st.session_state:
-        print("🔄 Loading strategy analyses data from Supabase...")
         st.session_state.strategy_analyses_data = load_data()
     # NEW: Signals Room Password Protection - LOAD FROM SUPABASE
     if 'signals_room_password' not in st.session_state:
@@ -584,7 +578,6 @@ def setup_data_persistence():
     """Set up periodic data saving to prevent data loss"""
     current_time = time.time()
     if current_time - st.session_state.last_save_time > 300:  # 5 minutes
-        print("💾 Periodic data save...")
         user_manager.save_users()
         user_manager.save_analytics()
         
@@ -592,27 +585,26 @@ def setup_data_persistence():
         try:
             if hasattr(st.session_state, 'strategy_analyses_data'):
                 save_data(st.session_state.strategy_analyses_data)
-                print("✅ Strategy analyses data saved")
         except Exception as e:
-            print(f"⚠️ Error saving strategy data: {e}")
+            st.error(f"⚠️ Error saving strategy data: {e}")
         
         # Save gallery images
         try:
             save_gallery_images(st.session_state.uploaded_images)
         except Exception as e:
-            print(f"⚠️ Error saving gallery images: {e}")
+            st.error(f"⚠️ Error saving gallery images: {e}")
         
         # Save signals data
         try:
             save_signals_data(st.session_state.active_signals)
         except Exception as e:
-            print(f"⚠️ Error saving signals data: {e}")
+            st.error(f"⚠️ Error saving signals data: {e}")
             
         # Save strategy indicator images - FIXED: Now properly saves to Supabase
         try:
             save_strategy_indicator_images(st.session_state.strategy_indicator_images)
         except Exception as e:
-            print(f"⚠️ Error saving strategy indicator images: {e}")
+            st.error(f"⚠️ Error saving strategy indicator images: {e}")
             
         st.session_state.last_save_time = current_time
 
@@ -621,19 +613,12 @@ def setup_data_persistence():
 # -------------------------
 def load_data():
     """Load strategy analyses data from Supabase - FIXED"""
-    print("🔄 Loading strategy analyses data...")
     data = supabase_get_strategy_analyses()
-    print(f"✅ Loaded {len(data)} strategies with analyses")
     return data
 
 def save_data(data):
     """Save strategy analyses data to Supabase - FIXED"""
-    print("💾 Saving strategy analyses data...")
     success = supabase_save_strategy_analyses(data)
-    if success:
-        print("✅ Strategy analyses data saved successfully!")
-    else:
-        print("❌ Failed to save strategy analyses data")
     return success
 
 def generate_filtered_csv_bytes(data, target_date):
@@ -661,19 +646,12 @@ def generate_filtered_csv_bytes(data, target_date):
 # -------------------------
 def load_strategy_indicator_images():
     """Load strategy indicator images from Supabase - FIXED"""
-    print("🔄 Loading strategy indicator images...")
     images_data = supabase_get_strategy_indicator_images()
-    print(f"✅ Loaded {len(images_data)} strategies with indicator images")
     return images_data
 
 def save_strategy_indicator_images(images_data):
     """Save strategy indicator images to Supabase - FIXED"""
-    print("💾 Saving strategy indicator images...")
     success = supabase_save_strategy_indicator_images(images_data)
-    if success:
-        print("✅ Strategy indicator images saved successfully!")
-    else:
-        print("❌ Failed to save strategy indicator images")
     return success
 
 def get_strategy_indicator_image(strategy_name, indicator_name):
@@ -685,8 +663,6 @@ def get_strategy_indicator_image(strategy_name, indicator_name):
 
 def save_strategy_indicator_image(strategy_name, indicator_name, image_data):
     """Save image for a specific strategy indicator - FIXED"""
-    print(f"💾 Saving image for {strategy_name}/{indicator_name}...")
-    
     if strategy_name not in st.session_state.strategy_indicator_images:
         st.session_state.strategy_indicator_images[strategy_name] = {}
     
@@ -703,17 +679,10 @@ def save_strategy_indicator_image(strategy_name, indicator_name, image_data):
     # Save to Supabase immediately
     success = save_strategy_indicator_images(st.session_state.strategy_indicator_images)
     
-    if success:
-        print(f"✅ Image saved for {strategy_name}/{indicator_name}")
-    else:
-        print(f"❌ Failed to save image for {strategy_name}/{indicator_name}")
-    
     return success
 
 def delete_strategy_indicator_image(strategy_name, indicator_name):
     """Delete image for a specific strategy indicator"""
-    print(f"🗑️ Deleting image for {strategy_name}/{indicator_name}...")
-    
     if strategy_name in st.session_state.strategy_indicator_images:
         if indicator_name in st.session_state.strategy_indicator_images[strategy_name]:
             del st.session_state.strategy_indicator_images[strategy_name][indicator_name]
@@ -727,11 +696,6 @@ def delete_strategy_indicator_image(strategy_name, indicator_name):
             
             # Also delete from Supabase directly
             supabase_delete_strategy_indicator_image(strategy_name, indicator_name)
-            
-            if success:
-                print(f"✅ Image deleted for {strategy_name}/{indicator_name}")
-            else:
-                print(f"❌ Failed to delete image for {strategy_name}/{indicator_name}")
             
             return success
     
@@ -919,10 +883,8 @@ class UserManager:
                 }
                 self.save_analytics()
                 
-            print(f"✅ Loaded {len(self.users)} users from database")
-            
         except Exception as e:
-            print(f"❌ Error loading data: {e}")
+            st.error(f"❌ Error loading data: {e}")
             # Initialize with default data
             self.users = {}
             self.analytics = {
@@ -958,7 +920,6 @@ class UserManager:
             "email_verified": True,  # Admin email is always verified
             "verification_date": datetime.now().isoformat()
         }
-        print("✅ Created default admin account")
     
     def hash_password(self, password):
         """Secure password hashing"""
@@ -983,7 +944,6 @@ class UserManager:
                 session_reset_count += 1
         
         if session_reset_count > 0:
-            print(f"🔄 Reset {session_reset_count} user sessions")
             self.save_users()
     
     def register_user(self, username, password, name, email, plan="trial"):
@@ -1041,7 +1001,6 @@ class UserManager:
         analytics_saved = self.save_analytics()
         
         if users_saved and analytics_saved:
-            print(f"✅ Successfully registered user: {username}")
             return True, f"Account created successfully! {plan_config['name']} activated."
         else:
             # Remove the user if save failed
@@ -1117,9 +1076,13 @@ class UserManager:
         })
         
         # Delete from Supabase
-        supabase_delete_user(username)
+        supabase_success = supabase_delete_user(username)
         
-        if self.save_users() and self.save_analytics():
+        # Save changes to local data
+        users_saved = self.save_users()
+        analytics_saved = self.save_analytics()
+        
+        if users_saved and analytics_saved and supabase_success:
             return True, f"User '{username}' has been permanently deleted"
         else:
             return False, "Error deleting user data"
@@ -1583,7 +1546,11 @@ class UserManager:
             })
             
             # Delete from Supabase
-            supabase_delete_user(username)
+            supabase_success = supabase_delete_user(username)
+            if not supabase_success:
+                errors.append(f"Failed to delete {username} from database")
+                error_count += 1
+                continue
             
             success_count += 1
         
@@ -1649,6 +1616,7 @@ def render_delete_user_confirmation():
     if not user_data:
         st.session_state.show_delete_confirmation = False
         st.session_state.user_to_delete = None
+        st.rerun()
         return
     
     st.warning(f"🚨 Confirm Deletion of User: {username}")
