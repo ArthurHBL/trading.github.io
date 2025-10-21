@@ -1089,7 +1089,7 @@ class UserManager:
             return None, "Error creating test user"
 
     def delete_user(self, username):
-        """Delete a user account completely"""
+        """Delete a user account completely - FIXED VERSION"""
         if username not in self.users:
             return False, "User not found"
         
@@ -1097,14 +1097,15 @@ class UserManager:
             return False, "Cannot delete admin account"
         
         user_data = self.users[username]
-        if user_data.get('active_sessions', 0) > 0:
-            return False, "User has active sessions. Reset sessions first."
         
+        # Store user info for analytics before deletion
         user_plan = user_data.get('plan', 'unknown')
         user_created = user_data.get('created', 'unknown')
         
+        # Delete the user
         del self.users[username]
         
+        # Update analytics
         if 'deleted_users' not in self.analytics:
             self.analytics['deleted_users'] = []
         
@@ -1543,9 +1544,9 @@ class UserManager:
         
         return inactive_users
 
-    # NEW FUNCTION: Bulk delete inactive users
+    # NEW FUNCTION: Bulk delete inactive users - FIXED VERSION
     def bulk_delete_inactive_users(self, usernames):
-        """Bulk delete specified users"""
+        """Bulk delete specified users - FIXED VERSION"""
         success_count = 0
         error_count = 0
         errors = []
@@ -1561,17 +1562,12 @@ class UserManager:
                 error_count += 1
                 continue
                 
-            # Check if user has active sessions
-            if self.users[username].get('active_sessions', 0) > 0:
-                errors.append(f"User has active sessions: {username}")
-                error_count += 1
-                continue
-                
-            # Delete the user
+            # Store user info before deletion
             user_data = self.users[username]
             user_plan = user_data.get('plan', 'unknown')
             user_created = user_data.get('created', 'unknown')
             
+            # Delete the user
             del self.users[username]
             
             # Update analytics
@@ -1640,10 +1636,10 @@ class UserManager:
 user_manager = UserManager()
 
 # -------------------------
-# FIXED: DELETE USER CONFIRMATION DIALOG
+# FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION
 # -------------------------
 def render_delete_user_confirmation():
-    """Render the delete user confirmation dialog"""
+    """Render the delete user confirmation dialog - FIXED VERSION"""
     if not st.session_state.show_delete_confirmation or not st.session_state.user_to_delete:
         return
     
@@ -1675,7 +1671,7 @@ def render_delete_user_confirmation():
     col1, col2, col3 = st.columns([1, 1, 2])
     
     with col1:
-        if st.button("✅ Confirm Delete", use_container_width=True, type="primary"):
+        if st.button("✅ Confirm Delete", use_container_width=True, type="primary", key="confirm_delete_user"):
             success, message = user_manager.delete_user(username)
             if success:
                 st.success(message)
@@ -1688,7 +1684,7 @@ def render_delete_user_confirmation():
                 st.error(message)
     
     with col2:
-        if st.button("❌ Cancel", use_container_width=True):
+        if st.button("❌ Cancel", use_container_width=True, key="cancel_delete_user"):
             st.session_state.show_delete_confirmation = False
             st.session_state.user_to_delete = None
             st.rerun()
@@ -1697,10 +1693,10 @@ def render_delete_user_confirmation():
         st.write("")  # Spacer
 
 # -------------------------
-# FIXED: BULK DELETE INACTIVE USERS INTERFACE
+# FIXED: BULK DELETE INACTIVE USERS INTERFACE - WORKING VERSION
 # -------------------------
 def render_bulk_delete_inactive():
-    """Render the bulk delete inactive users interface"""
+    """Render the bulk delete inactive users interface - FIXED VERSION"""
     st.subheader("🗑️ Bulk Delete Inactive Users")
     
     # Configuration
@@ -1729,7 +1725,7 @@ def render_bulk_delete_inactive():
     
     if not inactive_users:
         st.success("✅ No inactive users found matching your criteria!")
-        if st.button("🔙 Back to User Management", use_container_width=True):
+        if st.button("🔙 Back to User Management", use_container_width=True, key="back_from_no_inactive"):
             st.session_state.show_bulk_delete = False
             st.rerun()
         return
@@ -1767,13 +1763,14 @@ def render_bulk_delete_inactive():
     confirm_text = st.text_input(
         "Type 'DELETE INACTIVE USERS' to confirm:",
         placeholder="Enter confirmation text...",
-        help="This is a safety measure to prevent accidental mass deletion"
+        help="This is a safety measure to prevent accidental mass deletion",
+        key="bulk_delete_confirmation_text"
     )
     
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
-        if st.button("✅ CONFIRM DELETE", use_container_width=True, type="primary"):
+        if st.button("✅ CONFIRM DELETE", use_container_width=True, type="primary", key="confirm_bulk_delete"):
             if confirm_text == "DELETE INACTIVE USERS":
                 with st.spinner(f"Deleting {len(inactive_users)} inactive users..."):
                     success_count, error_count, errors = user_manager.bulk_delete_inactive_users(inactive_users)
@@ -1794,19 +1791,19 @@ def render_bulk_delete_inactive():
                 st.error("❌ Confirmation text does not match. Please type 'DELETE INACTIVE USERS' exactly.")
     
     with col2:
-        if st.button("🔄 REFRESH LIST", use_container_width=True):
+        if st.button("🔄 REFRESH LIST", use_container_width=True, key="refresh_inactive_list"):
             st.rerun()
     
     with col3:
-        if st.button("🔙 CANCEL", use_container_width=True):
+        if st.button("🔙 CANCEL", use_container_width=True, key="cancel_bulk_delete"):
             st.session_state.show_bulk_delete = False
             st.rerun()
 
 # -------------------------
-# FIXED: MANAGE USER PLAN INTERFACE - COMPLETELY REWRITTEN
+# FIXED: MANAGE USER PLAN INTERFACE - WORKING VERSION
 # -------------------------
 def render_manage_user_plan():
-    """Render the manage user plan interface - FIXED VERSION"""
+    """Render the manage user plan interface - FIXED WORKING VERSION"""
     if not st.session_state.manage_user_plan:
         return
     
@@ -1828,14 +1825,14 @@ def render_manage_user_plan():
         with col1:
             # User information (read-only)
             st.write("**User Information:**")
-            st.text_input("Name", value=user_data.get('name', ''), disabled=True)
-            st.text_input("Email", value=user_data.get('email', ''), disabled=True)
-            st.text_input("Created", value=user_data.get('created', '')[:10], disabled=True)
+            st.text_input("Name", value=user_data.get('name', ''), disabled=True, key=f"name_{username}")
+            st.text_input("Email", value=user_data.get('email', ''), disabled=True, key=f"email_{username}")
+            st.text_input("Created", value=user_data.get('created', '')[:10], disabled=True, key=f"created_{username}")
             
             # Email verification status
             email_verified = user_data.get('email_verified', False)
             verification_status = "✅ Verified" if email_verified else "❌ Unverified"
-            st.text_input("Email Status", value=verification_status, disabled=True)
+            st.text_input("Email Status", value=verification_status, disabled=True, key=f"email_status_{username}")
         
         with col2:
             # Plan management
@@ -1920,7 +1917,7 @@ def render_manage_user_plan():
         # Email verification form
         with st.form(f"verify_email_{username}"):
             if not email_verified:
-                if st.form_submit_button("✅ Verify Email", use_container_width=True):
+                if st.form_submit_button("✅ Verify Email", use_container_width=True, key=f"verify_email_btn_{username}"):
                     success, message = user_manager.verify_user_email(username, st.session_state.user['username'], "Manually verified by admin")
                     if success:
                         st.success(message)
@@ -1929,7 +1926,7 @@ def render_manage_user_plan():
                     else:
                         st.error(message)
             else:
-                if st.form_submit_button("❌ Revoke Verification", use_container_width=True):
+                if st.form_submit_button("❌ Revoke Verification", use_container_width=True, key=f"revoke_email_btn_{username}"):
                     success, message = user_manager.revoke_email_verification(username, st.session_state.user['username'], "Revoked by admin")
                     if success:
                         st.success(message)
@@ -1941,7 +1938,7 @@ def render_manage_user_plan():
     with col_v2:
         # Password reset form
         with st.form(f"reset_password_{username}"):
-            if st.form_submit_button("🔑 Reset Password", use_container_width=True):
+            if st.form_submit_button("🔑 Reset Password", use_container_width=True, key=f"reset_password_btn_{username}"):
                 new_password = f"TempPass{int(time.time()) % 10000}"
                 success, message = user_manager.change_user_password(username, new_password, st.session_state.user['username'])
                 if success:
@@ -2095,10 +2092,10 @@ def render_verification_analytics_tab(stats):
     with col2:
         st.write("**Verification Actions:**")
         
-        if st.button("🔄 Refresh Analytics", use_container_width=True):
+        if st.button("🔄 Refresh Analytics", use_container_width=True, key="refresh_verification_analytics"):
             st.rerun()
         
-        if st.button("📧 Bulk Verify All", use_container_width=True):
+        if st.button("📧 Bulk Verify All", use_container_width=True, key="bulk_verify_all"):
             pending_users = stats["pending_verification"]
             if pending_users:
                 success_count = 0
@@ -2117,7 +2114,7 @@ def render_verification_analytics_tab(stats):
             else:
                 st.info("No pending users to verify.")
         
-        if st.button("📊 Export Report", use_container_width=True):
+        if st.button("📊 Export Report", use_container_width=True, key="export_verification_report"):
             # Create verification report
             report_data = []
             for username, user_data in user_manager.users.items():
@@ -2143,7 +2140,8 @@ def render_verification_analytics_tab(stats):
                 data=csv_bytes,
                 file_name=f"email_verification_report_{datetime.now().strftime('%Y%m%d')}.csv",
                 mime="text/csv",
-                use_container_width=True
+                use_container_width=True,
+                key="download_verification_report"
             )
 
 # -------------------------
@@ -2168,7 +2166,8 @@ def render_signals_password_management():
                 "Current Signals Room Password:",
                 type="password",
                 placeholder="Enter current password",
-                help="The current password that users are using"
+                help="The current password that users are using",
+                key="current_signals_password"
             )
         
         with col2:
@@ -2176,7 +2175,8 @@ def render_signals_password_management():
                 "New Signals Room Password:",
                 type="password",
                 placeholder="Enter new password",
-                help="The new password that will be required"
+                help="The new password that will be required",
+                key="new_signals_password"
             )
         
         # Display current password (masked)
@@ -2256,7 +2256,8 @@ def render_signals_room_password_gate():
             "🔑 Enter Signals Room Password:",
             type="password",
             placeholder="Enter password to access trading signals...",
-            value=st.session_state.signals_password_input
+            value=st.session_state.signals_password_input,
+            key="signals_room_password_input"
         )
         
         submitted = st.form_submit_button("🚀 Access Trading Signals Room", use_container_width=True)
@@ -2759,9 +2760,9 @@ def render_login():
             
             col1, col2 = st.columns(2)
             with col1:
-                username = st.text_input("Username", placeholder="Enter your username")
+                username = st.text_input("Username", placeholder="Enter your username", key="login_username")
             with col2:
-                password = st.text_input("Password", type="password", placeholder="Enter your password")
+                password = st.text_input("Password", type="password", placeholder="Enter your password", key="login_password")
             
             submitted = st.form_submit_button("🔐 Secure Login", use_container_width=True)
             
@@ -2791,18 +2792,19 @@ def render_login():
             
             col1, col2 = st.columns(2)
             with col1:
-                new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only")
-                new_name = st.text_input("Full Name*")
+                new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only", key="register_username")
+                new_name = st.text_input("Full Name*", key="register_name")
                 plan_choice = st.selectbox(
                     "Subscription Plan*", 
                     list(Config.PLANS.keys()),
-                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month"
+                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month",
+                    key="register_plan"
                 )
             
             with col2:
-                new_email = st.text_input("Email Address*")
-                new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters")
-                confirm_password = st.text_input("Confirm Password*", type="password")
+                new_email = st.text_input("Email Address*", key="register_email")
+                new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters", key="register_password")
+                confirm_password = st.text_input("Confirm Password*", type="password", key="register_confirm_password")
             
             st.markdown("**Required fields marked with ***")
             
@@ -2817,7 +2819,7 @@ def render_login():
                     if plan_choice == "trial":
                         st.info("🎁 Free trial - no payment required")
             
-            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*")
+            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="register_agree")
             
             submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
             
@@ -2896,21 +2898,24 @@ def render_image_uploader():
         "Choose trading analysis images to upload", 
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'], 
         accept_multiple_files=True,
-        help="Select one or more trading charts or analysis images"
+        help="Select one or more trading charts or analysis images",
+        key="gallery_uploader"
     )
     
     # Image description
     image_description = st.text_area(
         "Image Description (Optional):",
         placeholder="Describe what this image shows - e.g., 'BTC/USD 4H chart with RSI divergence', 'ETH breakout analysis', etc.",
-        height=100
+        height=100,
+        key="gallery_description"
     )
     
     # Strategy tagging
     strategy_tags = st.multiselect(
         "Related Strategies (Optional):",
         list(STRATEGIES.keys()),
-        help="Tag relevant trading strategies"
+        help="Tag relevant trading strategies",
+        key="gallery_strategy_tags"
     )
     
     # Upload button
@@ -3644,11 +3649,14 @@ def render_user_password_change():
     
     with st.form("user_password_change_form"):
         current_password = st.text_input("Current Password", type="password", 
-                                        placeholder="Enter your current password")
+                                        placeholder="Enter your current password",
+                                        key="user_current_password")
         new_password = st.text_input("New Password", type="password", 
-                                    placeholder="Enter new password (min 8 characters)")
+                                    placeholder="Enter new password (min 8 characters)",
+                                    key="user_new_password")
         confirm_password = st.text_input("Confirm New Password", type="password", 
-                                        placeholder="Confirm new password")
+                                        placeholder="Confirm new password",
+                                        key="user_confirm_password")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -4744,9 +4752,9 @@ def render_admin_management_dashboard():
     
     st.markdown("---")
     
-    # NEW: Check for modals that should be displayed
-    if st.session_state.show_signals_password_change:
-        render_signals_password_management()
+    # FIXED: Check for modals in the correct order - DELETE CONFIRMATION FIRST
+    if st.session_state.show_delete_confirmation:
+        render_delete_user_confirmation()
         return
     
     if st.session_state.show_bulk_delete:
@@ -4757,9 +4765,8 @@ def render_admin_management_dashboard():
         render_manage_user_plan()
         return
     
-    # Check for delete user confirmation
-    if st.session_state.show_delete_confirmation:
-        render_delete_user_confirmation()
+    if st.session_state.show_signals_password_change:
+        render_signals_password_management()
         return
     
     # Current view based on admin_view state
@@ -4889,10 +4896,10 @@ def render_admin_analytics():
         st.info("No registration data available")
 
 def render_admin_user_management():
-    """Complete user management interface"""
+    """Complete user management interface - FIXED VERSION"""
     st.subheader("👥 User Management")
     
-    # User actions
+    # User actions - FIXED: Proper bulk delete trigger
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh_btn"):
@@ -4914,6 +4921,7 @@ def render_admin_user_management():
                 st.error(msg)
             st.rerun()
     with col5:
+        # FIXED: This button now properly triggers bulk delete
         if st.button("🗑️ Bulk Delete Inactive", use_container_width=True, key="um_bulk_btn"):
             st.session_state.show_bulk_delete = True
             st.rerun()
@@ -5006,7 +5014,8 @@ def render_admin_user_management():
             
             with col7:
                 if username != "admin":
-                    if st.button("⚙️", key=f"manage_{username}", help="Manage Plan"):
+                    # FIXED: This button now properly triggers user management
+                    if st.button("⚙️", key=f"manage_{username}", help="Manage User"):
                         st.session_state.manage_user_plan = username
                         st.session_state.show_manage_user_plan = True
                         st.rerun()
@@ -5026,11 +5035,14 @@ def render_admin_password_change():
     
     with st.form("admin_password_change_form"):
         current_password = st.text_input("Current Password", type="password", 
-                                        placeholder="Enter current admin password")
+                                        placeholder="Enter current admin password",
+                                        key="admin_current_password")
         new_password = st.text_input("New Password", type="password", 
-                                    placeholder="Enter new password (min 8 characters)")
+                                    placeholder="Enter new password (min 8 characters)",
+                                    key="admin_new_password")
         confirm_password = st.text_input("Confirm New Password", type="password", 
-                                        placeholder="Confirm new password")
+                                        placeholder="Confirm new password",
+                                        key="admin_confirm_password")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -5081,18 +5093,19 @@ def render_user_credentials_display():
                     data=csv_bytes,
                     file_name=f"user_credentials_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                     mime="text/csv",
-                    use_container_width=True
+                    use_container_width=True,
+                    key="export_user_credentials"
                 )
             else:
                 st.error(f"Error exporting: {error}")
         
         with col2:
-            if st.button("❌ Close", use_container_width=True):
+            if st.button("❌ Close", use_container_width=True, key="close_user_credentials"):
                 st.session_state.show_user_credentials = False
                 st.rerun()
     else:
         st.info("No user data available")
-        if st.button("❌ Close", use_container_width=True):
+        if st.button("❌ Close", use_container_width=True, key="close_no_user_credentials"):
             st.session_state.show_user_credentials = False
             st.rerun()
 
