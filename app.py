@@ -3920,7 +3920,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
         st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"buy_bundle_{selected_strategy}",
-                 help="Purchase Pine code for TradingView")
+                 help="Purchase to use in TradingView")
     
     # Quick analysis form
     with st.form(f"quick_analysis_{selected_strategy}"):
@@ -3987,7 +3987,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"buy_bundle_notes_{selected_strategy}",
-                 help="Purchase Pine code for TradingView")
+                 help="Purchase to use in TradingView")
     with col4:
         if st.button("⬅️ Back to Dashboard", use_container_width=True, key="admin_back_dashboard_btn"):
             st.session_state.dashboard_view = 'main'
@@ -4362,7 +4362,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"user_buy_bundle_{selected_strategy}",
-                 help="Purchase Pine code for TradingView")
+                 help="Purchase to use in TradingView")
     
     # Display existing analysis - NO EDITING CAPABILITY
     strategy_data = st.session_state.strategy_analyses_data
@@ -4423,7 +4423,7 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
         st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"user_buy_bundle_notes_{selected_strategy}",
-                 help="Purchase Pine code for TradingView")
+                 help="Purchase to use in TradingView")
     with col3:
         st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
     with col4:
