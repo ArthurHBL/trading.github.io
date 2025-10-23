@@ -3917,7 +3917,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
     with col_header1:
         st.subheader(f"🔍 {selected_strategy} Analysis")
     with col_header2:
-        st.button("🟢 BUY Indicator Bundle", 
+        st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"buy_bundle_{selected_strategy}",
                  help="Purchase Pine code for TradingView")
@@ -3984,7 +3984,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
     with col2:
         st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
     with col3:
-        st.button("🟢 BUY Indicator Bundle", 
+        st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"buy_bundle_notes_{selected_strategy}",
                  help="Purchase Pine code for TradingView")
@@ -4359,7 +4359,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     with col_header1:
         st.subheader(f"🔍 {selected_strategy} Analysis")
     with col_header2:
-        st.button("🟢 BUY Indicator Bundle", 
+        st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"user_buy_bundle_{selected_strategy}",
                  help="Purchase Pine code for TradingView")
@@ -4420,7 +4420,7 @@ def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analy
     with col1:
         st.subheader(f"Day {cycle_day} - {selected_strategy}")
     with col2:
-        st.button("🟢 BUY Indicator Bundle", 
+        st.button("🟢 BUY Strategy", 
                  use_container_width=True, 
                  key=f"user_buy_bundle_notes_{selected_strategy}",
                  help="Purchase Pine code for TradingView")
