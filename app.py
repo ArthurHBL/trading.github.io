@@ -3815,11 +3815,20 @@ def render_premium_signal_dashboard():
         st.markdown("---")
         
         # Strategy selection - MOVED TO SECOND SECTION (right after 5-day cycle)
-        selected_strategy = st.selectbox(
-            "Choose Strategy to Edit:", 
-            daily_strategies,
-            key="premium_strategy_selector"
-        )
+        # CHANGED: Replace dropdown with clickable buttons
+        st.subheader("🎯 Choose Strategy to Edit:")
+        selected_strategy = st.session_state.get('selected_strategy', daily_strategies[0])
+        
+        # Create clickable buttons for each strategy
+        for strategy in daily_strategies:
+            if st.button(
+                f"📊 {strategy}", 
+                use_container_width=True,
+                type="primary" if strategy == selected_strategy else "secondary",
+                key=f"premium_strategy_{strategy}"
+            ):
+                st.session_state.selected_strategy = strategy
+                st.rerun()
         
         st.markdown("---")
         
@@ -4230,11 +4239,20 @@ def render_user_dashboard():
         st.markdown("---")
         
         # Strategy selection - READ ONLY - MOVED TO SECOND SECTION (right after 5-day cycle)
-        selected_strategy = st.selectbox(
-            "Choose Strategy to View:", 
-            daily_strategies,
-            key="user_strategy_selector"
-        )
+        # CHANGED: Replace dropdown with clickable buttons
+        st.subheader("🎯 Choose Strategy to View:")
+        selected_strategy = st.session_state.get('selected_strategy', daily_strategies[0])
+        
+        # Create clickable buttons for each strategy
+        for strategy in daily_strategies:
+            if st.button(
+                f"📊 {strategy}", 
+                use_container_width=True,
+                type="primary" if strategy == selected_strategy else "secondary",
+                key=f"user_strategy_{strategy}"
+            ):
+                st.session_state.selected_strategy = strategy
+                st.rerun()
         
         st.markdown("---")
         
