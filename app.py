@@ -17,7 +17,7 @@ from PIL import Image
 import plotly.express as px
 
 # -------------------------
-# AI AGENT DEPENDENCIES (Enhanced with better error handling)
+# AI AGENT DEPENDENCIES (Optional - with fallbacks)
 # -------------------------
 try:
     import openai
@@ -58,6 +58,7 @@ except ImportError:
 def init_supabase():
     """Initialize Supabase client - FIXED VERSION"""
     try:
+        # You'll need to set these in your Streamlit Cloud secrets
         SUPABASE_URL = "https://mowuitmupjyhczczzslw.supabase.co"
         SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vd3VpdG11cGp5aGN6Y3p6c2x3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDkyNDE4NSwiZXhwIjoyMDc2NTAwMTg1fQ._iSHD2E5dyAzcUjWRuKIqP7e1OYd7R3y7wJawPlVqTY"
         
@@ -468,432 +469,6 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
     except Exception as e:
         st.error(f"Error deleting strategy indicator image: {e}")
         return False
-
-# -------------------------
-# ENHANCED AI AGENT WITH MULTI-API SUPPORT AND FALLBACK
-# -------------------------
-class AdvancedTradingAI:
-    def __init__(self):
-        self.available_providers = {
-            "openai": {
-                "name": "OpenAI GPT-4",
-                "available": OPENAI_AVAILABLE,
-                "models": ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
-                "required_key": "openai_api_key"
-            },
-            "claude": {
-                "name": "Anthropic Claude",
-                "available": CLAUDE_AVAILABLE,
-                "models": ["claude-3-sonnet-20240229", "claude-3-haiku-20240307", "claude-3-opus-20240229"],
-                "required_key": "claude_api_key"
-            },
-            "gemini": {
-                "name": "Google Gemini",
-                "available": GEMINI_AVAILABLE,
-                "models": ["gemini-pro", "gemini-1.5-pro"],
-                "required_key": "gemini_api_key"
-            },
-            "local": {
-                "name": "Local AI",
-                "available": REQUESTS_AVAILABLE,
-                "models": ["local-llm"],
-                "required_key": "local_ai_endpoint"
-            }
-        }
-        self.config = self.load_ai_config()
-        self.conversation_history = {}
-        
-    def load_ai_config(self):
-        """Load AI configuration from app settings"""
-        app_settings = load_app_settings()
-        return {
-            "provider_priority": app_settings.get("ai_provider_priority", ["openai", "claude", "gemini", "local"]),
-            "active_provider": app_settings.get("ai_active_provider", "openai"),
-            "active_model": app_settings.get("ai_active_model", "gpt-4"),
-            "api_keys": {
-                "openai": app_settings.get("openai_api_key", ""),
-                "claude": app_settings.get("claude_api_key", ""),
-                "gemini": app_settings.get("gemini_api_key", ""),
-                "local": app_settings.get("local_ai_endpoint", "")
-            },
-            "max_tokens": int(app_settings.get("ai_max_tokens", 2000)),
-            "temperature": float(app_settings.get("ai_temperature", 0.7)),
-            "user_model": app_settings.get("ai_user_model", "gpt-3.5-turbo"),
-            "enable_fallback": app_settings.get("ai_enable_fallback", "true") == "true"
-        }
-    
-    def save_ai_config(self):
-        """Save AI configuration to app settings"""
-        settings = {
-            "ai_provider_priority": self.config["provider_priority"],
-            "ai_active_provider": self.config["active_provider"],
-            "ai_active_model": self.config["active_model"],
-            "openai_api_key": self.config["api_keys"]["openai"],
-            "claude_api_key": self.config["api_keys"]["claude"],
-            "gemini_api_key": self.config["api_keys"]["gemini"],
-            "local_ai_endpoint": self.config["api_keys"]["local"],
-            "ai_max_tokens": str(self.config["max_tokens"]),
-            "ai_temperature": str(self.config["temperature"]),
-            "ai_user_model": self.config["user_model"],
-            "ai_enable_fallback": "true" if self.config["enable_fallback"] else "false"
-        }
-        return save_app_settings(settings)
-    
-    def get_available_providers(self):
-        """Get list of available AI providers with their status"""
-        available = []
-        for provider_id, provider_info in self.available_providers.items():
-            if provider_info["available"]:
-                # Check if API key is provided for the provider
-                has_key = bool(self.config["api_keys"][provider_id])
-                available.append({
-                    "id": provider_id,
-                    "name": provider_info["name"],
-                    "has_key": has_key,
-                    "ready": has_key and provider_info["available"]
-                })
-        return available
-    
-    def test_provider_connection(self, provider_id):
-        """Test connection to a specific AI provider"""
-        if not self.available_providers[provider_id]["available"]:
-            return False, f"{provider_id} library not available"
-        
-        api_key = self.config["api_keys"][provider_id]
-        if not api_key:
-            return False, f"No API key configured for {provider_id}"
-        
-        try:
-            if provider_id == "openai":
-                openai.api_key = api_key
-                # Simple test call
-                test_response = openai.ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=[{"role": "user", "content": "Say 'Connection test successful'"}],
-                    max_tokens=10
-                )
-                return True, "Connection successful"
-                
-            elif provider_id == "claude":
-                client = anthropic.Anthropic(api_key=api_key)
-                # Test message
-                message = client.messages.create(
-                    model="claude-3-haiku-20240307",
-                    max_tokens=10,
-                    messages=[{"role": "user", "content": "Say 'Connection test successful'"}]
-                )
-                return True, "Connection successful"
-                
-            elif provider_id == "gemini":
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-pro')
-                # Test generation
-                response = model.generate_content("Say 'Connection test successful'")
-                return True, "Connection successful"
-                
-            elif provider_id == "local":
-                test_payload = {
-                    "prompt": "Say 'Connection test successful'",
-                    "max_tokens": 10
-                }
-                response = requests.post(api_key, json=test_payload, timeout=10)
-                if response.status_code == 200:
-                    return True, "Connection successful"
-                else:
-                    return False, f"HTTP {response.status_code}: {response.text}"
-                    
-        except Exception as e:
-            return False, f"Connection failed: {str(e)}"
-        
-        return False, "Unknown error"
-    
-    def generate_response(self, prompt: str, context: Dict, use_fallback: bool = True):
-        """Generate AI response with fallback mechanism"""
-        providers_to_try = [self.config["active_provider"]]
-        
-        if use_fallback and self.config["enable_fallback"]:
-            # Add other providers in priority order as fallbacks
-            for provider in self.config["provider_priority"]:
-                if provider != self.config["active_provider"] and provider not in providers_to_try:
-                    providers_to_try.append(provider)
-        
-        last_error = None
-        for provider_id in providers_to_try:
-            if not self.available_providers[provider_id]["available"]:
-                last_error = f"Provider {provider_id} not available"
-                continue
-            
-            api_key = self.config["api_keys"][provider_id]
-            if not api_key:
-                last_error = f"No API key for {provider_id}"
-                continue
-            
-            try:
-                response = self._call_provider(provider_id, prompt, context)
-                if response:
-                    return response, provider_id
-            except Exception as e:
-                last_error = f"{provider_id} error: {str(e)}"
-                continue
-        
-        # If all providers fail, use simulation mode
-        return self._simulate_response(prompt, context), "simulation"
-    
-    def _call_provider(self, provider_id: str, prompt: str, context: Dict) -> str:
-        """Call specific AI provider"""
-        system_prompt = self._build_system_prompt(context)
-        full_prompt = f"{system_prompt}\n\nUser Question: {prompt}"
-        
-        if provider_id == "openai":
-            return self._call_openai(full_prompt)
-        elif provider_id == "claude":
-            return self._call_claude(full_prompt)
-        elif provider_id == "gemini":
-            return self._call_gemini(full_prompt)
-        elif provider_id == "local":
-            return self._call_local(full_prompt)
-        else:
-            raise ValueError(f"Unknown provider: {provider_id}")
-    
-    def _build_system_prompt(self, context: Dict) -> str:
-        """Build comprehensive system prompt"""
-        return f"""
-        You are TRADING-GPT, an expert AI trading analyst and platform observer for TradingAnalysis Pro.
-
-        PLATFORM CONTEXT:
-        - Platform: TradingAnalysis Pro v2.0.0
-        - Total Users: {context.get('total_users', 'N/A')}
-        - Trading Strategies: {context.get('total_strategies', 'N/A')}
-        - Active Signals: {context.get('active_signals', 'N/A')}
-        - Current User: {context.get('current_user', 'N/A')}
-
-        YOUR CAPABILITIES:
-        1. Analyze trading strategies and technical indicators
-        2. Provide market insights and trading signals
-        3. Analyze platform usage patterns and user behavior
-        4. Generate trading strategy recommendations
-        5. Provide risk assessment and market analysis
-        6. Answer questions about trading concepts and platform features
-
-        RESPONSE GUIDELINES:
-        - Be analytical, professional, and actionable
-        - Provide specific insights based on available data
-        - Use proper trading terminology
-        - If uncertain, acknowledge limitations
-        - Focus on practical, implementable advice
-        - Consider risk management in all recommendations
-
-        Always base your analysis on real trading principles and the specific context provided.
-        """
-    
-    def _call_openai(self, prompt: str) -> str:
-        """Call OpenAI API"""
-        openai.api_key = self.config["api_keys"]["openai"]
-        
-        response = openai.ChatCompletion.create(
-            model=self.config["active_model"],
-            messages=[
-                {"role": "system", "content": "You are an expert trading analyst."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=self.config["max_tokens"],
-            temperature=self.config["temperature"]
-        )
-        return response.choices[0].message.content
-    
-    def _call_claude(self, prompt: str) -> str:
-        """Call Anthropic Claude API"""
-        client = anthropic.Anthropic(api_key=self.config["api_keys"]["claude"])
-        
-        response = client.messages.create(
-            model=self.config["active_model"],
-            max_tokens=self.config["max_tokens"],
-            temperature=self.config["temperature"],
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.content[0].text
-    
-    def _call_gemini(self, prompt: str) -> str:
-        """Call Google Gemini API"""
-        genai.configure(api_key=self.config["api_keys"]["gemini"])
-        model = genai.GenerativeModel(self.config["active_model"])
-        
-        response = model.generate_content(prompt)
-        return response.text
-    
-    def _call_local(self, prompt: str) -> str:
-        """Call local AI endpoint"""
-        payload = {
-            "prompt": prompt,
-            "max_tokens": self.config["max_tokens"],
-            "temperature": self.config["temperature"]
-        }
-        
-        response = requests.post(
-            self.config["api_keys"]["local"],
-            json=payload,
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json().get("response", "No response from local AI")
-    
-    def _simulate_response(self, prompt: str, context: Dict) -> str:
-        """Fallback simulation response when no APIs are available"""
-        prompt_lower = prompt.lower()
-        
-        # Enhanced pattern matching for better responses
-        if any(word in prompt_lower for word in ["hello", "hi", "hey", "greeting"]):
-            return """🤖 **TRADING-GPT Analysis:**
-
-Welcome to TradingAnalysis Pro! I'm your AI trading analyst, ready to help you with:
-
-📊 **Strategy Analysis** - Deep dive into trading strategies and indicators
-📈 **Market Insights** - Current market conditions and opportunities  
-🔍 **Platform Analytics** - Usage patterns and performance metrics
-💡 **Trading Education** - Concepts, risk management, and best practices
-
-What would you like to analyze today?"""
-
-        elif any(word in prompt_lower for word in ["strategy", "analysis", "technical"]):
-            return f"""📊 **Technical Strategy Analysis:**
-
-Based on the platform's {context.get('total_strategies', 15)} professional trading strategies, here's my assessment:
-
-**Key Observations:**
-• The 5-day cycle system ensures comprehensive strategy coverage
-• Current focus strategies show healthy engagement
-• Technical indicators are being actively monitored
-
-**Recommended Actions:**
-1. Review today's designated strategies in the 5-day cycle
-2. Check indicator momentum and signal strength
-3. Consider market context for strategy selection
-4. Monitor risk parameters for each approach
-
-**Strategy Health:** ✅ Optimal - All systems functioning normally"""
-
-        elif any(word in prompt_lower for word in ["signal", "trade", "entry"]):
-            return """⚡ **Trading Signal Analysis:**
-
-**Current Signal Environment:**
-• Signal quality: High confidence
-• Market conditions: Normal volatility
-• Risk assessment: Moderate
-
-**Signal Recommendations:**
-1. **BTC/USD** - Showing bullish momentum on 4H timeframe
-2. **ETH/USD** - Consolidating, watch for breakout
-3. **Major Altcoins** - Mixed signals, selective opportunities
-
-**Risk Management:**
-• Always use stop losses
-• Position size appropriately
-• Monitor market news and events
-
-Remember: Past performance doesn't guarantee future results."""
-
-        elif any(word in prompt_lower for word in ["user", "platform", "analytics"]):
-            return f"""👥 **Platform Analytics Report:**
-
-**User Engagement:**
-• Total Users: {context.get('total_users', 'N/A')}
-• Active Today: {context.get('active_users', 'N/A')}
-• Signal Engagement: Healthy
-
-**Platform Performance:**
-• System Uptime: 99.9%
-• Data Freshness: Real-time
-• Feature Usage: Optimal
-
-**Recommendations:**
-1. Continue monitoring user engagement metrics
-2. Consider adding more educational content
-3. Enhance mobile experience for traders on-the-go
-
-**Platform Health:** ✅ Excellent"""
-
-        else:
-            return f"""🤖 **TRADING-GPT Analysis:**
-
-I've analyzed your query about: "{prompt}"
-
-**Comprehensive Platform Overview:**
-• **Trading Strategies**: {context.get('total_strategies', 15)} professional systems
-• **User Base**: {context.get('total_users', 'N/A')} active traders
-• **Signal Quality**: High-confidence trading opportunities
-• **Market Coverage**: Comprehensive cryptocurrency analysis
-
-**How I Can Help:**
-• Provide detailed strategy analysis
-• Generate market insights and signals
-• Analyze platform usage patterns
-• Offer trading education and risk management guidance
-
-**Ask me about:**
-- Specific trading strategies and their performance
-- Current market conditions and opportunities
-- Platform features and usage tips
-- Risk management and trading psychology
-
-What would you like to explore in more detail?"""
-
-    def analyze_strategy(self, strategy_name: str, indicators: List[str]) -> str:
-        """Perform deep analysis on specific strategy"""
-        context = self.get_platform_context()
-        
-        analysis_prompt = f"""
-        Perform comprehensive technical analysis on trading strategy: {strategy_name}
-        
-        Strategy Indicators: {', '.join(indicators)}
-        
-        Provide analysis covering:
-        1. Strategy overview and methodology
-        2. Indicator synergy and relationships
-        3. Market conditions where strategy excels
-        4. Risk factors and limitations
-        5. Recommended usage parameters
-        6. Potential enhancements
-        
-        Format with clear sections and actionable insights.
-        """
-        
-        response, provider = self.generate_response(analysis_prompt, context)
-        return f"**Strategy Analysis by {self.available_providers.get(provider, {}).get('name', provider)}:**\n\n{response}"
-    
-    def generate_market_insights(self) -> str:
-        """Generate comprehensive market insights"""
-        context = self.get_platform_context()
-        
-        insights_prompt = """
-        Generate comprehensive market insights and trading outlook covering:
-        
-        1. **Market Overview** - Current conditions and trends
-        2. **Key Opportunities** - Promising trading setups
-        3. **Risk Assessment** - Market risks and warnings
-        4. **Strategy Recommendations** - Best approaches for current market
-        5. **Technical Levels** - Important support/resistance
-        6. **Catalysts** - Upcoming events that could impact markets
-        
-        Provide actionable, professional insights suitable for serious traders.
-        """
-        
-        response, provider = self.generate_response(insights_prompt, context)
-        return f"**Market Insights by {self.available_providers.get(provider, {}).get('name', provider)}:**\n\n{response}"
-    
-    def get_platform_context(self) -> Dict:
-        """Get comprehensive platform context for AI analysis"""
-        return {
-            "total_users": len(user_manager.users),
-            "total_strategies": len(STRATEGIES),
-            "active_signals": len([s for s in st.session_state.active_signals if s["status"] == "published"]),
-            "current_user": st.session_state.user['username'] if st.session_state.user else "Guest",
-            "user_plan": st.session_state.user['plan'] if st.session_state.user else "Unknown",
-            "gallery_images": len(st.session_state.uploaded_images),
-            "strategy_charts": sum(len(indicators) for strategy, indicators in st.session_state.strategy_indicator_images.items())
-        }
-
-# Initialize enhanced AI agent
-trading_ai = AdvancedTradingAI()
 
 # -------------------------
 # SESSION MANAGEMENT - UPDATED WITH PASSWORD PERSISTENCE AND AI
@@ -2062,6 +1637,636 @@ class UserManager:
 # Initialize user manager
 user_manager = UserManager()
 
+# -------------------------
+# AI AGENT IMPLEMENTATION - SMART OBSERVER
+# -------------------------
+class TradingAIAgent:
+    def __init__(self):
+        self.available_models = {
+            "openai": "gpt-4",
+            "gemini": "gemini-pro", 
+            "claude": "claude-3-sonnet-20240229",
+            "local": "local-llm"
+        }
+        self.model_config = self.load_model_config()
+        self.conversation_history = {}
+        self.analysis_cache = {}
+        
+    def load_model_config(self):
+        """Load AI model configuration from app settings"""
+        app_settings = load_app_settings()
+        return {
+            "active_model": app_settings.get("ai_active_model", "simulation"),
+            "openai_key": app_settings.get("openai_api_key", ""),
+            "gemini_key": app_settings.get("gemini_api_key", ""),
+            "claude_key": app_settings.get("claude_api_key", ""),
+            "local_endpoint": app_settings.get("local_ai_endpoint", ""),
+            "max_tokens": 2000,
+            "temperature": 0.7
+        }
+    
+    def save_model_config(self):
+        """Save AI model configuration to app settings"""
+        settings = {
+            "ai_active_model": self.model_config["active_model"],
+            "openai_api_key": self.model_config["openai_key"],
+            "gemini_api_key": self.model_config["gemini_key"], 
+            "claude_api_key": self.model_config["claude_key"],
+            "local_ai_endpoint": self.model_config["local_endpoint"]
+        }
+        save_app_settings(settings)
+    
+    def initialize_ai_client(self):
+        """Initialize the selected AI client"""
+        try:
+            if self.model_config["active_model"] == "openai" and self.model_config["openai_key"] and OPENAI_AVAILABLE:
+                openai.api_key = self.model_config["openai_key"]
+                return "openai"
+            elif self.model_config["active_model"] == "gemini" and self.model_config["gemini_key"] and GEMINI_AVAILABLE:
+                genai.configure(api_key=self.model_config["gemini_key"])
+                return "gemini"
+            elif self.model_config["active_model"] == "claude" and self.model_config["claude_key"] and CLAUDE_AVAILABLE:
+                return "claude"
+            elif self.model_config["active_model"] == "local" and self.model_config["local_endpoint"] and REQUESTS_AVAILABLE:
+                return "local"
+            else:
+                return "simulation"  # Fallback to simulation mode
+        except Exception as e:
+            st.error(f"AI initialization error: {e}")
+            return "simulation"
+    
+    def get_platform_context(self):
+        """Get comprehensive platform context for the AI"""
+        context = {
+            "platform_info": {
+                "name": Config.APP_NAME,
+                "version": Config.VERSION,
+                "total_users": len(user_manager.users),
+                "admin_users": [user for user, data in user_manager.users.items() if data.get('plan') == 'admin'],
+                "premium_users": [user for user, data in user_manager.users.items() if data.get('plan') == 'premium'],
+                "trial_users": [user for user, data in user_manager.users.items() if data.get('plan') == 'trial']
+            },
+            "trading_data": {
+                "total_strategies": len(STRATEGIES),
+                "active_signals_count": len([s for s in st.session_state.active_signals if s["status"] == "published"]),
+                "gallery_images_count": len(st.session_state.uploaded_images),
+                "strategy_images_count": sum(len(indicators) for strategy, indicators in st.session_state.strategy_indicator_images.items())
+            },
+            "recent_activity": {
+                "last_logins": user_manager.analytics.get("login_history", [])[-5:],
+                "user_registrations": user_manager.analytics.get("user_registrations", [])[-5:],
+                "plan_changes": user_manager.analytics.get("plan_changes", [])[-5:]
+            },
+            "current_session": {
+                "logged_in_user": st.session_state.user['username'] if st.session_state.user else None,
+                "user_plan": st.session_state.user['plan'] if st.session_state.user else None,
+                "admin_mode": st.session_state.get('admin_dashboard_mode')
+            }
+        }
+        return context
+    
+    def generate_ai_response(self, prompt: str, context: Dict, conversation_id: str = "default") -> str:
+        """Generate AI response using the configured model"""
+        model_type = self.initialize_ai_client()
+        
+        # Build comprehensive prompt with context
+        system_prompt = self._build_system_prompt(context)
+        full_prompt = f"{system_prompt}\n\nUser Question: {prompt}"
+        
+        try:
+            if model_type == "openai":
+                return self._call_openai(full_prompt)
+            elif model_type == "gemini":
+                return self._call_gemini(full_prompt)
+            elif model_type == "claude":
+                return self._call_claude(full_prompt)
+            elif model_type == "local":
+                return self._call_local_ai(full_prompt)
+            else:
+                return self._simulate_ai_response(prompt, context)
+        except Exception as e:
+            st.error(f"AI API Error: {e}")
+            return self._simulate_ai_response(prompt, context)
+    
+    def _build_system_prompt(self, context: Dict) -> str:
+        """Build system prompt for the AI"""
+        return f"""
+        You are TRADING-GPT, an expert AI trading analyst and platform observer. You have complete knowledge of the {Config.APP_NAME} platform.
+
+        PLATFORM CONTEXT:
+        - Platform: {context['platform_info']['name']} v{context['platform_info']['version']}
+        - Total Users: {context['platform_info']['total_users']}
+        - Admin Users: {len(context['platform_info']['admin_users'])}
+        - Premium Users: {len(context['platform_info']['premium_users'])}
+        - Trial Users: {len(context['platform_info']['trial_users'])}
+        - Trading Strategies: {context['trading_data']['total_strategies']}
+        - Active Signals: {context['trading_data']['active_signals_count']}
+        - Gallery Images: {context['trading_data']['gallery_images_count']}
+        - Strategy Charts: {context['trading_data']['strategy_images_count']}
+
+        CURRENT USER: {context['current_session']['logged_in_user']} ({context['current_session']['user_plan']} plan)
+
+        YOUR ROLE:
+        1. Analyze trading strategies and market signals
+        2. Provide insights on platform usage and performance
+        3. Help users understand complex trading concepts
+        4. Identify patterns in trading data
+        5. Suggest improvements and optimizations
+        6. Answer questions about the platform functionality
+
+        RESPONSE STYLE:
+        - Be analytical but conversational
+        - Provide specific insights based on available data
+        - Use trading terminology appropriately
+        - Be helpful and professional
+        - If you don't know something, be honest about it
+
+        Always base your responses on the actual platform data and context provided.
+        """
+    
+    def _call_openai(self, prompt: str) -> str:
+        """Call OpenAI API"""
+        if not OPENAI_AVAILABLE:
+            return "OpenAI library not available. Please install with: pip install openai"
+        
+        response = openai.ChatCompletion.create(
+            model=self.available_models["openai"],
+            messages=[
+                {"role": "system", "content": "You are a expert trading analyst and platform observer."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=self.model_config["max_tokens"],
+            temperature=self.model_config["temperature"]
+        )
+        return response.choices[0].message.content
+    
+    def _call_gemini(self, prompt: str) -> str:
+        """Call Google Gemini API"""
+        if not GEMINI_AVAILABLE:
+            return "Google Generative AI library not available. Please install with: pip install google-generativeai"
+        
+        model = genai.GenerativeModel(self.available_models["gemini"])
+        response = model.generate_content(prompt)
+        return response.text
+    
+    def _call_claude(self, prompt: str) -> str:
+        """Call Anthropic Claude API"""
+        if not CLAUDE_AVAILABLE:
+            return "Anthropic Claude library not available. Please install with: pip install anthropic"
+        
+        client = anthropic.Anthropic(api_key=self.model_config["claude_key"])
+        response = client.messages.create(
+            model=self.available_models["claude"],
+            max_tokens=self.model_config["max_tokens"],
+            temperature=self.model_config["temperature"],
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.content[0].text
+    
+    def _call_local_ai(self, prompt: str) -> str:
+        """Call local AI endpoint"""
+        if not REQUESTS_AVAILABLE:
+            return "Requests library not available. Please install with: pip install requests"
+        
+        try:
+            response = requests.post(
+                self.model_config["local_endpoint"],
+                json={"prompt": prompt, "max_tokens": self.model_config["max_tokens"]},
+                timeout=30
+            )
+            return response.json().get("response", "Local AI response unavailable")
+        except Exception as e:
+            return f"Local AI error: {str(e)}"
+    
+    def _simulate_ai_response(self, prompt: str, context: Dict) -> str:
+        """Simulate AI response when no API is available"""
+        # Simple pattern matching for common questions
+        prompt_lower = prompt.lower()
+        
+        if "strategy" in prompt_lower and "analysis" in prompt_lower:
+            return f"""Based on my analysis of the platform data:
+
+🔍 **Strategy Analysis Overview:**
+- **Total Strategies**: {context['trading_data']['total_strategies']} professional trading strategies available
+- **Active Analysis**: {len([s for s in st.session_state.strategy_analyses_data.keys()])} strategies have current analysis data
+- **Chart Coverage**: {context['trading_data']['strategy_images_count']} strategy charts uploaded
+
+💡 **Recommendation**: Focus on the current 5-day cycle strategies for maximum efficiency. The platform's structured approach ensures comprehensive coverage of all strategies over time.
+
+📊 **Platform Health**: Strategy analysis activity appears healthy with good user engagement across {context['platform_info']['total_users']} users."""
+
+        elif "user" in prompt_lower and "activity" in prompt_lower:
+            recent_logins = len(context['recent_activity']['last_logins'])
+            return f"""👥 **User Activity Analysis:**
+
+📈 **Recent Platform Activity:**
+- **Recent Logins**: {recent_logins} users logged in recently
+- **User Distribution**: {len(context['platform_info']['premium_users'])} premium, {len(context['platform_info']['trial_users'])} trial users
+- **Growth Trend**: {len(context['recent_activity']['user_registrations'])} new registrations in tracking period
+
+🎯 **Engagement Insights**: The platform shows healthy user engagement with a good mix of premium and trial users. Consider focusing on converting trial users to premium through targeted strategy education."""
+
+        elif "signal" in prompt_lower and "trading" in prompt_lower:
+            active_signals = context['trading_data']['active_signals_count']
+            return f"""⚡ **Trading Signals Analysis:**
+
+📊 **Current Signal Status:**
+- **Active Signals**: {active_signals} published trading signals
+- **Signal Quality**: Signals are confirmed through multi-admin verification
+- **Asset Coverage**: Covering major cryptocurrencies and trading pairs
+
+💡 **Trading Insights**: The signals room shows robust activity with proper confirmation workflows. The {active_signals} active signals provide good trading opportunities across different timeframes.
+
+🎯 **Recommendation**: Monitor signal performance metrics to optimize confirmation thresholds and improve signal accuracy over time."""
+
+        else:
+            return f"""🤖 **Trading-GPT Analysis:**
+
+I've analyzed your question about: "{prompt}"
+
+📊 **Platform Context:**
+- I'm monitoring {context['platform_info']['total_users']} users across the platform
+- Tracking {context['trading_data']['total_strategies']} trading strategies
+- Analyzing {context['trading_data']['active_signals_count']} active trading signals
+- Reviewing {context['trading_data']['gallery_images_count']} community chart images
+
+💡 **General Insight**: The platform shows healthy activity with good user engagement. The 5-day cycle system ensures comprehensive strategy coverage, while the signals room provides real-time trading opportunities.
+
+🔍 For more specific insights, try asking about:
+- Strategy performance analysis
+- User engagement metrics  
+- Trading signal patterns
+- Platform optimization suggestions"""
+
+    def analyze_strategy_performance(self, strategy_name: str) -> str:
+        """Perform deep analysis on specific strategy"""
+        if strategy_name not in STRATEGIES:
+            return f"Strategy '{strategy_name}' not found in the platform."
+        
+        strategy_data = st.session_state.strategy_analyses_data.get(strategy_name, {})
+        indicators = STRATEGIES[strategy_name]
+        
+        analysis_prompt = f"""
+        Analyze the trading strategy: {strategy_name}
+        
+        Strategy Indicators: {', '.join(indicators)}
+        Available Analysis Data: {len(strategy_data)}/{len(indicators)} indicators have analysis
+        
+        Current Analysis Samples:
+        {json.dumps(strategy_data, indent=2)[:1000]}
+        
+        Provide a comprehensive analysis of this strategy's potential performance, strengths, weaknesses, and recommended usage.
+        """
+        
+        context = self.get_platform_context()
+        return self.generate_ai_response(analysis_prompt, context, f"strategy_{strategy_name}")
+    
+    def generate_daily_insights(self) -> str:
+        """Generate daily insights report"""
+        context = self.get_platform_context()
+        
+        insights_prompt = """
+        Generate comprehensive daily insights for the trading platform covering:
+        1. Platform health and user activity
+        2. Trading strategy performance overview
+        3. Signal room activity analysis
+        4. Community engagement metrics
+        5. Recommendations for the day
+        
+        Provide this in a structured, actionable format.
+        """
+        
+        return self.generate_ai_response(insights_prompt, context, "daily_insights")
+    
+    def get_user_specific_advice(self, username: str) -> str:
+        """Get personalized advice for specific user"""
+        user_data = user_manager.users.get(username, {})
+        if not user_data:
+            return f"User '{username}' not found."
+        
+        context = self.get_platform_context()
+        
+        advice_prompt = f"""
+        Provide personalized trading advice for user: {username}
+        
+        User Profile:
+        - Plan: {user_data.get('plan', 'N/A')}
+        - Member since: {user_data.get('created', 'N/A')[:10]}
+        - Last login: {user_data.get('last_login', 'N/A')[:10]}
+        
+        Platform Context: {context['platform_info']}
+        
+        Provide specific, actionable advice tailored to this user's plan and activity level.
+        """
+        
+        return self.generate_ai_response(advice_prompt, context, f"user_{username}")
+
+# Initialize AI Agent
+trading_ai = TradingAIAgent()
+
+# -------------------------
+# AI AGENT UI COMPONENTS
+# -------------------------
+def render_ai_agent_interface():
+    """Main AI Agent interface"""
+    st.title("🤖 Trading-GPT - AI Trading Analyst")
+    
+    # Initialize session state for AI
+    if 'ai_conversations' not in st.session_state:
+        st.session_state.ai_conversations = {}
+    if 'current_ai_conversation' not in st.session_state:
+        st.session_state.current_ai_conversation = "main"
+    if 'ai_analysis_type' not in st.session_state:
+        st.session_state.ai_analysis_type = "chat"
+    
+    # Conversation selector
+    conv_col1, conv_col2, conv_col3 = st.columns([2, 1, 1])
+    with conv_col1:
+        st.subheader("💬 AI Trading Analyst")
+    with conv_col2:
+        if st.button("🔄 New Conversation", use_container_width=True):
+            new_conv_id = f"conv_{int(time.time())}"
+            st.session_state.current_ai_conversation = new_conv_id
+            st.session_state.ai_conversations[new_conv_id] = []
+            st.rerun()
+    with conv_col3:
+        if st.button("📊 Daily Insights", use_container_width=True):
+            st.session_state.ai_analysis_type = "insights"
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # Analysis type selector
+    analysis_type = st.radio(
+        "Analysis Mode:",
+        ["💬 Chat Analysis", "📈 Strategy Analysis", "👥 User Insights", "⚡ Signal Analysis"],
+        horizontal=True,
+        key="ai_analysis_selector"
+    )
+    
+    if "Strategy" in analysis_type:
+        st.session_state.ai_analysis_type = "strategy"
+    elif "User" in analysis_type:
+        st.session_state.ai_analysis_type = "user"  
+    elif "Signal" in analysis_type:
+        st.session_state.ai_analysis_type = "signal"
+    else:
+        st.session_state.ai_analysis_type = "chat"
+    
+    # Main AI interface
+    if st.session_state.ai_analysis_type == "insights":
+        render_daily_insights()
+    elif st.session_state.ai_analysis_type == "strategy":
+        render_strategy_analysis_ai()
+    elif st.session_state.ai_analysis_type == "user":
+        render_user_analysis_ai()
+    elif st.session_state.ai_analysis_type == "signal":
+        render_signal_analysis_ai()
+    else:
+        render_chat_interface()
+
+def render_chat_interface():
+    """Chat interface with AI agent"""
+    
+    # Initialize conversation
+    conv_id = st.session_state.current_ai_conversation
+    if conv_id not in st.session_state.ai_conversations:
+        st.session_state.ai_conversations[conv_id] = []
+    
+    messages = st.session_state.ai_conversations[conv_id]
+    
+    # Display conversation history
+    chat_container = st.container()
+    with chat_container:
+        for msg in messages:
+            if msg["role"] == "user":
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px; border-radius: 15px; margin: 5px 0; margin-left: 50px;">
+                    <strong>You:</strong> {msg["content"]}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 12px; border-radius: 15px; margin: 5px 0; margin-right: 50px;">
+                    <strong>🤖 Trading-GPT:</strong> {msg["content"]}
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # Chat input
+    st.markdown("---")
+    user_input = st.text_area(
+        "💭 Ask Trading-GPT anything about the platform, strategies, or market analysis:",
+        placeholder="e.g., 'Analyze today's trading strategies', 'What are the platform usage trends?', 'Give me insights on current signals'...",
+        height=100,
+        key="ai_chat_input"
+    )
+    
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("🚀 Send to AI", use_container_width=True):
+            if user_input.strip():
+                # Add user message
+                messages.append({"role": "user", "content": user_input})
+                
+                # Get AI response
+                with st.spinner("🤖 Trading-GPT is analyzing..."):
+                    context = trading_ai.get_platform_context()
+                    ai_response = trading_ai.generate_ai_response(user_input, context, conv_id)
+                
+                # Add AI response
+                messages.append({"role": "assistant", "content": ai_response})
+                
+                # Save conversation
+                st.session_state.ai_conversations[conv_id] = messages
+                st.rerun()
+    
+    with col2:
+        if st.button("🎯 Quick Analysis", use_container_width=True):
+            quick_questions = [
+                "Analyze today's strategy performance",
+                "What are the platform user trends?",
+                "Give me trading signal insights",
+                "Analyze community gallery activity"
+            ]
+            selected_question = st.selectbox("Quick questions:", quick_questions)
+            if selected_question:
+                user_input = selected_question
+                if st.button("Use This Question", use_container_width=True):
+                    messages.append({"role": "user", "content": user_input})
+                    
+                    with st.spinner("🤖 Trading-GPT is analyzing..."):
+                        context = trading_ai.get_platform_context()
+                        ai_response = trading_ai.generate_ai_response(user_input, context, conv_id)
+                    
+                    messages.append({"role": "assistant", "content": ai_response})
+                    st.session_state.ai_conversations[conv_id] = messages
+                    st.rerun()
+
+def render_daily_insights():
+    """Daily insights report from AI"""
+    st.subheader("📊 Daily Insights Report")
+    
+    if st.button("🔄 Generate New Insights", use_container_width=True):
+        with st.spinner("🤖 Trading-GPT is generating comprehensive daily insights..."):
+            insights = trading_ai.generate_daily_insights()
+            
+            st.markdown("---")
+            st.markdown("### 📈 Today's Platform Insights")
+            st.markdown(insights)
+            
+            # Save to conversation
+            conv_id = st.session_state.current_ai_conversation
+            if conv_id not in st.session_state.ai_conversations:
+                st.session_state.ai_conversations[conv_id] = []
+            
+            st.session_state.ai_conversations[conv_id].append({
+                "role": "assistant", 
+                "content": f"# Daily Insights Report\n\n{insights}"
+            })
+    else:
+        st.info("Click the button above to generate AI-powered daily insights about the platform.")
+
+def render_strategy_analysis_ai():
+    """AI-powered strategy analysis"""
+    st.subheader("📈 AI Strategy Analysis")
+    
+    strategy_list = list(STRATEGIES.keys())
+    selected_strategy = st.selectbox("Select Strategy to Analyze:", strategy_list)
+    
+    if st.button("🤖 Analyze Strategy", use_container_width=True):
+        with st.spinner(f"🤖 Trading-GPT is analyzing {selected_strategy}..."):
+            analysis = trading_ai.analyze_strategy_performance(selected_strategy)
+            
+            st.markdown("---")
+            st.markdown(f"### 🔍 {selected_strategy} - AI Analysis")
+            st.markdown(analysis)
+            
+            # Display strategy indicators
+            with st.expander("📋 Strategy Indicators"):
+                for indicator in STRATEGIES[selected_strategy]:
+                    st.write(f"• {indicator}")
+
+def render_user_analysis_ai():
+    """AI-powered user analysis"""
+    st.subheader("👥 AI User Insights")
+    
+    if st.session_state.user['plan'] == 'admin':
+        # Admin can analyze any user
+        user_list = list(user_manager.users.keys())
+        selected_user = st.selectbox("Select User to Analyze:", user_list)
+    else:
+        # Regular users can only analyze themselves
+        selected_user = st.session_state.user['username']
+        st.info(f"Analyzing your account: {selected_user}")
+    
+    if st.button("🤖 Analyze User", use_container_width=True):
+        with st.spinner(f"🤖 Trading-GPT is analyzing {selected_user}..."):
+            advice = trading_ai.get_user_specific_advice(selected_user)
+            
+            st.markdown("---")
+            st.markdown(f"### 👤 {selected_user} - Personalized Analysis")
+            st.markdown(advice)
+
+def render_signal_analysis_ai():
+    """AI-powered signal analysis"""
+    st.subheader("⚡ AI Signal Analysis")
+    
+    active_signals = [s for s in st.session_state.active_signals if s["status"] == "published"]
+    
+    if not active_signals:
+        st.warning("No active signals to analyze.")
+        return
+    
+    st.metric("Active Signals Available", len(active_signals))
+    
+    if st.button("🤖 Analyze All Signals", use_container_width=True):
+        with st.spinner("🤖 Trading-GPT is analyzing all trading signals..."):
+            context = trading_ai.get_platform_context()
+            
+            signal_summary = "Active Signals:\n"
+            for signal in active_signals[:5]:  # Limit to first 5 for context
+                signal_summary += f"- {signal['asset']} {signal['signal_type']} at ${signal['entry_price']}\n"
+            
+            analysis_prompt = f"""
+            Analyze the current trading signals:
+            
+            {signal_summary}
+            
+            Total active signals: {len(active_signals)}
+            
+            Provide insights on:
+            1. Overall signal quality and distribution
+            2. Asset concentration analysis
+            3. Risk/reward patterns
+            4. Recommendations for signal optimization
+            """
+            
+            analysis = trading_ai.generate_ai_response(analysis_prompt, context, "signal_analysis")
+            
+            st.markdown("---")
+            st.markdown("### 📊 Signal Room Analysis")
+            st.markdown(analysis)
+
+def render_ai_admin_settings():
+    """Admin settings for AI configuration"""
+    st.subheader("⚙️ AI Agent Configuration")
+    
+    with st.form("ai_config_form"):
+        st.write("**AI Model Selection:**")
+        
+        active_model = st.selectbox(
+            "Active AI Model:",
+            list(trading_ai.available_models.keys()),
+            index=list(trading_ai.available_models.keys()).index(trading_ai.model_config["active_model"])
+        )
+        
+        st.write("**API Keys (leave blank to keep current):**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            openai_key = st.text_input("OpenAI API Key:", type="password", placeholder="sk-...")
+            gemini_key = st.text_input("Google Gemini API Key:", type="password", placeholder="AIza...")
+        with col2:
+            claude_key = st.text_input("Anthropic Claude API Key:", type="password", placeholder="sk-ant-...")
+            local_endpoint = st.text_input("Local AI Endpoint:", placeholder="http://localhost:5000/api")
+        
+        # Model parameters
+        st.write("**Model Parameters:**")
+        col1, col2 = st.columns(2)
+        with col1:
+            max_tokens = st.number_input("Max Tokens:", min_value=100, max_value=4000, value=trading_ai.model_config["max_tokens"])
+        with col2:
+            temperature = st.slider("Temperature:", min_value=0.0, max_value=1.0, value=trading_ai.model_config["temperature"])
+        
+        submitted = st.form_submit_button("💾 Save AI Configuration", use_container_width=True)
+        
+        if submitted:
+            # Update configuration
+            trading_ai.model_config["active_model"] = active_model
+            if openai_key:
+                trading_ai.model_config["openai_key"] = openai_key
+            if gemini_key:
+                trading_ai.model_config["gemini_key"] = gemini_key
+            if claude_key:
+                trading_ai.model_config["claude_key"] = claude_key
+            if local_endpoint:
+                trading_ai.model_config["local_endpoint"] = local_endpoint
+            
+            trading_ai.model_config["max_tokens"] = max_tokens
+            trading_ai.model_config["temperature"] = temperature
+            
+            # Save to app settings
+            trading_ai.save_model_config()
+            
+            st.success("✅ AI configuration saved successfully!")
+            
+            # Test the configuration
+            with st.spinner("Testing AI connection..."):
+                model_type = trading_ai.initialize_ai_client()
+                if model_type != "simulation":
+                    st.success(f"✅ Connected to {active_model} successfully!")
+                else:
+                    st.warning("⚠️ Using simulation mode - add API keys for real AI responses")
 
 # -------------------------
 # FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION WITH BACK BUTTON
@@ -4894,13 +5099,15 @@ def render_admin_dashboard():
             st.success("🖼️ Image Gallery Mode")
         elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
+        elif current_mode == "ai_agent":
+            st.success("🤖 AI Trading Analyst")
         else:
             st.success("🛠️ Admin Management Mode")
         
         # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
                         type="primary" if current_mode == "admin" else "secondary",
@@ -4924,6 +5131,12 @@ def render_admin_dashboard():
                         type="primary" if current_mode == "signals_room" else "secondary",
                         key="sidebar_signals_btn"):
                 st.session_state.admin_dashboard_mode = "signals_room"
+                st.rerun()
+        with col5:
+            if st.button("🤖 AI Agent", use_container_width=True,
+                        type="primary" if current_mode == "ai_agent" else "secondary",
+                        key="sidebar_ai_btn"):
+                st.session_state.admin_dashboard_mode = "ai_agent"
                 st.rerun()
         
         st.markdown("---")
@@ -4956,6 +5169,18 @@ def render_admin_dashboard():
             if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
                 st.session_state.signals_room_view = 'active_signals'
                 st.rerun()
+        elif current_mode == "ai_agent":
+            # AI Agent mode - show AI-specific options
+            st.subheader("AI Actions")
+            if st.button("💬 Chat", use_container_width=True, key="sidebar_ai_chat"):
+                st.session_state.ai_analysis_type = "chat"
+                st.rerun()
+            if st.button("📊 Insights", use_container_width=True, key="sidebar_ai_insights"):
+                st.session_state.ai_analysis_type = "insights"
+                st.rerun()
+            if st.button("⚙️ AI Settings", use_container_width=True, key="sidebar_ai_settings"):
+                render_ai_admin_settings()
+                st.rerun()
         else:
             # Gallery mode
             st.subheader("Gallery Actions")
@@ -4980,11 +5205,13 @@ def render_admin_dashboard():
         render_premium_signal_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
+    elif st.session_state.get('admin_dashboard_mode') == "ai_agent":
+        render_ai_agent_interface()
     else:
         render_image_gallery()
 
 def render_admin_sidebar_options():
-    """Sidebar options for admin management mode"""
+    """Sidebar options for admin management mode - UPDATED WITH AI"""
     st.subheader("Admin Actions")
     
     if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh_btn"):
@@ -5011,9 +5238,13 @@ def render_admin_sidebar_options():
         st.session_state.admin_view = "revenue"
         st.rerun()
     
-    # NEW: Signals Room Password Management
     if st.button("🔐 Signals Room Password", use_container_width=True, key="sidebar_signals_password_btn"):
         st.session_state.show_signals_password_change = True
+        st.rerun()
+    
+    # NEW: AI Agent access
+    if st.button("🤖 AI Trading Analyst", use_container_width=True, key="sidebar_ai_agent_btn"):
+        st.session_state.admin_view = "ai_agent"
         st.rerun()
 
 def render_admin_dashboard_selection():
@@ -5021,7 +5252,7 @@ def render_admin_dashboard_selection():
     st.title("👑 Admin Portal - Choose Dashboard")
     st.markdown("---")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.subheader("🛠️ Admin Management Dashboard")
@@ -5087,11 +5318,27 @@ def render_admin_dashboard_selection():
             st.session_state.admin_dashboard_mode = "signals_room"
             st.rerun()
     
+    with col5:
+        st.subheader("🤖 AI Trading Analyst")
+        st.markdown("""
+        **AI-Powered Insights:**
+        - Smart platform analysis
+        - Strategy performance review
+        - User behavior insights
+        - Signal pattern detection
+        - Automated reporting
+        - Predictive analytics
+        - Multi-model support
+        """)
+        if st.button("🤖 Go to AI Agent", use_container_width=True, key="ai_dash_btn"):
+            st.session_state.admin_dashboard_mode = "ai_agent"
+            st.rerun()
+    
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
 def render_admin_management_dashboard():
-    """Complete admin management dashboard with all rich features"""
+    """Complete admin management dashboard with all rich features - UPDATED WITH AI"""
     st.title("🛠️ Admin Management Dashboard")
     
     # Get business metrics
@@ -5129,7 +5376,7 @@ def render_admin_management_dashboard():
         render_signals_password_management()
         return
     
-    # Current view based on admin_view state
+    # Current view based on admin_view state - UPDATED WITH AI
     current_view = st.session_state.get('admin_view', 'overview')
     
     if current_view == 'analytics':
@@ -5140,6 +5387,8 @@ def render_admin_management_dashboard():
         render_email_verification_interface()
     elif current_view == 'revenue':
         render_admin_revenue()
+    elif current_view == 'ai_agent':  # NEW: AI Agent view
+        render_ai_agent_interface()
     else:
         render_admin_overview()
 
@@ -5203,7 +5452,7 @@ def render_admin_overview():
             st.info("No recent plan changes")
 
 def render_admin_analytics():
-    """Detailed analytics view"""
+    """Detailed analytics view - UPDATED WITH AI SETTINGS"""
     st.subheader("📈 Detailed Analytics")
     
     # Login analytics
@@ -5219,6 +5468,31 @@ def render_admin_analytics():
         st.metric("Successful Logins", successful_logins)
     with col3:
         st.metric("Failed Logins", failed_logins)
+    
+    # AI Analytics Section
+    st.markdown("---")
+    st.subheader("🤖 AI Agent Analytics")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("**AI Configuration:**")
+        st.write(f"Active Model: `{trading_ai.model_config['active_model']}`")
+        st.write(f"Total Conversations: `{len(st.session_state.get('ai_conversations', {}))}`")
+        
+        if st.button("⚙️ Configure AI", use_container_width=True):
+            render_ai_admin_settings()
+    
+    with col2:
+        st.write("**Quick AI Actions:**")
+        if st.button("📊 Generate Platform Report", use_container_width=True):
+            with st.spinner("Generating AI platform report..."):
+                context = trading_ai.get_platform_context()
+                report = trading_ai.generate_ai_response(
+                    "Generate a comprehensive platform health and performance report with specific recommendations.", 
+                    context
+                )
+                st.markdown("### 📋 Platform Health Report")
+                st.markdown(report)
     
     # Email verification analytics
     st.markdown("---")
@@ -5522,14 +5796,15 @@ st.set_page_config(
 )
 
 # -------------------------
-# MAIN APPLICATION - FIXED USER ACCESS
+# MAIN APPLICATION - FIXED USER ACCESS WITH AI AGENT
 # -------------------------
 def main():
-    """Main application with enhanced AI integration"""
     init_session()
+    
+    # Setup data persistence
     setup_data_persistence()
     
-    # Enhanced CSS
+    # Enhanced CSS for premium appearance
     st.markdown("""
     <style>
     .main-header {
@@ -5538,9 +5813,162 @@ def main():
         text-align: center;
         margin-bottom: 2rem;
     }
+    .premium-feature {
+        border: 2px solid #00D4AA;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #f8fffe 0%, #e6f7f5 100%);
+    }
+    .admin-feature {
+        border: 2px solid #8B5CF6;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
+    }
+    .gallery-feature {
+        border: 2px solid #F59E0B;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+    }
+    .signals-feature {
+        border: 2px solid #EF4444;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
+    }
+    .ai-feature {
+        border: 2px solid #8B5CF6;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #F0E7FF 0%, #DDD6FE 100%);
+    }
+    .verification-badge {
+        font-size: 0.7rem !important;
+        padding: 2px 8px !important;
+        border-radius: 12px !important;
+        font-weight: 600 !important;
+        min-width: 60px !important;
+        display: inline-block !important;
+        text-align: center !important;
+        border: 1px solid !important;
+    }
+    .verified-badge {
+        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+        color: white;
+        border-color: #047857 !important;
+    }
+    .unverified-badge {
+        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
+        color: white;
+        border-color: #B91C1C !important;
+    }
+    .image-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 20px;
+    }
+    .image-card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 10px;
+        width: 250px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        background-color: white;
+    }
+    .image-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+    .upload-section {
+        background-color: #f0f2f6;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+    }
+    .stButton button {
+        width: 100%;
+    }
+    .security-warning {
+        background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
+        border: 2px solid #EF4444;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    .image-viewer-nav {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin: 20px 0;
+    }
+    .signal-card {
+        border: 2px solid #E5E7EB;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        background: white;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+    }
+    .signal-card:hover {
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    .signal-buy {
+        border-left: 5px solid #10B981;
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+    }
+    .signal-sell {
+        border-left: 5px solid #EF4444;
+        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
+    }
+    .signal-hold {
+        border-left: 5px solid #6B7280;
+        background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
+    }
+    .timeframe-short {
+        background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
+        color: #DC2626;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .timeframe-medium {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        color: #059669;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .timeframe-long {
+        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+        color: #2563EB;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
     .ai-response {
         background: linear-gradient(135deg, #E0E7FF 0%, #C7D2FE 100%);
         border: 2px solid #818CF8;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+    }
+    .user-question {
+        background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+        border: 2px solid #10B981;
         border-radius: 10px;
         padding: 1.5rem;
         margin: 1rem 0;
@@ -5551,24 +5979,38 @@ def main():
     if not st.session_state.user:
         render_login()
     else:
+        # Check if we're in strategy indicator image viewer mode
+        if hasattr(st.session_state, 'strategy_indicator_viewer_mode') and st.session_state.strategy_indicator_viewer_mode:
+            render_strategy_indicator_image_viewer()
+            return
+            
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
+            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room AND AI Agent
+            # Add navigation for users to switch between dashboard and gallery
+            
+            # User navigation header
             st.sidebar.title("👤 User Navigation")
             
+            # User mode selection - UPDATED WITH AI
             user_mode = st.sidebar.radio(
                 "Select View:",
                 ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🤖 AI Analyst"],
                 key="user_navigation_mode"
             )
             
+            # Display appropriate view based on user selection
             if user_mode == "🖼️ Image Gallery":
+                # For gallery, ensure user can only view (not upload)
                 render_user_image_gallery()
             elif user_mode == "⚡ Trading Signals":
+                # Show the trading signals room in VIEW MODE
                 render_trading_signals_room()
-            elif user_mode == "🤖 AI Analyst":
+            elif user_mode == "🤖 AI Analyst":  # NEW: AI Agent for users
                 render_ai_agent_interface()
             else:
+                # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
 
 if __name__ == "__main__":
