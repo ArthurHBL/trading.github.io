@@ -47,6 +47,306 @@ def init_supabase():
 supabase_client = init_supabase()
 
 # -------------------------
+# KAI - TRADING AI AGENT CHARACTER
+# -------------------------
+
+KAI_CHARACTER = {
+    "name": "KAI",
+    "title": "Senior Technical Analysis Specialist", 
+    "experience": "10+ years multi-timeframe market analysis",
+    "specialty": "Pattern recognition & reversal signal detection",
+    
+    # Consistent analytical framework
+    "analysis_hierarchy": [
+        "STRATEGY_OVERVIEW",
+        "KEY_INDICATORS", 
+        "MOMENTUM_ANALYSIS",
+        "SUPPORT_RESISTANCE",
+        "TIME_HORIZONS"
+    ],
+    
+    # Personality traits
+    "traits": {
+        "methodical": True,
+        "conservative": True, 
+        "clear_communicator": True,
+        "structured": True
+    },
+    
+    # Language patterns (KAI's unique voice)
+    "phrases": {
+        "opening": "🔍 **KAI Analysis Report**",
+        "critical_juncture": "Market at CRITICAL JUNCTURE",
+        "major_move": "MAJOR MOVE expected",
+        "reversal_expected": "REVERSAL expected within",
+        "confidence_level": "Confidence Level"
+    }
+}
+
+class KaiTradingAgent:
+    def __init__(self):
+        self.character = KAI_CHARACTER
+        self.analysis_patterns = self._initialize_analysis_patterns()
+    
+    def _initialize_analysis_patterns(self):
+        """KAI's consistent analysis methodology"""
+        return {
+            "phase_1_scanning": [
+                "Identify completed vs pending analyses",
+                "Flag indicators with actual notes", 
+                "Look for confluence across indicators"
+            ],
+            "phase_2_signal_extraction": [
+                "Detect reversal patterns (highest priority)",
+                "Confirm momentum signals",
+                "Validate support/resistance levels"
+            ],
+            "phase_3_time_mapping": [
+                "Map signals to time horizons",
+                "Resolve conflicting timeframes",
+                "Generate confidence scores"
+            ]
+        }
+    
+    def analyze_strategy_data(self, df):
+        """KAI's main analysis method - ALWAYS follows same structure"""
+        # PHASE 1: Strategy Scanning (KAI always starts here)
+        strategy_overview = self._phase_1_scanning(df)
+        
+        # PHASE 2: Signal Extraction  
+        signals = self._phase_2_signal_extraction(df)
+        
+        # PHASE 3: Time Horizon Mapping
+        time_analysis = self._phase_3_time_mapping(df)
+        
+        # Compile KAI's final report
+        analysis = self._generate_kai_report(strategy_overview, signals, time_analysis)
+        return analysis
+    
+    def _phase_1_scanning(self, df):
+        """KAI's Phase 1: Always scan strategies in same order"""
+        completed_analyses = len(df[df['Status'] == 'Done'])
+        total_indicators = len(df)
+        strategies = df['Strategy'].unique()
+        
+        return {
+            "completion_rate": f"{completed_analyses}/{total_indicators}",
+            "strategies_analyzed": list(strategies),
+            "pending_analyses": len(df[df['Status'] == 'Open']),
+            "total_strategies": len(strategies)
+        }
+    
+    def _phase_2_signal_extraction(self, df):
+        """KAI's Phase 2: Always look for these signal patterns"""
+        signals = {
+            "reversal_signals": [],
+            "momentum_signals": [],
+            "support_signals": [],
+            "volume_signals": [],
+            "breakout_signals": [],
+            "conflicting_signals": []
+        }
+        
+        # KAI always prioritizes reversal patterns first
+        for index, row in df.iterrows():
+            if pd.isna(row['Note']) or row['Note'] == '':
+                continue
+                
+            note = str(row['Note']).lower()
+            indicator = row['Indicator']
+            strategy = row['Strategy']
+            
+            # Reversal detection (KAI's specialty)
+            if any(keyword in note for keyword in ['reversal', 'reverse', 'turnaround', 'revert']):
+                signals["reversal_signals"].append({
+                    "strategy": strategy,
+                    "indicator": indicator,
+                    "message": row['Note'],
+                    "strength": "HIGH" if 'major' in note or 'probable' in note else "MEDIUM"
+                })
+            
+            # Support/Resistance detection  
+            if any(keyword in note for keyword in ['support', 'resistance', 'holding', 'bounce']):
+                signals["support_signals"].append({
+                    "strategy": strategy,
+                    "indicator": indicator,
+                    "message": row['Note'], 
+                    "level": "SUPPORT" if 'support' in note else "RESISTANCE"
+                })
+            
+            # Momentum signals
+            if any(keyword in note for keyword in ['momentum', 'trend', 'going down', 'bullish', 'bearish']):
+                signals["momentum_signals"].append({
+                    "strategy": strategy,
+                    "indicator": indicator,
+                    "message": row['Note'],
+                    "direction": "BEARISH" if 'bearish' in note or 'going down' in note else "BULLISH"
+                })
+            
+            # Volume signals
+            if any(keyword in note for keyword in ['volume', 'volatility']):
+                signals["volume_signals"].append({
+                    "strategy": strategy,
+                    "indicator": indicator,
+                    "message": row['Note']
+                })
+            
+            # Breakout signals
+            if any(keyword in note for keyword in ['breakout', 'breaking', 'crossing']):
+                signals["breakout_signals"].append({
+                    "strategy": strategy,
+                    "indicator": indicator,
+                    "message": row['Note']
+                })
+        
+        return signals
+    
+    def _phase_3_time_mapping(self, df):
+        """KAI's Phase 3: Always map to time horizons"""
+        time_signals = {
+            "short_term": [],
+            "medium_term": [], 
+            "long_term": []
+        }
+        
+        for index, row in df.iterrows():
+            if pd.isna(row['Note']) or row['Note'] == '':
+                continue
+                
+            note = str(row['Note']).lower()
+            
+            # KAI's time classification logic
+            if any(word in note for word in ['next week', 'imminent', 'currently', 'short term']):
+                time_signals["short_term"].append({
+                    "indicator": row['Indicator'],
+                    "strategy": row['Strategy'],
+                    "message": row['Note']
+                })
+            elif any(word in note for word in ['2026', 'long-term', 'major move', 'next year']):
+                time_signals["long_term"].append({
+                    "indicator": row['Indicator'],
+                    "strategy": row['Strategy'],
+                    "message": row['Note']
+                })
+            else:
+                time_signals["medium_term"].append({
+                    "indicator": row['Indicator'],
+                    "strategy": row['Strategy'],
+                    "message": row['Note']
+                })
+                
+        return time_signals
+    
+    def _generate_kai_report(self, overview, signals, time_analysis):
+        """KAI's consistent reporting format"""
+        report = {
+            "header": f"🔍 **{self.character['name']} Analysis Report**",
+            "executive_summary": self._generate_executive_summary(overview, signals),
+            "key_findings": self._generate_key_findings(signals, overview),
+            "confidence_assessment": self._calculate_confidence(signals),
+            "time_horizon_outlook": time_analysis,
+            "trading_implications": self._generate_trading_implications(signals),
+            "signal_details": signals,
+            "overview_metrics": overview
+        }
+        return report
+    
+    def _generate_executive_summary(self, overview, signals):
+        """KAI's signature executive summary style"""
+        reversal_count = len(signals["reversal_signals"])
+        momentum_bearish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
+        momentum_bullish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
+        
+        if reversal_count >= 2:
+            return f"**{self.character['phrases']['critical_juncture']}** - STRONG REVERSAL EVIDENCE DETECTED across {reversal_count} indicators"
+        elif reversal_count == 1:
+            return f"**Potential Trend Change** - MODERATE REVERSAL SIGNALS with {momentum_bullish} bullish vs {momentum_bearish} bearish momentum"
+        else:
+            return f"**Consolidation Phase** - Analyzing {overview['total_strategies']} strategies with {overview['completion_rate']} completion rate"
+    
+    def _generate_key_findings(self, signals, overview):
+        """KAI always provides 3-5 key findings"""
+        findings = []
+        
+        # KAI always starts with reversal signals
+        reversal_count = len(signals["reversal_signals"])
+        if reversal_count > 0:
+            strong_reversals = len([s for s in signals["reversal_signals"] if s['strength'] == 'HIGH'])
+            findings.append(f"🔄 **Reversal Patterns**: {reversal_count} reversal signals ({strong_reversals} strong)")
+        
+        # Support/Resistance levels
+        support_count = len([s for s in signals["support_signals"] if s['level'] == 'SUPPORT'])
+        resistance_count = len([s for s in signals["support_signals"] if s['level'] == 'RESISTANCE'])
+        if support_count > 0 or resistance_count > 0:
+            findings.append(f"📊 **Key Levels**: {support_count} support zones, {resistance_count} resistance zones")
+        
+        # Momentum analysis
+        bullish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
+        bearish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
+        if bullish_momentum > 0 or bearish_momentum > 0:
+            findings.append(f"🎯 **Momentum**: {bullish_momentum} bullish vs {bearish_momentum} bearish signals")
+        
+        # Volume analysis
+        if signals["volume_signals"]:
+            findings.append(f"📈 **Volume Analysis**: {len(signals['volume_signals'])} volume-based signals")
+        
+        # Always include completion status
+        findings.append(f"📋 **Analysis Coverage**: {overview['completion_rate']} indicators completed across {overview['total_strategies']} strategies")
+        
+        return findings[:5]  # KAI always provides max 5 key findings
+    
+    def _calculate_confidence(self, signals):
+        """KAI's consistent confidence scoring"""
+        score = 0
+        
+        # Reversal signals (highest weight)
+        for signal in signals["reversal_signals"]:
+            if signal['strength'] == 'HIGH':
+                score += 25
+            else:
+                score += 15
+        
+        # Support/Resistance signals
+        score += len(signals["support_signals"]) * 10
+        
+        # Momentum confirmation
+        bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
+        bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
+        
+        if bullish_count > bearish_count:
+            score += 20
+        elif bearish_count > bullish_count:
+            score += 10
+        
+        # Volume confirmation
+        score += len(signals["volume_signals"]) * 5
+            
+        return min(95, score)  # KAI is conservative, never gives 100%
+    
+    def _generate_trading_implications(self, signals):
+        """KAI's actionable insights"""
+        implications = []
+        
+        reversal_strength = len(signals["reversal_signals"])
+        strong_reversals = len([s for s in signals["reversal_signals"] if s['strength'] == 'HIGH'])
+        
+        if reversal_strength >= 2 and strong_reversals >= 1:
+            implications.append("**🎯 STRONG REVERSAL SIGNAL** - Position for major trend change")
+            implications.append("**📊 CONFIRMATION** - Multiple indicators suggesting same direction")
+            implications.append("**⏰ TIMING** - Monitor for breakout confirmation")
+        elif reversal_strength >= 1:
+            implications.append("**⚠️ CAUTIOUS POSITIONING** - Monitor for additional confirmation")
+            implications.append("**📈 SETUP WATCH** - Prepare for potential reversal entries")
+        else:
+            implications.append("**🔄 RANGE TRADING** - Focus on support/resistance levels")
+            implications.append("**🎯 MOMENTUM FOLLOW** - Trade with current trend direction")
+            
+        # Always include risk management
+        implications.append("**🔒 RISK MANAGEMENT** - Always use stop losses, position size appropriately")
+        
+        return implications
+
+# -------------------------
 # SUPABASE DATABASE FUNCTIONS - FIXED WITH PROPER ERROR HANDLING
 # -------------------------
 
@@ -443,8 +743,60 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
         st.error(f"Error deleting strategy indicator image: {e}")
         return False
 
+# NEW: KAI Analyses table functions
+def supabase_get_kai_analyses():
+    """Get KAI analyses from Supabase - FIXED VERSION"""
+    if not supabase_client:
+        return []
+    try:
+        response = supabase_client.table('kai_analyses').select('*').order('created_at', desc=True).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error getting KAI analyses: {response.error}")
+            return []
+        return response.data
+    except Exception as e:
+        st.error(f"Error getting KAI analyses: {e}")
+        return []
+
+def supabase_save_kai_analysis(analysis_data):
+    """Save KAI analysis to Supabase - FIXED VERSION"""
+    if not supabase_client:
+        return False
+    try:
+        # Prepare the record
+        record = {
+            'analysis_data': analysis_data,
+            'uploaded_by': st.session_state.user['username'],
+            'created_at': datetime.now().isoformat()
+        }
+        
+        response = supabase_client.table('kai_analyses').insert(record).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error saving KAI analysis: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error saving KAI analysis: {e}")
+        return False
+
+def supabase_get_latest_kai_analysis():
+    """Get the latest KAI analysis from Supabase"""
+    if not supabase_client:
+        return None
+    try:
+        response = supabase_client.table('kai_analyses').select('*').order('created_at', desc=True).limit(1).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error getting latest KAI analysis: {response.error}")
+            return None
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        return None
+    except Exception as e:
+        st.error(f"Error getting latest KAI analysis: {e}")
+        return None
+
 # -------------------------
-# SESSION MANAGEMENT - UPDATED WITH PASSWORD PERSISTENCE
+# SESSION MANAGEMENT - UPDATED WITH KAI
 # -------------------------
 def init_session():
     """Initialize session state variables"""
@@ -559,6 +911,11 @@ def init_session():
     # NEW: User password change state
     if 'show_user_password_change' not in st.session_state:
         st.session_state.show_user_password_change = False
+    # NEW: KAI AI Agent state
+    if 'kai_analyses' not in st.session_state:
+        st.session_state.kai_analyses = load_kai_analyses()
+    if 'current_kai_analysis' not in st.session_state:
+        st.session_state.current_kai_analysis = None
 
 # -------------------------
 # APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD)
@@ -570,6 +927,21 @@ def load_app_settings():
 def save_app_settings(settings):
     """Save app settings to Supabase"""
     return supabase_save_app_settings(settings)
+
+# -------------------------
+# KAI ANALYSES PERSISTENCE
+# -------------------------
+def load_kai_analyses():
+    """Load KAI analyses from Supabase"""
+    return supabase_get_kai_analyses()
+
+def save_kai_analysis(analysis_data):
+    """Save KAI analysis to Supabase"""
+    return supabase_save_kai_analysis(analysis_data)
+
+def get_latest_kai_analysis():
+    """Get the latest KAI analysis from Supabase"""
+    return supabase_get_latest_kai_analysis()
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -722,6 +1094,222 @@ def load_gallery_images():
 def save_gallery_images(images):
     """Save gallery images to Supabase"""
     return supabase_save_gallery_images(images)
+
+# -------------------------
+# KAI AI AGENT INTERFACE
+# -------------------------
+def render_kai_agent():
+    """KAI AI Agent interface - Admin can upload CSV, Users can view only"""
+    
+    # Check if user is admin or regular user
+    is_admin = st.session_state.user['plan'] == 'admin'
+    
+    st.title("🧠 KAI AI Agent - Technical Analysis")
+    
+    # KAI Introduction
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown(f"""
+        **Meet {KAI_CHARACTER['name']}** - {KAI_CHARACTER['title']}
+        
+        *{KAI_CHARACTER['experience']}. Specializes in {KAI_CHARACTER['specialty']}.*
+        
+        KAI provides consistent, structured analysis of trading strategies using a methodical 3-phase approach.
+        """)
+    
+    with col2:
+        st.info("""
+        **KAI's Framework:**
+        - Phase 1: Strategy Scanning
+        - Phase 2: Signal Extraction  
+        - Phase 3: Time Mapping
+        """)
+    
+    # Load latest KAI analysis for display
+    latest_analysis = get_latest_kai_analysis()
+    
+    # Admin Section - CSV Upload and Analysis
+    if is_admin:
+        st.markdown("### 📊 Upload Strategy CSV for Analysis")
+        
+        uploaded_file = st.file_uploader(
+            "Upload your strategy analysis CSV", 
+            type=['csv'],
+            key="kai_csv_uploader",
+            help="Upload the CSV export from your trading dashboard for KAI analysis"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Initialize KAI
+                kai_agent = KaiTradingAgent()
+                
+                # Read and analyze data
+                df = pd.read_csv(uploaded_file)
+                
+                # Display basic file info
+                st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique())} strategies")
+                
+                # KAI analyzes the data
+                with st.spinner("🧠 KAI is analyzing the trading data..."):
+                    time.sleep(2)  # Simulate analysis time
+                    analysis = kai_agent.analyze_strategy_data(df)
+                
+                # Display KAI's report
+                display_kai_analysis_report(analysis)
+                
+                # Save analysis to Supabase
+                if st.button("💾 Save Analysis to Database", use_container_width=True):
+                    if save_kai_analysis(analysis):
+                        st.success("✅ KAI analysis saved to database!")
+                        # Refresh the analyses list
+                        st.session_state.kai_analyses = load_kai_analyses()
+                    else:
+                        st.error("❌ Failed to save analysis to database")
+                
+            except Exception as e:
+                st.error(f"❌ Error analyzing CSV: {str(e)}")
+                st.info("Please ensure you're uploading a valid strategy analysis CSV export from the dashboard.")
+    
+    # Display latest analysis for all users (admin and regular users)
+    if latest_analysis:
+        st.markdown("---")
+        st.subheader("📋 Latest KAI Analysis")
+        st.info(f"**Generated by:** {latest_analysis['uploaded_by']} | **Date:** {latest_analysis['created_at'][:16]}")
+        
+        # Display the analysis
+        display_kai_analysis_report(latest_analysis['analysis_data'])
+    
+    # Show analysis history for admin
+    if is_admin and st.session_state.kai_analyses:
+        st.markdown("---")
+        st.subheader("📜 Analysis History")
+        
+        for analysis in st.session_state.kai_analyses[:5]:  # Show last 5 analyses
+            with st.expander(f"Analysis by {analysis['uploaded_by']} - {analysis['created_at'][:16]}"):
+                display_kai_analysis_summary(analysis['analysis_data'])
+    
+    # Show help information when no analysis available
+    if not latest_analysis:
+        st.markdown("---")
+        st.info("""
+        **📋 Expected CSV Format:**
+        Your CSV should contain the following columns:
+        - `Strategy` (Strategy name)
+        - `Indicator` (Indicator name) 
+        - `Note` (Analysis notes)
+        - `Status` (Done/Open)
+        - `Momentum` (Momentum type)
+        - `Tag` (Buy/Sell/Neutral)
+        - `Analysis_Date` (Date of analysis)
+        - `Last_Modified` (Timestamp)
+        
+        **🎯 KAI's Analysis Focus:**
+        - Reversal pattern detection
+        - Support/resistance level identification  
+        - Momentum confirmation
+        - Time horizon mapping
+        - Confidence scoring
+        """)
+
+def display_kai_analysis_report(analysis):
+    """Display KAI's analysis report in a consistent format"""
+    # Header
+    st.markdown(f"### {analysis['header']}")
+    
+    # Executive Summary (KAI always starts with this)
+    st.info(analysis["executive_summary"])
+    
+    # Confidence Score & Key Metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(
+            f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
+            f"{analysis['confidence_assessment']}%"
+        )
+    with col2:
+        st.metric(
+            "Strategies Analyzed", 
+            f"{analysis['overview_metrics']['total_strategies']}"
+        )
+    with col3:
+        st.metric(
+            "Analysis Completion", 
+            analysis['overview_metrics']['completion_rate']
+        )
+    
+    # Key Findings (KAI always uses bullet points)
+    st.markdown("### 🔑 Key Findings")
+    for finding in analysis["key_findings"]:
+        st.write(f"• {finding}")
+    
+    # Detailed Signal Breakdown
+    st.markdown("### 📈 Signal Breakdown")
+    
+    signals = analysis['signal_details']
+    
+    # Reversal Signals (KAI's priority)
+    if signals["reversal_signals"]:
+        with st.expander(f"🔄 Reversal Signals ({len(signals['reversal_signals'])})", expanded=True):
+            for signal in signals["reversal_signals"]:
+                strength_icon = "🔥" if signal['strength'] == 'HIGH' else "⚠️"
+                st.write(f"{strength_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
+    
+    # Support/Resistance Levels
+    if signals["support_signals"]:
+        with st.expander(f"📊 Support/Resistance Levels ({len(signals['support_signals'])})"):
+            for signal in signals["support_signals"]:
+                level_icon = "🟢" if signal['level'] == 'SUPPORT' else "🔴"
+                st.write(f"{level_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
+    
+    # Momentum Analysis
+    if signals["momentum_signals"]:
+        with st.expander(f"🎯 Momentum Signals ({len(signals['momentum_signals'])})"):
+            for signal in signals["momentum_signals"]:
+                direction_icon = "📈" if signal.get('direction') == 'BULLISH' else "📉"
+                st.write(f"{direction_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
+    
+    # Time Horizon Analysis
+    st.markdown("### ⏰ Time Horizon Outlook")
+    time_analysis = analysis['time_horizon_outlook']
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Short-Term", len(time_analysis['short_term']))
+        if time_analysis['short_term']:
+            with st.expander("View Short-Term Signals"):
+                for signal in time_analysis['short_term'][:3]:  # Show first 3
+                    st.write(f"• {signal['strategy']} - {signal['indicator']}")
+    
+    with col2:
+        st.metric("Medium-Term", len(time_analysis['medium_term']))
+        if time_analysis['medium_term']:
+            with st.expander("View Medium-Term Signals"):
+                for signal in time_analysis['medium_term'][:3]:
+                    st.write(f"• {signal['strategy']} - {signal['indicator']}")
+    
+    with col3:
+        st.metric("Long-Term", len(time_analysis['long_term']))
+        if time_analysis['long_term']:
+            with st.expander("View Long-Term Signals"):
+                for signal in time_analysis['long_term'][:3]:
+                    st.write(f"• {signal['strategy']} - {signal['indicator']}")
+    
+    # Trading Implications (KAI always ends with actionable insights)
+    st.markdown("### 💡 Trading Implications & Recommendations")
+    for implication in analysis["trading_implications"]:
+        st.write(implication)
+
+def display_kai_analysis_summary(analysis):
+    """Display a summary of KAI analysis for history view"""
+    st.write(f"**{analysis['executive_summary']}**")
+    st.write(f"**Confidence Level:** {analysis['confidence_assessment']}%")
+    st.write(f"**Strategies Analyzed:** {analysis['overview_metrics']['total_strategies']}")
+    
+    # Show top 3 key findings
+    st.write("**Key Findings:**")
+    for finding in analysis["key_findings"][:3]:
+        st.write(f"• {finding}")
 
 # -------------------------
 # PRODUCTION CONFIGURATION
@@ -2811,7 +3399,7 @@ def render_login():
                     if plan_choice == "trial":
                         st.info("🎁 Free trial - no payment required")
             
-            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="register_agree")
+                        agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="register_agree")
             
             submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
             
@@ -4578,6 +5166,11 @@ def render_admin_sidebar_options():
         st.session_state.admin_view = "revenue"
         st.rerun()
     
+    # NEW: KAI AI Agent access
+    if st.button("🧠 KAI AI Agent", use_container_width=True, key="sidebar_kai_agent_btn"):
+        st.session_state.admin_view = "kai_agent"
+        st.rerun()
+    
     # NEW: Signals Room Password Management
     if st.button("🔐 Signals Room Password", use_container_width=True, key="sidebar_signals_password_btn"):
         st.session_state.show_signals_password_change = True
@@ -4588,7 +5181,7 @@ def render_admin_dashboard_selection():
     st.title("👑 Admin Portal - Choose Dashboard")
     st.markdown("---")
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         st.subheader("🛠️ Admin Management Dashboard")
@@ -4654,6 +5247,22 @@ def render_admin_dashboard_selection():
             st.session_state.admin_dashboard_mode = "signals_room"
             st.rerun()
     
+    with col5:
+        st.subheader("🧠 KAI AI Agent")
+        st.markdown("""
+        **AI Analysis:**
+        - Upload CSV for analysis
+        - Technical pattern detection
+        - Reversal signal identification
+        - Confidence scoring
+        - Time horizon mapping
+        - Trading recommendations
+        - Historical analysis
+        """)
+        if st.button("🧠 Go to KAI Agent", use_container_width=True, key="kai_dash_btn"):
+            st.session_state.admin_dashboard_mode = "kai_agent"
+            st.rerun()
+    
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
@@ -4707,6 +5316,8 @@ def render_admin_management_dashboard():
         render_email_verification_interface()
     elif current_view == 'revenue':
         render_admin_revenue()
+    elif current_view == 'kai_agent':
+        render_kai_agent()  # NEW: KAI AI Agent integration
     else:
         render_admin_overview()
 
@@ -5134,6 +5745,13 @@ def main():
         margin: 0.5rem 0;
         background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
     }
+    .kai-feature {
+        border: 2px solid #8B5CF6;
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin: 0.5rem 0;
+        background: linear-gradient(135deg, #F0F4FF 0%, #E0E7FF 100%);
+    }
     .verification-badge {
         font-size: 0.7rem !important;
         padding: 2px 8px !important;
@@ -5259,7 +5877,7 @@ def main():
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room
+            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room AND KAI Agent
             # Add navigation for users to switch between dashboard and gallery
             
             # User navigation header
@@ -5268,7 +5886,7 @@ def main():
             # User mode selection
             user_mode = st.sidebar.radio(
                 "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals"],
+                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI AI Agent"],
                 key="user_navigation_mode"
             )
             
@@ -5279,6 +5897,9 @@ def main():
             elif user_mode == "⚡ Trading Signals":
                 # Show the trading signals room in VIEW MODE
                 render_trading_signals_room()
+            elif user_mode == "🧠 KAI AI Agent":
+                # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
+                render_kai_agent()
             else:
                 # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
