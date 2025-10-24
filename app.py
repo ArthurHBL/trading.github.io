@@ -15,8 +15,6 @@ import io
 import base64
 from PIL import Image
 import plotly.express as px
-import requests
-import json
 
 # -------------------------
 # SUPABASE SETUP - FIXED VERSION
@@ -47,240 +45,6 @@ def init_supabase():
         return None
 
 supabase_client = init_supabase()
-
-# -------------------------
-# APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD AND AI API KEY)
-# -------------------------
-def load_app_settings():
-    """Load app settings from Supabase"""
-    return supabase_get_app_settings()
-
-def save_app_settings(settings):
-    """Save app settings to Supabase"""
-    return supabase_save_app_settings(settings)
-
-# -------------------------
-# DEEPSEEK AI INTEGRATION
-# -------------------------
-class DeepSeekAI:
-    def __init__(self):
-        self.api_key = None
-        self.base_url = "https://api.deepseek.com/v1"
-        self.load_api_key()
-    
-    def load_api_key(self):
-        """Load DeepSeek API key from app settings"""
-        app_settings = load_app_settings()
-        self.api_key = app_settings.get('deepseek_api_key', '')
-    
-    def save_api_key(self, api_key):
-        """Save DeepSeek API key to app settings"""
-        app_settings = {'deepseek_api_key': api_key}
-        success = save_app_settings(app_settings)
-        if success:
-            self.api_key = api_key
-        return success
-    
-    def test_connection(self):
-        """Test API connection"""
-        if not self.api_key:
-            return False, "API key not configured"
-        
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "user", "content": "Hello, respond with just 'OK' if you can read this."}
-                ],
-                "max_tokens": 10
-            }
-            
-            response = requests.post(f"{self.base_url}/chat/completions", 
-                                   headers=headers, json=data, timeout=30)
-            
-            if response.status_code == 200:
-                return True, "Connection successful"
-            else:
-                return False, f"API error: {response.status_code} - {response.text}"
-                
-        except Exception as e:
-            return False, f"Connection failed: {str(e)}"
-    
-    def analyze_trading_strategy(self, strategy_name, indicators, market_context=""):
-        """Analyze a trading strategy using AI"""
-        if not self.api_key:
-            return None, "API key not configured"
-        
-        prompt = f"""
-        As an expert trading analyst, analyze the following trading strategy and provide actionable insights:
-
-        STRATEGY: {strategy_name}
-        INDICATORS: {', '.join(indicators)}
-        
-        MARKET CONTEXT: {market_context if market_context else 'General market analysis'}
-        
-        Please provide analysis in this structured format:
-        
-        **STRATEGY OVERVIEW:**
-        [Brief overview of the strategy's purpose and approach]
-        
-        **KEY INDICATORS ANALYSIS:**
-        [Analysis of the most important indicators in this strategy]
-        
-        **MARKET CONDITIONS:**
-        [Best market conditions for this strategy]
-        
-        **RISK ASSESSMENT:**
-        [Risk factors and management recommendations]
-        
-        **TRADING RECOMMENDATIONS:**
-        [Specific trading setup recommendations]
-        
-        **CONFIDENCE LEVEL:**
-        [High/Medium/Low confidence in current market conditions]
-        
-        Keep the analysis professional, actionable, and focused on practical trading insights.
-        """
-        
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 1500,
-                "temperature": 0.7
-            }
-            
-            response = requests.post(f"{self.base_url}/chat/completions", 
-                                   headers=headers, json=data, timeout=60)
-            
-            if response.status_code == 200:
-                result = response.json()
-                analysis = result['choices'][0]['message']['content']
-                return analysis, None
-            else:
-                return None, f"API error: {response.status_code} - {response.text}"
-                
-        except Exception as e:
-            return None, f"Analysis failed: {str(e)}"
-    
-    def generate_signal_analysis(self, signal_data):
-        """Generate AI analysis for a trading signal"""
-        if not self.api_key:
-            return None, "API key not configured"
-        
-        prompt = f"""
-        Analyze this trading signal and provide professional assessment:
-
-        ASSET: {signal_data.get('asset', 'Unknown')}
-        SIGNAL TYPE: {signal_data.get('signal_type', 'Unknown')}
-        TIMEFRAME: {signal_data.get('timeframe', 'Unknown')}
-        ENTRY: {signal_data.get('entry_price', 'Unknown')}
-        TARGET: {signal_data.get('target_price', 'Unknown')}
-        STOP LOSS: {signal_data.get('stop_loss', 'Unknown')}
-        DESCRIPTION: {signal_data.get('description', 'No description provided')}
-        CONFIDENCE: {signal_data.get('confidence', 'Medium')}
-        RISK LEVEL: {signal_data.get('risk_level', 'Medium')}
-
-        Please provide:
-        1. Technical validation of the signal
-        2. Risk-reward assessment
-        3. Market context considerations
-        4. Alternative scenarios
-        5. Final recommendation (Confirm/Modify/Reject)
-
-        Keep the analysis concise and actionable.
-        """
-        
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": 1000,
-                "temperature": 0.7
-            }
-            
-            response = requests.post(f"{self.base_url}/chat/completions", 
-                                   headers=headers, json=data, timeout=45)
-            
-            if response.status_code == 200:
-                result = response.json()
-                analysis = result['choices'][0]['message']['content']
-                return analysis, None
-            else:
-                return None, f"API error: {response.status_code} - {response.text}"
-                
-        except Exception as e:
-            return None, f"Analysis failed: {str(e)}"
-    
-    def chat_assistance(self, message, conversation_history=[]):
-        """General AI chat assistance for trading questions"""
-        if not self.api_key:
-            return "AI assistant is not configured. Please set up the DeepSeek API key in admin settings.", None
-        
-        # Prepare conversation context
-        messages = [
-            {
-                "role": "system", 
-                "content": """You are an expert trading analyst AI assistant. Provide professional, 
-                actionable trading insights. Be concise but thorough. Focus on practical trading 
-                strategies, technical analysis, risk management, and market insights."""
-            }
-        ]
-        
-        # Add conversation history
-        for msg in conversation_history[-6:]:  # Keep last 6 messages for context
-            messages.append(msg)
-        
-        # Add current message
-        messages.append({"role": "user", "content": message})
-        
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            data = {
-                "model": "deepseek-chat",
-                "messages": messages,
-                "max_tokens": 800,
-                "temperature": 0.7
-            }
-            
-            response = requests.post(f"{self.base_url}/chat/completions", 
-                                   headers=headers, json=data, timeout=45)
-            
-            if response.status_code == 200:
-                result = response.json()
-                response_text = result['choices'][0]['message']['content']
-                return response_text, None
-            else:
-                return None, f"API error: {response.status_code} - {response.text}"
-                
-        except Exception as e:
-            return None, f"Chat failed: {str(e)}"
-
-# Initialize DeepSeek AI
-deepseek_ai = DeepSeekAI()
 
 # -------------------------
 # SUPABASE DATABASE FUNCTIONS - FIXED WITH PROPER ERROR HANDLING
@@ -540,7 +304,7 @@ def supabase_save_trading_signals(signals):
         st.error(f"Error saving trading signals: {e}")
         return False
 
-# NEW: App settings table functions for Signals Room Password and AI API Key
+# NEW: App settings table functions for Signals Room Password
 def supabase_get_app_settings():
     """Get app settings from Supabase - FIXED VERSION"""
     if not supabase_client:
@@ -680,7 +444,7 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
         return False
 
 # -------------------------
-# SESSION MANAGEMENT - UPDATED WITH AI INTEGRATION
+# SESSION MANAGEMENT - UPDATED WITH PASSWORD PERSISTENCE
 # -------------------------
 def init_session():
     """Initialize session state variables"""
@@ -795,17 +559,17 @@ def init_session():
     # NEW: User password change state
     if 'show_user_password_change' not in st.session_state:
         st.session_state.show_user_password_change = False
-    # NEW: AI Integration state
-    if 'ai_chat_history' not in st.session_state:
-        st.session_state.ai_chat_history = []
-    if 'show_ai_assistant' not in st.session_state:
-        st.session_state.show_ai_assistant = False
-    if 'ai_analysis_results' not in st.session_state:
-        st.session_state.ai_analysis_results = {}
-    if 'show_ai_settings' not in st.session_state:
-        st.session_state.show_ai_settings = False
-    if 'current_ai_strategy_analysis' not in st.session_state:
-        st.session_state.current_ai_strategy_analysis = None
+
+# -------------------------
+# APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD)
+# -------------------------
+def load_app_settings():
+    """Load app settings from Supabase"""
+    return supabase_get_app_settings()
+
+def save_app_settings(settings):
+    """Save app settings to Supabase"""
+    return supabase_save_app_settings(settings)
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -1837,337 +1601,6 @@ class UserManager:
 
 # Initialize user manager
 user_manager = UserManager()
-
-# -------------------------
-# AI INTEGRATION COMPONENTS
-# -------------------------
-def render_ai_assistant():
-    """AI Assistant interface for trading analysis"""
-    st.title("🤖 AI Trading Assistant")
-    
-    st.markdown("""
-    <div class="premium-feature">
-    <h3>💡 AI-Powered Trading Insights</h3>
-    <p>Get professional trading analysis, strategy recommendations, and market insights powered by DeepSeek AI.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Check if AI is configured
-    if not deepseek_ai.api_key:
-        st.warning("⚠️ AI Assistant is not configured. Please set up the DeepSeek API key in Admin Settings.")
-        
-        if st.session_state.user['plan'] == 'admin':
-            if st.button("⚙️ Configure AI Settings", use_container_width=True):
-                st.session_state.show_ai_settings = True
-                st.rerun()
-        return
-    
-    # Test connection button for admin
-    if st.session_state.user['plan'] == 'admin':
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("🔗 Test AI Connection", use_container_width=True):
-                with st.spinner("Testing AI connection..."):
-                    success, message = deepseek_ai.test_connection()
-                    if success:
-                        st.success(f"✅ {message}")
-                    else:
-                        st.error(f"❌ {message}")
-    
-    # AI Features Tabs
-    tab1, tab2, tab3 = st.tabs(["💬 Chat Assistant", "📊 Strategy Analysis", "⚡ Signal Analysis"])
-    
-    with tab1:
-        render_ai_chat_assistant()
-    
-    with tab2:
-        render_ai_strategy_analysis()
-    
-    with tab3:
-        render_ai_signal_analysis()
-
-def render_ai_chat_assistant():
-    """AI Chat Assistant for general trading questions"""
-    st.subheader("💬 AI Trading Chat Assistant")
-    
-    st.info("💡 Ask me anything about trading strategies, market analysis, risk management, or technical indicators!")
-    
-    # Display chat history
-    for message in st.session_state.ai_chat_history:
-        if message['role'] == 'user':
-            with st.chat_message("user"):
-                st.write(message['content'])
-        else:
-            with st.chat_message("assistant"):
-                st.write(message['content'])
-    
-    # Chat input
-    if prompt := st.chat_input("Ask a trading question..."):
-        # Add user message to chat
-        st.session_state.ai_chat_history.append({"role": "user", "content": prompt})
-        
-        with st.chat_message("user"):
-            st.write(prompt)
-        
-        # Get AI response
-        with st.chat_message("assistant"):
-            with st.spinner("🤖 AI is thinking..."):
-                response, error = deepseek_ai.chat_assistance(prompt, st.session_state.ai_chat_history)
-                
-                if error:
-                    st.error(f"❌ AI Error: {error}")
-                else:
-                    st.write(response)
-                    # Add AI response to chat history
-                    st.session_state.ai_chat_history.append({"role": "assistant", "content": response})
-    
-    # Chat controls
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🗑️ Clear Chat History", use_container_width=True):
-            st.session_state.ai_chat_history = []
-            st.rerun()
-    with col2:
-        if st.button("💡 Example Questions", use_container_width=True):
-            st.session_state.ai_chat_history.append({
-                "role": "user", 
-                "content": "Can you give me some example questions to ask the AI assistant?"
-            })
-            st.session_state.ai_chat_history.append({
-                "role": "assistant",
-                "content": """Sure! Here are some example questions you can ask me:
-
-**Strategy Questions:**
-- "Analyze the RSI Strategy for current market conditions"
-- "What's the best risk management approach for crypto trading?"
-- "How do I use moving averages effectively?"
-
-**Market Analysis:**
-- "What are the key support and resistance levels for BTC?"
-- "How does Fed policy affect cryptocurrency markets?"
-- "Technical analysis vs fundamental analysis - which is better?"
-
-**Risk Management:**
-- "What's the optimal position sizing for a $10,000 portfolio?"
-- "How to set proper stop-loss levels?"
-- "Risk-reward ratio best practices"
-
-**Indicator Questions:**
-- "How to interpret RSI divergence?"
-- "Best MACD settings for day trading?"
-- "Volume analysis techniques"
-
-Feel free to ask any trading-related question!"""
-            })
-            st.rerun()
-
-def render_ai_strategy_analysis():
-    """AI-powered strategy analysis"""
-    st.subheader("📊 AI Strategy Analysis")
-    
-    # Strategy selection
-    selected_strategy = st.selectbox(
-        "Select Strategy to Analyze:",
-        list(STRATEGIES.keys()),
-        key="ai_strategy_selector"
-    )
-    
-    # Market context
-    market_context = st.text_area(
-        "Market Context (Optional):",
-        placeholder="e.g., Bull market, high volatility, Fed meeting this week, etc.",
-        height=80,
-        key="ai_market_context"
-    )
-    
-    # Analysis options
-    col1, col2 = st.columns(2)
-    with col1:
-        include_technical = st.checkbox("Technical Analysis", value=True)
-        include_risk = st.checkbox("Risk Assessment", value=True)
-    with col2:
-        include_setups = st.checkbox("Trading Setups", value=True)
-        include_alternatives = st.checkbox("Alternative Scenarios", value=True)
-    
-    # Generate analysis
-    if st.button("🚀 Generate AI Strategy Analysis", use_container_width=True):
-        if not selected_strategy:
-            st.error("❌ Please select a strategy to analyze")
-            return
-        
-        with st.spinner("🤖 AI is analyzing the strategy..."):
-            # Get strategy indicators
-            indicators = STRATEGIES[selected_strategy]
-            
-            # Prepare context
-            context = market_context
-            if include_technical:
-                context += " Include detailed technical analysis."
-            if include_risk:
-                context += " Include comprehensive risk assessment."
-            if include_setups:
-                context += " Include specific trading setups."
-            if include_alternatives:
-                context += " Include alternative scenarios."
-            
-            # Get AI analysis
-            analysis, error = deepseek_ai.analyze_trading_strategy(
-                selected_strategy, indicators, context
-            )
-            
-            if error:
-                st.error(f"❌ AI Analysis Failed: {error}")
-            else:
-                st.session_state.current_ai_strategy_analysis = {
-                    'strategy': selected_strategy,
-                    'analysis': analysis,
-                    'timestamp': datetime.now().isoformat()
-                }
-                
-                # Display analysis
-                st.markdown("---")
-                st.subheader(f"🤖 AI Analysis: {selected_strategy}")
-                st.markdown(analysis)
-                
-                # Save to session state for later access
-                if selected_strategy not in st.session_state.ai_analysis_results:
-                    st.session_state.ai_analysis_results[selected_strategy] = []
-                
-                st.session_state.ai_analysis_results[selected_strategy].append({
-                    'analysis': analysis,
-                    'timestamp': datetime.now().isoformat(),
-                    'context': context
-                })
-    
-    # Display previous analyses if available
-    if selected_strategy in st.session_state.ai_analysis_results:
-        st.markdown("---")
-        st.subheader("📜 Previous Analyses")
-        
-        analyses = st.session_state.ai_analysis_results[selected_strategy]
-        for i, analysis_data in enumerate(reversed(analyses[-3:])):  # Show last 3
-            with st.expander(f"Analysis {len(analyses) - i} - {analysis_data['timestamp'][:16]}"):
-                st.markdown(analysis_data['analysis'])
-
-def render_ai_signal_analysis():
-    """AI analysis for trading signals"""
-    st.subheader("⚡ AI Signal Analysis")
-    
-    # Check if there are any signals to analyze
-    if not st.session_state.active_signals:
-        st.info("📭 No trading signals available for analysis. Create some signals first!")
-        return
-    
-    # Signal selection
-    signal_options = [f"{s['asset']} - {s['signal_type']} ({s['timeframe']})" for s in st.session_state.active_signals if s['status'] == 'published']
-    
-    if not signal_options:
-        st.info("📭 No published signals available for analysis.")
-        return
-    
-    selected_signal_idx = st.selectbox(
-        "Select Signal to Analyze:",
-        range(len(signal_options)),
-        format_func=lambda x: signal_options[x],
-        key="ai_signal_selector"
-    )
-    
-    selected_signal = [s for s in st.session_state.active_signals if s['status'] == 'published'][selected_signal_idx]
-    
-    # Display signal details
-    st.markdown("**Selected Signal Details:**")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write(f"**Asset:** {selected_signal['asset']}")
-        st.write(f"**Type:** {selected_signal['signal_type']}")
-        st.write(f"**Timeframe:** {SIGNAL_CONFIG['timeframes'][selected_signal['timeframe']]['name']}")
-    with col2:
-        st.write(f"**Entry:** ${selected_signal['entry_price']:,.2f}")
-        st.write(f"**Target:** ${selected_signal['target_price']:,.2f}")
-        st.write(f"**Stop:** ${selected_signal['stop_loss']:,.2f}")
-    
-    # Generate AI analysis
-    if st.button("🔍 Analyze Signal with AI", use_container_width=True):
-        with st.spinner("🤖 AI is analyzing the signal..."):
-            analysis, error = deepseek_ai.generate_signal_analysis(selected_signal)
-            
-            if error:
-                st.error(f"❌ AI Analysis Failed: {error}")
-            else:
-                st.markdown("---")
-                st.subheader("🤖 AI Signal Analysis")
-                st.markdown(analysis)
-                
-                # Store analysis with signal
-                selected_signal['ai_analysis'] = analysis
-                selected_signal['ai_analysis_timestamp'] = datetime.now().isoformat()
-                save_signals_data(st.session_state.active_signals)
-    
-    # Show existing AI analysis if available
-    if 'ai_analysis' in selected_signal:
-        st.markdown("---")
-        st.subheader("📊 Existing AI Analysis")
-        st.markdown(selected_signal.get('ai_analysis', 'No analysis available'))
-        st.caption(f"Last analyzed: {selected_signal.get('ai_analysis_timestamp', 'Unknown')}")
-
-def render_ai_settings():
-    """AI Settings configuration for admin"""
-    st.subheader("⚙️ AI Integration Settings")
-    
-    st.info("""
-    **DeepSeek AI Configuration**
-    
-    Configure your DeepSeek API key to enable AI-powered trading analysis.
-    Get your API key from: https://platform.deepseek.com/api_keys
-    """)
-    
-    with st.form("ai_settings_form"):
-        current_api_key = deepseek_ai.api_key
-        masked_key = "•" * 20 + current_api_key[-4:] if current_api_key else "Not set"
-        
-        st.write(f"**Current API Key:** `{masked_key}`")
-        
-        new_api_key = st.text_input(
-            "DeepSeek API Key:",
-            type="password",
-            placeholder="Enter your DeepSeek API key",
-            value="",
-            help="Get your API key from https://platform.deepseek.com/api_keys",
-            key="deepseek_api_key_input"
-        )
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            submit = st.form_submit_button("✅ Save API Key", use_container_width=True)
-        with col2:
-            if st.form_submit_button("🔙 Cancel", use_container_width=True):
-                st.session_state.show_ai_settings = False
-                st.rerun()
-        
-        if submit:
-            if not new_api_key:
-                st.error("❌ Please enter an API key")
-            else:
-                # Test the API key first
-                with st.spinner("Testing API key..."):
-                    # Temporarily set the key for testing
-                    deepseek_ai.api_key = new_api_key
-                    success, message = deepseek_ai.test_connection()
-                    
-                    if success:
-                        # Save the key permanently
-                        save_success = deepseek_ai.save_api_key(new_api_key)
-                        if save_success:
-                            st.success("✅ API key saved and verified successfully!")
-                            st.session_state.show_ai_settings = False
-                            time.sleep(2)
-                            st.rerun()
-                        else:
-                            st.error("❌ Failed to save API key to database")
-                    else:
-                        st.error(f"❌ API key test failed: {message}")
-                        # Revert to old key
-                        deepseek_ai.api_key = current_api_key
 
 # -------------------------
 # FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION WITH BACK BUTTON
@@ -4969,7 +4402,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
                 st.write(analysis.get('note', 'No notes'))
 
 # -------------------------
-# COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION WITH AI INTEGRATION
+# COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION
 # -------------------------
 def render_admin_dashboard():
     """Professional admin dashboard with dual mode selection"""
@@ -5000,15 +4433,13 @@ def render_admin_dashboard():
             st.success("🖼️ Image Gallery Mode")
         elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
-        elif current_mode == "ai_assistant":
-            st.success("🤖 AI Trading Assistant")
         else:
             st.success("🛠️ Admin Management Mode")
         
         # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
-        col1, col2, col3, col4, col5 = st.columns(5)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
                         type="primary" if current_mode == "admin" else "secondary",
@@ -5032,12 +4463,6 @@ def render_admin_dashboard():
                         type="primary" if current_mode == "signals_room" else "secondary",
                         key="sidebar_signals_btn"):
                 st.session_state.admin_dashboard_mode = "signals_room"
-                st.rerun()
-        with col5:
-            if st.button("🤖 AI", use_container_width=True,
-                        type="primary" if current_mode == "ai_assistant" else "secondary",
-                        key="sidebar_ai_btn"):
-                st.session_state.admin_dashboard_mode = "ai_assistant"
                 st.rerun()
         
         st.markdown("---")
@@ -5070,15 +4495,6 @@ def render_admin_dashboard():
             if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
                 st.session_state.signals_room_view = 'active_signals'
                 st.rerun()
-        elif current_mode == "ai_assistant":
-            # AI Assistant mode - show AI-specific options
-            st.subheader("AI Actions")
-            if st.button("💬 Chat", use_container_width=True, key="sidebar_ai_chat"):
-                st.session_state.show_ai_assistant = True
-                st.rerun()
-            if st.button("⚙️ AI Settings", use_container_width=True, key="sidebar_ai_settings"):
-                st.session_state.show_ai_settings = True
-                st.rerun()
         else:
             # Gallery mode
             st.subheader("Gallery Actions")
@@ -5103,8 +4519,6 @@ def render_admin_dashboard():
         render_premium_signal_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
-    elif st.session_state.get('admin_dashboard_mode') == "ai_assistant":
-        render_ai_assistant()
     else:
         render_image_gallery()
 
@@ -5140,18 +4554,13 @@ def render_admin_sidebar_options():
     if st.button("🔐 Signals Room Password", use_container_width=True, key="sidebar_signals_password_btn"):
         st.session_state.show_signals_password_change = True
         st.rerun()
-    
-    # NEW: AI Settings
-    if st.button("⚙️ AI Settings", use_container_width=True, key="sidebar_ai_settings_btn"):
-        st.session_state.show_ai_settings = True
-        st.rerun()
 
 def render_admin_dashboard_selection():
     """Interface for admin to choose between admin dashboard and premium dashboard"""
     st.title("👑 Admin Portal - Choose Dashboard")
     st.markdown("---")
     
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.subheader("🛠️ Admin Management Dashboard")
@@ -5217,22 +4626,6 @@ def render_admin_dashboard_selection():
             st.session_state.admin_dashboard_mode = "signals_room"
             st.rerun()
     
-    with col5:
-        st.subheader("🤖 AI Trading Assistant")
-        st.markdown("""
-        **AI-Powered Analysis:**
-        - Strategy analysis with AI
-        - Signal validation
-        - Market insights
-        - Chat assistance
-        - Risk assessment
-        - Trading recommendations
-        - DeepSeek integration
-        """)
-        if st.button("🤖 Go to AI Assistant", use_container_width=True, key="ai_dash_btn"):
-            st.session_state.admin_dashboard_mode = "ai_assistant"
-            st.rerun()
-    
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
@@ -5273,10 +4666,6 @@ def render_admin_management_dashboard():
     
     if st.session_state.show_signals_password_change:
         render_signals_password_management()
-        return
-    
-    if st.session_state.show_ai_settings:
-        render_ai_settings()
         return
     
     # Current view based on admin_view state
@@ -5410,7 +4799,7 @@ def render_admin_user_management():
     st.subheader("👥 User Management")
     
     # User actions - FIXED: Proper bulk delete trigger
-    col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         if st.button("🔄 Refresh User List", use_container_width=True, key="um_refresh_btn"):
             st.rerun()
@@ -5438,10 +4827,6 @@ def render_admin_user_management():
     with col6:
         if st.button("🔐 Change Admin Password", use_container_width=True, key="um_password_btn"):
             st.session_state.show_password_change = True
-            st.rerun()
-    with col7:
-        if st.button("⚙️ AI Settings", use_container_width=True, key="um_ai_btn"):
-            st.session_state.show_ai_settings = True
             st.rerun()
     
     st.markdown("---")
@@ -5676,7 +5061,7 @@ st.set_page_config(
 )
 
 # -------------------------
-# MAIN APPLICATION - FIXED USER ACCESS WITH AI INTEGRATION
+# MAIN APPLICATION - FIXED USER ACCESS
 # -------------------------
 def main():
     init_session()
@@ -5684,7 +5069,7 @@ def main():
     # Setup data persistence
     setup_data_persistence()
     
-    # Enhanced CSS for premium appearance with AI styling
+    # Enhanced CSS for premium appearance
     st.markdown("""
     <style>
     .main-header {
@@ -5720,13 +5105,6 @@ def main():
         padding: 1.5rem;
         margin: 0.5rem 0;
         background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
-    }
-    .ai-feature {
-        border: 2px solid #8B5CF6;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #f0e7ff 0%, #ddd6fe 100%);
     }
     .verification-badge {
         font-size: 0.7rem !important;
@@ -5839,22 +5217,6 @@ def main():
         font-size: 0.8rem;
         font-weight: 600;
     }
-    .ai-response {
-        background: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
-        border-left: 4px solid #4f46e5;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    .ai-thinking {
-        background: linear-gradient(135deg, #fef7ff 0%, #f3e8ff 100%);
-        border: 2px dashed #a855f7;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-        text-align: center;
-        color: #7e22ce;
-    }
     </style>
     """, unsafe_allow_html=True)
     
@@ -5869,7 +5231,7 @@ def main():
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room AND AI assistant
+            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room
             # Add navigation for users to switch between dashboard and gallery
             
             # User navigation header
@@ -5878,7 +5240,7 @@ def main():
             # User mode selection
             user_mode = st.sidebar.radio(
                 "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🤖 AI Assistant"],
+                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals"],
                 key="user_navigation_mode"
             )
             
@@ -5889,9 +5251,6 @@ def main():
             elif user_mode == "⚡ Trading Signals":
                 # Show the trading signals room in VIEW MODE
                 render_trading_signals_room()
-            elif user_mode == "🤖 AI Assistant":
-                # Show the AI Assistant
-                render_ai_assistant()
             else:
                 # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
