@@ -4365,9 +4365,9 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
             
             # ✅ COSMETIC CHANGE: Add checkmark for "Done" status indicators
             if status == "Done":
-                expander_title = f"**{indicator}** ✅ - {momentum}"
+                expander_title = f"**{indicator}** ✅"
             else:
-                expander_title = f"**{indicator}** - {momentum}"
+                expander_title = f"**{indicator}**"
             
             with col.expander(expander_title, expanded=False):
                 if note:
