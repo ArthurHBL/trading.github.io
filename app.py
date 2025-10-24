@@ -49,6 +49,17 @@ def init_supabase():
 supabase_client = init_supabase()
 
 # -------------------------
+# APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD AND AI API KEY)
+# -------------------------
+def load_app_settings():
+    """Load app settings from Supabase"""
+    return supabase_get_app_settings()
+
+def save_app_settings(settings):
+    """Save app settings to Supabase"""
+    return supabase_save_app_settings(settings)
+
+# -------------------------
 # DEEPSEEK AI INTEGRATION
 # -------------------------
 class DeepSeekAI:
@@ -795,17 +806,6 @@ def init_session():
         st.session_state.show_ai_settings = False
     if 'current_ai_strategy_analysis' not in st.session_state:
         st.session_state.current_ai_strategy_analysis = None
-
-# -------------------------
-# APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD AND AI API KEY)
-# -------------------------
-def load_app_settings():
-    """Load app settings from Supabase"""
-    return supabase_get_app_settings()
-
-def save_app_settings(settings):
-    """Save app settings to Supabase"""
-    return supabase_save_app_settings(settings)
 
 # -------------------------
 # DATA PERSISTENCE SETUP
