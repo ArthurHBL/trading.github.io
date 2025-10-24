@@ -5049,13 +5049,15 @@ def render_admin_dashboard():
             st.success("🖼️ Image Gallery Mode")
         elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
+        elif current_mode == "kai_agent":  # ADDED: KAI Agent mode
+            st.success("🧠 KAI AI Agent Mode")
         else:
             st.success("🛠️ Admin Management Mode")
         
         # Dashboard mode switcher
         st.markdown("---")
         st.subheader("Dashboard Mode")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)  # CHANGED: 5 columns now
         with col1:
             if st.button("🛠️ Admin", use_container_width=True, 
                         type="primary" if current_mode == "admin" else "secondary",
@@ -5079,6 +5081,12 @@ def render_admin_dashboard():
                         type="primary" if current_mode == "signals_room" else "secondary",
                         key="sidebar_signals_btn"):
                 st.session_state.admin_dashboard_mode = "signals_room"
+                st.rerun()
+        with col5:  # ADDED: KAI Agent button
+            if st.button("🧠 KAI Agent", use_container_width=True,
+                        type="primary" if current_mode == "kai_agent" else "secondary",
+                        key="sidebar_kai_btn"):
+                st.session_state.admin_dashboard_mode = "kai_agent"
                 st.rerun()
         
         st.markdown("---")
@@ -5111,6 +5119,14 @@ def render_admin_dashboard():
             if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
                 st.session_state.signals_room_view = 'active_signals'
                 st.rerun()
+        elif current_mode == "kai_agent":  # ADDED: KAI Agent sidebar options
+            st.subheader("KAI Agent Actions")
+            if st.button("📊 Upload CSV Analysis", use_container_width=True, key="sidebar_kai_upload"):
+                # This will trigger the CSV upload in the KAI interface
+                st.rerun()
+            if st.button("📜 View Analysis History", use_container_width=True, key="sidebar_kai_history"):
+                # This will show the analysis history
+                st.rerun()
         else:
             # Gallery mode
             st.subheader("Gallery Actions")
@@ -5128,13 +5144,15 @@ def render_admin_dashboard():
                     st.session_state.image_viewer_mode = True
                     st.rerun()
     
-    # Main admin content based on selected mode
+    # Main admin content based on selected mode - FIXED: Added kai_agent condition
     if st.session_state.get('admin_dashboard_mode') == "admin":
         render_admin_management_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "premium":
         render_premium_signal_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
+    elif st.session_state.get('admin_dashboard_mode') == "kai_agent":  # ADDED: KAI Agent condition
+        render_kai_agent()
     else:
         render_image_gallery()
 
