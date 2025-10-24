@@ -3922,35 +3922,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                  key=f"buy_bundle_{selected_strategy}",
                  help="Purchase to use in TradingView")
     
-    # Quick analysis form
-    with st.form(f"quick_analysis_{selected_strategy}"):
-        col1, col2 = st.columns(2)
-        with col1:
-            strategy_tag = st.selectbox("Strategy Tag:", ["Neutral", "Buy", "Sell"], key=f"tag_{selected_strategy}")
-        with col2:
-            strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], key=f"type_{selected_strategy}")
-        
-        # Quick notes
-        quick_note = st.text_area(
-            "Quick Analysis Notes:", 
-            height=100,
-            placeholder=f"Enter your analysis notes for {selected_strategy}...",
-            key=f"quick_note_{selected_strategy}"
-        )
-        
-        submitted = st.form_submit_button("💾 Save Quick Analysis", use_container_width=True, key=f"save_quick_{selected_strategy}")
-        
-        if submitted:
-            # Save quick analysis
-            if 'saved_analyses' not in data:
-                data['saved_analyses'] = {}
-            data['saved_analyses'][selected_strategy] = {
-                "timestamp": datetime.now(),
-                "tag": strategy_tag,
-                "type": strategy_type,
-                "note": quick_note
-            }
-            st.success("✅ Quick analysis saved!")
+    # REMOVED: Quick Analysis Notes section completely
     
     st.markdown("---")
     
@@ -4272,10 +4244,6 @@ def render_user_dashboard():
             st.session_state.dashboard_view = 'main'
             st.rerun()
         
-        if st.button("📋 Strategy Details", use_container_width=True, key="user_nav_notes"):
-            st.session_state.dashboard_view = 'notes'
-            st.rerun()
-        
         if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
             st.session_state.dashboard_view = 'settings'
             st.rerun()
@@ -4303,15 +4271,13 @@ def render_user_dashboard():
     # Main dashboard content - READ ONLY for users but same layout as admin
     current_view = st.session_state.get('dashboard_view', 'main')
     
-    if current_view == 'notes':
-        render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy)
-    elif current_view == 'settings':
+    if current_view == 'settings':
         render_user_account_settings()
     else:
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """User trading dashboard - SAME LAYOUT AS ADMIN BUT READ ONLY"""
+    """User trading dashboard - ENHANCED INTERACTIVE VERSION WITH EXPANDABLE BOXES"""
     st.title("📊 Trading Signal Dashboard")
     
     # Welcome message - DIFFERENT FROM ADMIN
@@ -4353,8 +4319,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     
     st.markdown("---")
     
-    # Selected strategy analysis - READ ONLY FOR USERS
-    # CHANGED: Removed " - VIEW MODE" and added green BUY button
+    # Selected strategy analysis - ENHANCED INTERACTIVE VERSION WITH EXPANDABLE BOXES
     col_header1, col_header2 = st.columns([3, 1])
     with col_header1:
         st.subheader(f"🔍 {selected_strategy} Analysis")
@@ -4364,7 +4329,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
                  key=f"user_buy_bundle_{selected_strategy}",
                  help="Purchase to use in TradingView")
     
-    # Display existing analysis - NO EDITING CAPABILITY
+    # Display existing analysis - ENHANCED WITH EXPANDABLE BOXES
     strategy_data = st.session_state.strategy_analyses_data
     existing_data = strategy_data.get(selected_strategy, {})
     
@@ -4383,12 +4348,42 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         with col3:
             st.info(f"**Provider:** {modified_by}")
         
-        # Display analysis note - READ ONLY
-        note = first_indicator.get("note", "")
-        if note:
-            st.text_area("Analysis:", value=note, height=100, disabled=True, key=f"user_note_{selected_strategy}")
-        else:
-            st.info("No analysis available yet for this strategy.")
+        st.markdown("---")
+        
+        # ENHANCED: Display indicators in expandable boxes - INTERACTIVE VIEW
+        st.subheader("📊 Indicator Analysis")
+        
+        indicators = STRATEGIES[selected_strategy]
+        col_objs = st.columns(3)
+        
+        for i, indicator in enumerate(indicators):
+            col = col_objs[i % 3]
+            existing = existing_data.get(indicator, {})
+            note = existing.get("note", "")
+            status = existing.get("status", "Open")
+            momentum = existing.get("momentum", "Not Defined")
+            
+            # ✅ COSMETIC CHANGE: Add checkmark for "Done" status indicators
+            if status == "Done":
+                expander_title = f"**{indicator}** ✅ - {momentum}"
+            else:
+                expander_title = f"**{indicator}** - {momentum}"
+            
+            with col.expander(expander_title, expanded=False):
+                if note:
+                    st.text_area(
+                        f"Analysis", 
+                        value=note, 
+                        height=120, 
+                        disabled=True,
+                        key=f"user_view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}_{i}"
+                    )
+                else:
+                    st.info("No analysis available for this indicator.")
+                
+                st.caption(f"Status: {status}")
+                if existing.get("last_modified"):
+                    st.caption(f"Last updated: {existing['last_modified'][:16]}")
     else:
         st.warning("No signal data available for this strategy yet.")
     
@@ -4396,11 +4391,6 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     display_strategy_indicator_images_user(selected_strategy)
     
     st.markdown("---")
-    
-    # Detailed view button - LEADS TO READ-ONLY DETAILED VIEW
-    if st.button("📋 View Detailed Analysis", use_container_width=True, key="user_detailed_view_btn"):
-        st.session_state.dashboard_view = 'notes'
-        st.rerun()
     
     # Recent activity - READ ONLY
     if data.get('saved_analyses'):
@@ -4410,89 +4400,6 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
             with st.expander(f"{strategy} - {analysis['timestamp'].strftime('%H:%M')}"):
                 st.write(f"**Tag:** {analysis['tag']} | **Type:** {analysis['type']}")
                 st.write(analysis.get('note', 'No notes'))
-
-def render_user_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface - READ ONLY FOR USERS - FIXED DUPLICATE KEY ISSUE"""
-    st.title("📋 Strategy Details")
-    
-    # Header with cycle info - CHANGED: Removed " - VIEW MODE" and added green BUY button
-    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-    with col1:
-        st.subheader(f"Day {cycle_day} - {selected_strategy}")
-    with col2:
-        st.button("🟢 BUY Strategy", 
-                 use_container_width=True, 
-                 key=f"user_buy_bundle_notes_{selected_strategy}",
-                 help="Purchase to use in TradingView")
-    with col3:
-        st.metric("Analysis Date", analysis_date.strftime("%m/%d/%Y"))
-    with col4:
-        if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_dashboard_btn"):
-            st.session_state.dashboard_view = 'main'
-            st.rerun()
-    
-    st.markdown("---")
-    
-    # Display existing data - READ ONLY
-    existing_data = strategy_data.get(selected_strategy, {})
-    
-    if not existing_data:
-        st.warning("No signal data available for this strategy yet.")
-        return
-    
-    # Strategy-level info
-    first_indicator = next(iter(existing_data.values()), {})
-    strategy_tag = first_indicator.get("strategy_tag", "Neutral")
-    strategy_type = first_indicator.get("momentum", "Not Defined")
-    modified_by = first_indicator.get("modified_by", "System")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info(f"**Overall Signal:** {strategy_tag}")
-    with col2:
-        st.info(f"**Strategy Type:** {strategy_type}")
-    
-    st.markdown("---")
-    
-    # NEW: Display strategy indicator images
-    display_strategy_indicator_images_user(selected_strategy)
-    
-    st.markdown("---")
-    
-    # Indicator analysis in columns - READ ONLY - FIXED: Using unique keys
-    st.subheader("📊 Indicator Analysis")
-    
-    indicators = STRATEGIES[selected_strategy]
-    col_objs = st.columns(3)
-    
-    for i, indicator in enumerate(indicators):
-        col = col_objs[i % 3]
-        existing = existing_data.get(indicator, {})
-        note = existing.get("note", "")
-        status = existing.get("status", "Open")
-        
-        # ✅ COSMETIC CHANGE: Add checkmark for "Done" status indicators
-        if status == "Done":
-            expander_title = f"**{indicator}** ✅ - {status}"
-        else:
-            expander_title = f"**{indicator}** - {status}"
-        
-        with col.expander(expander_title, expanded=False):
-            if note:
-                # FIXED: Using unique keys for each text_area
-                st.text_area(
-                    f"Analysis", 
-                    value=note, 
-                    height=120, 
-                    disabled=True,
-                    key=f"user_view_{sanitize_key(selected_strategy)}_{sanitize_key(indicator)}_{i}"  # Added index for uniqueness
-                )
-            else:
-                st.info("No analysis available for this indicator.")
-            
-            st.caption(f"Status: {status}")
-            if existing.get("last_modified"):
-                st.caption(f"Last updated: {existing['last_modified'][:16]}")
 
 # -------------------------
 # COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION
