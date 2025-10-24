@@ -3765,6 +3765,18 @@ def render_premium_signal_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
+    # Get daily strategies and cycle day
+    daily_strategies, cycle_day = get_daily_strategies(analysis_date)
+    
+    # FIXED: Auto-select first strategy when date changes or no strategy selected
+    if (st.session_state.get('last_analysis_date') != analysis_date or 
+        st.session_state.selected_strategy is None or 
+        st.session_state.selected_strategy not in daily_strategies):
+        st.session_state.selected_strategy = daily_strategies[0]
+        st.session_state.last_analysis_date = analysis_date
+    
+    selected_strategy = st.session_state.selected_strategy
+    
     # FIXED: Clean sidebar with proper layout - 5-DAY CYCLE FIRST, then STRATEGY SELECTION, then SIGNAL ACTIONS
     with st.sidebar:
         st.title("🎛️ Admin Signal Control Panel")
@@ -3804,20 +3816,13 @@ def render_premium_signal_dashboard():
             st.rerun()
         
         # Cycle information
-        daily_strategies, cycle_day = get_daily_strategies(analysis_date)
         st.info(f"**Day {cycle_day} of 5-day cycle**")
-        
-        # Today's focus strategies
-        st.markdown("**Today's Focus:**")
-        for strategy in daily_strategies:
-            st.write(f"• {strategy}")
         
         st.markdown("---")
         
         # Strategy selection - MOVED TO SECOND SECTION (right after 5-day cycle)
         # CHANGED: Replace dropdown with clickable buttons
         st.subheader("🎯 Choose Strategy to Edit:")
-        selected_strategy = st.session_state.get('selected_strategy', daily_strategies[0])
         
         # Create clickable buttons for each strategy
         for strategy in daily_strategies:
@@ -4184,6 +4189,18 @@ def render_user_dashboard():
         analysis_date = start_date
         st.session_state.analysis_date = start_date
     
+    # Get daily strategies and cycle day
+    daily_strategies, cycle_day = get_daily_strategies(analysis_date)
+    
+    # FIXED: Auto-select first strategy when date changes or no strategy selected
+    if (st.session_state.get('last_analysis_date') != analysis_date or 
+        st.session_state.selected_strategy is None or 
+        st.session_state.selected_strategy not in daily_strategies):
+        st.session_state.selected_strategy = daily_strategies[0]
+        st.session_state.last_analysis_date = analysis_date
+    
+    selected_strategy = st.session_state.selected_strategy
+    
     # FIXED: Clean sidebar with proper layout - 5-DAY CYCLE FIRST, then STRATEGY SELECTION, then NAVIGATION
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
@@ -4228,20 +4245,13 @@ def render_user_dashboard():
             st.rerun()
         
         # Cycle information
-        daily_strategies, cycle_day = get_daily_strategies(analysis_date)
         st.info(f"**Day {cycle_day} of 5-day cycle**")
-        
-        # Today's focus strategies
-        st.markdown("**Today's Focus:**")
-        for strategy in daily_strategies:
-            st.write(f"• {strategy}")
         
         st.markdown("---")
         
         # Strategy selection - READ ONLY - MOVED TO SECOND SECTION (right after 5-day cycle)
         # CHANGED: Replace dropdown with clickable buttons
         st.subheader("🎯 Choose Strategy to View:")
-        selected_strategy = st.session_state.get('selected_strategy', daily_strategies[0])
         
         # Create clickable buttons for each strategy
         for strategy in daily_strategies:
