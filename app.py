@@ -2476,8 +2476,8 @@ def render_kai_analysis_card(analysis, index, is_admin):
             if st.button("👁️ View", key=f"view_analysis_{analysis['id']}", use_container_width=True):
                 st.session_state.kai_analysis_view = 'view_analysis'
                 st.session_state.selected_kai_analysis_id = analysis['id']
-                # Force immediate rerun
-                st.experimental_rerun()
+                # Force immediate rerun - FIXED: Use st.rerun() instead of st.experimental_rerun()
+                st.rerun()
         
         with col4:
             # Delete button (admin only)
@@ -2487,7 +2487,7 @@ def render_kai_analysis_card(analysis, index, is_admin):
                         st.success("✅ Analysis deleted!")
                         st.session_state.kai_analyses = load_kai_analyses()
                         time.sleep(2)
-                        st.experimental_rerun()
+                        st.rerun()  # FIXED: Use st.rerun()
                     else:
                         st.error("❌ Failed to delete analysis")
         
