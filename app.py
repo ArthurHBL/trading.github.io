@@ -1400,7 +1400,7 @@ class EnhancedKaiTradingAgent:
             implications.append("**🟢 LOW RISK** - Normal to aggressive position sizing appropriate")
         
         # Always include core risk management
-        implications.append("**🔒 CORE RISK MANAGEMENT** - Always use stop losses, 1-2% risk per trade")
+        implications.append("**🔒 CORE RISK MANAGEMENT** - 1-3% risk per trade")
         
         return implications
 
