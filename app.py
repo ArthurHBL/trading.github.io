@@ -1121,32 +1121,32 @@ def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_a
         return self._create_fallback_analysis(f"DeepSeek analysis failed: {str(e)}")
         
     def _parse_deepseek_response(self, response):
-    """Completely rewritten DeepSeek response parser - ULTRA ROBUST VERSION"""
-    try:
-        # If response is None, return empty dict
-        if response is None:
-            return self._create_fallback_analysis("No response from DeepSeek API")
+        """Completely rewritten DeepSeek response parser - ULTRA ROBUST VERSION"""
+        try:
+            # If response is None, return empty dict
+            if response is None:
+                return self._create_fallback_analysis("No response from DeepSeek API")
         
-        # If it's already a properly formatted dict with required fields, return it
-        if (isinstance(response, dict) and 
-            response.get('executive_summary') is not None and
-            response.get('key_findings') is not None):
-            return response
+            # If it's already a properly formatted dict with required fields, return it
+            if (isinstance(response, dict) and 
+                response.get('executive_summary') is not None and
+                response.get('key_findings') is not None):
+                return response
         
-        # If it's a string, try to parse it
-        if isinstance(response, str):
-            return self._parse_string_response(response)
+            # If it's a string, try to parse it
+            if isinstance(response, str):
+                return self._parse_string_response(response)
         
-        # If it's a dict but missing required fields, try to extract what we can
-        if isinstance(response, dict):
-            return self._extract_from_partial_dict(response)
+            # If it's a dict but missing required fields, try to extract what we can
+            if isinstance(response, dict):
+                return self._extract_from_partial_dict(response)
         
-        # For any other type, convert to string and parse
-        return self._parse_string_response(str(response))
+            # For any other type, convert to string and parse
+            return self._parse_string_response(str(response))
         
-    except Exception as e:
-        self.logger.error(f"Critical error parsing DeepSeek response: {e}")
-        return self._create_fallback_analysis(f"Parser error: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Critical error parsing DeepSeek response: {e}")
+            return self._create_fallback_analysis(f"Parser error: {str(e)}")
 
 def _parse_string_response(self, response_str):
     """Parse string response from DeepSeek"""
