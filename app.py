@@ -2857,7 +2857,7 @@ def render_kai_csv_uploader():
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
 # -------------------------
 def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
-    """Display KAI's enhanced analysis report with DeepSeek integration - FIXED VERSION"""
+    """Display KAI's enhanced analysis report with DeepSeek integration - ULTIMATE FIXED VERSION"""
     
     # CRITICAL FIX: Validate that analysis is a dictionary
     if not isinstance(analysis, dict):
@@ -2902,7 +2902,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         delta_color_setting = "normal" if confidence_score >= 50 else "inverse"
         
         st.metric(
-            f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
+            f"🧠 Confidence Level", 
             f"{confidence_score}%",
             delta=delta_value,
             delta_color=delta_color_setting
@@ -2950,39 +2950,72 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     
     signals = analysis.get('signal_details', {})
     
+    # CRITICAL FIX: Add type checking for ALL signal processing
+    if not isinstance(signals, dict):
+        st.warning("⚠️ Signal data format issue detected")
+        signals = {}
+    
     # Reversal Signals with Scoring (KAI's priority)
     if signals.get("reversal_signals"):
-        with st.expander(f"🔄 Reversal Signals ({len(signals['reversal_signals'])}) - SCORED ANALYSIS", expanded=True):
-            for signal in signals["reversal_signals"]:
-                strength_icon = "🔥" if signal.get('strength') == 'HIGH' else "⚠️"
-                score_display = f" | Score: {signal.get('score', 'N/A')}/10" if signal.get('score') else ""
-                confidence_display = f" | Confidence: {signal.get('confidence', 'N/A')}%" if signal.get('confidence') else ""
-                st.write(f"{strength_icon} **{signal['strategy']} - {signal['indicator']}**{score_display}{confidence_display}")
-                st.write(f"   *{signal['message']}*")
+        reversal_signals = signals["reversal_signals"]
+        # CRITICAL FIX: Ensure reversal_signals is a list
+        if isinstance(reversal_signals, list):
+            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)}) - SCORED ANALYSIS", expanded=True):
+                for signal in reversal_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        strength_icon = "🔥" if signal.get('strength') == 'HIGH' else "⚠️"
+                        score_display = f" | Score: {signal.get('score', 'N/A')}/10" if signal.get('score') else ""
+                        confidence_display = f" | Confidence: {signal.get('confidence', 'N/A')}%" if signal.get('confidence') else ""
+                        st.write(f"{strength_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**{score_display}{confidence_display}")
+                        st.write(f"   *{signal.get('message', 'No message')}*")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
     
     # Enhanced Support/Resistance Levels with Price Levels
     if signals.get("support_signals"):
-        with st.expander(f"📊 Support/Resistance Levels ({len(signals['support_signals'])}) - PRICE LEVELS"):
-            for signal in signals["support_signals"]:
-                level_icon = "🟢" if signal.get('level') == 'SUPPORT' else "🔴"
-                price_info = f" at {signal.get('price_level', 'N/A')}" if signal.get('price_level') else ""
-                strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
-                st.write(f"{level_icon} **{signal['strategy']} - {signal['indicator']}**: {signal.get('level')}{price_info}{strength_info}")
+        support_signals = signals["support_signals"]
+        # CRITICAL FIX: Ensure support_signals is a list
+        if isinstance(support_signals, list):
+            with st.expander(f"📊 Support/Resistance Levels ({len(support_signals)}) - PRICE LEVELS"):
+                for signal in support_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        level_icon = "🟢" if signal.get('level') == 'SUPPORT' else "🔴"
+                        price_info = f" at {signal.get('price_level', 'N/A')}" if signal.get('price_level') else ""
+                        strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
+                        st.write(f"{level_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('level', 'LEVEL')}{price_info}{strength_info}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
     
     # Enhanced Momentum Analysis
     if signals.get("momentum_signals"):
-        with st.expander(f"🎯 Momentum Signals ({len(signals['momentum_signals'])}) - DIRECTIONAL BIAS"):
-            for signal in signals["momentum_signals"]:
-                direction_icon = "📈" if signal.get('direction') == 'BULLISH' else "📉"
-                strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
-                st.write(f"{direction_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}{strength_info}")
+        momentum_signals = signals["momentum_signals"]
+        # CRITICAL FIX: Ensure momentum_signals is a list
+        if isinstance(momentum_signals, list):
+            with st.expander(f"🎯 Momentum Signals ({len(momentum_signals)}) - DIRECTIONAL BIAS"):
+                for signal in momentum_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        direction_icon = "📈" if signal.get('direction') == 'BULLISH' else "📉"
+                        strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
+                        st.write(f"{direction_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('message', 'No message')}{strength_info}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
     
     # NEW: Divergence Signals - FIXED: Use .get() to avoid KeyError
     if signals.get("divergence_signals"):
-        with st.expander(f"⚡ Divergence Signals ({len(signals['divergence_signals'])})"):
-            for signal in signals["divergence_signals"]:
-                type_icon = "🟢" if signal.get('type') == 'BULLISH' else "🔴" if signal.get('type') == 'BEARISH' else "🟡"
-                st.write(f"{type_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
+        divergence_signals = signals["divergence_signals"]
+        # CRITICAL FIX: Ensure divergence_signals is a list
+        if isinstance(divergence_signals, list):
+            with st.expander(f"⚡ Divergence Signals ({len(divergence_signals)})"):
+                for signal in divergence_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        type_icon = "🟢" if signal.get('type') == 'BULLISH' else "🔴" if signal.get('type') == 'BEARISH' else "🟡"
+                        st.write(f"{type_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('message', 'No message')}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
     
     # Enhanced Risk Assessment - FIXED VERSION
     st.markdown("### 🛡️ Risk Assessment & Management")
@@ -3006,16 +3039,27 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         with col1:
             st.write("**High Risk Indicators:**")
             if risk_data.get('high_risk_indicators'):
-                for risk in risk_data['high_risk_indicators'][:3]:
-                    st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+                high_risk_indicators = risk_data['high_risk_indicators']
+                if isinstance(high_risk_indicators, list):
+                    for risk in high_risk_indicators[:3]:
+                        if isinstance(risk, dict):
+                            st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+                        else:
+                            st.write(f"• Invalid risk format: {type(risk)}")
+                else:
+                    st.write("• No high risk indicators detected")
             else:
                 st.write("• No high risk indicators detected")
         
         with col2:
             st.write("**Position Sizing Recommendations:**")
             if risk_data.get('position_sizing_recommendations'):
-                for rec in risk_data['position_sizing_recommendations']:
-                    st.write(f"• {rec}")
+                position_recommendations = risk_data['position_sizing_recommendations']
+                if isinstance(position_recommendations, list):
+                    for rec in position_recommendations:
+                        st.write(f"• {rec}")
+                else:
+                    st.write("• Standard position sizing appropriate")
             else:
                 st.write("• Standard position sizing appropriate")
     
@@ -3034,16 +3078,21 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     
     for i, (time_key, time_label, time_desc) in enumerate(timeframes):
         with [col1, col2, col3, col4][i]:
-            signals_count = len(time_analysis.get(time_key, []))
+            time_signals = time_analysis.get(time_key, [])
+            if isinstance(time_signals, list):
+                signals_count = len(time_signals)
+            else:
+                signals_count = 0
             st.metric(time_label, signals_count)
             st.caption(time_desc)
             
-            if signals_count > 0:
+            if signals_count > 0 and isinstance(time_signals, list):
                 with st.expander(f"View {time_label} Signals"):
-                    for signal in time_analysis[time_key][:3]:
-                        confidence = signal.get('confidence', 'N/A')
-                        confidence_display = f" ({confidence}%)" if isinstance(confidence, (int, float)) else ""
-                        st.write(f"• {signal['strategy']} - {signal['indicator']}{confidence_display}")
+                    for signal in time_signals[:3]:
+                        if isinstance(signal, dict):
+                            confidence = signal.get('confidence', 'N/A')
+                            confidence_display = f" ({confidence}%)" if isinstance(confidence, (int, float)) else ""
+                            st.write(f"• {signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}{confidence_display}")
     
     # DeepSeek AI Insights Section (if available)
     if is_enhanced and analysis.get('deepseek_analysis'):
@@ -3051,25 +3100,31 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         
         deepseek_data = analysis['deepseek_analysis']
         
-        if deepseek_data.get('momentum_assessment'):
+        if isinstance(deepseek_data, dict) and deepseek_data.get('momentum_assessment'):
             st.info(f"**Momentum Analysis:** {deepseek_data['momentum_assessment']}")
         
-        if deepseek_data.get('critical_levels'):
-            st.write("**Critical Price Levels:**")
-            for level in deepseek_data['critical_levels'][:5]:
-                st.write(f"• {level}")
+        if isinstance(deepseek_data, dict) and deepseek_data.get('critical_levels'):
+            critical_levels = deepseek_data['critical_levels']
+            if isinstance(critical_levels, list):
+                st.write("**Critical Price Levels:**")
+                for level in critical_levels[:5]:
+                    st.write(f"• {level}")
     
     # Enhanced Trading Implications (KAI always ends with actionable insights)
     st.markdown("### 💡 Enhanced Trading Implications & Recommendations")
     
     if is_enhanced and analysis.get('deepseek_analysis', {}).get('trading_recommendations'):
         # Use AI-enhanced recommendations
-        for implication in analysis['deepseek_analysis']['trading_recommendations']:
-            st.write(implication)
+        trading_recommendations = analysis['deepseek_analysis']['trading_recommendations']
+        if isinstance(trading_recommendations, list):
+            for implication in trading_recommendations:
+                st.write(implication)
     else:
         # Use standard implications
-        for implication in analysis.get("trading_implications", []):
-            st.write(implication)
+        trading_implications = analysis.get("trading_implications", [])
+        if isinstance(trading_implications, list):
+            for implication in trading_implications:
+                st.write(implication)
     
     # Quantitative Analysis Summary
     st.markdown("### 📊 Quantitative Analysis Summary")
@@ -3077,15 +3132,25 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     summary_cols = st.columns(3)
     
     with summary_cols[0]:
-        total_signals = sum(len(signals.get(signal_type, [])) for signal_type in ['reversal_signals', 'momentum_signals', 'support_signals', 'volume_signals', 'breakout_signals', 'divergence_signals'])
+        total_signals = 0
+        if isinstance(signals, dict):
+            for signal_type, signal_list in signals.items():
+                if isinstance(signal_list, list):
+                    total_signals += len(signal_list)
         st.metric("Total Signals Detected", total_signals)
     
     with summary_cols[1]:
-        high_confidence_signals = len([s for s in signals.get("reversal_signals", []) if s.get('confidence', 0) >= 70])
+        high_confidence_signals = 0
+        if isinstance(signals, dict) and isinstance(signals.get("reversal_signals"), list):
+            for signal in signals["reversal_signals"]:
+                if isinstance(signal, dict) and signal.get('confidence', 0) >= 70:
+                    high_confidence_signals += 1
         st.metric("High Confidence Signals", high_confidence_signals)
     
     with summary_cols[2]:
-        conflict_count = len(signals.get("conflicting_signals", []))
+        conflict_count = 0
+        if isinstance(signals, dict) and isinstance(signals.get("conflicting_signals"), list):
+            conflict_count = len(signals["conflicting_signals"])
         st.metric("Conflicting Signals", conflict_count, delta_color="inverse")
 
 def display_kai_analysis_summary(analysis):
