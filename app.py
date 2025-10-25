@@ -1320,14 +1320,16 @@ class EnhancedKaiTradingAgent:
         return findings[:5]
     
     def _generate_momentum_analysis(self, signals, deepseek_analysis):
-        """Enhanced momentum analysis"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'momentum_assessment' in deepseek_analysis:
+        """Enhanced momentum analysis - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('momentum_assessment')):
             return deepseek_analysis['momentum_assessment']
-        
+    
         # Standard momentum analysis
         bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
         bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-        
+    
         if bullish_count > bearish_count * 1.5:
             return "Strong bullish momentum bias across multiple timeframes"
         elif bearish_count > bullish_count * 1.5:
@@ -1336,10 +1338,14 @@ class EnhancedKaiTradingAgent:
             return "Mixed momentum signals suggesting consolidation or indecision"
     
     def _generate_support_resistance(self, signals, deepseek_analysis):
-        """Enhanced support/resistance analysis"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'critical_levels' in deepseek_analysis:
-            return deepseek_analysis['critical_levels']
-        
+        """Enhanced support/resistance analysis - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('critical_levels')):
+            levels = deepseek_analysis['critical_levels']
+            if isinstance(levels, list):
+                return levels[:5]
+    
         # Standard support/resistance
         levels = []
         for signal in signals["support_signals"]:
@@ -1347,23 +1353,27 @@ class EnhancedKaiTradingAgent:
             if signal.get('strength') == 'STRONG':
                 level_info += " (STRONG)"
             levels.append(level_info)
-        
+    
         return levels[:5]
     
     def _generate_time_outlook(self, time_analysis, deepseek_analysis):
-        """Enhanced time horizon outlook"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'time_horizons' in deepseek_analysis:
+        """Enhanced time horizon outlook - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('time_horizons')):
             return deepseek_analysis['time_horizons']
-        
+    
         return time_analysis
     
     def _generate_risk_assessment(self, risk_analysis, deepseek_analysis):
-        """Enhanced risk assessment"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'risk_analysis' in deepseek_analysis:
+        """Enhanced risk assessment - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('risk_analysis')):
             return deepseek_analysis['risk_analysis']
-        
+    
         risk_score = risk_analysis.get('overall_risk_score', 5)
-        
+    
         if risk_score >= 7:
             return "HIGH RISK ENVIRONMENT - Exercise extreme caution with position sizing"
         elif risk_score >= 5:
@@ -1372,52 +1382,58 @@ class EnhancedKaiTradingAgent:
             return "LOW RISK - Favorable conditions for trading"
     
     def _calculate_confidence(self, signals, deepseek_analysis):
-        """KAI's consistent confidence scoring with DeepSeek enhancement"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'confidence_score' in deepseek_analysis:
+        """KAI's consistent confidence scoring with DeepSeek enhancement - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('confidence_score') is not None):
             return deepseek_analysis['confidence_score']
-        
+    
         # Standard confidence calculation
         score = 0
-        
+    
         # Reversal signals (highest weight)
         for signal in signals["reversal_signals"]:
             if signal.get('strength') == 'HIGH':
                 score += 25
             else:
                 score += 15
-        
+    
         # Support/Resistance signals
         score += len(signals["support_signals"]) * 10
-        
+    
         # Momentum confirmation
         bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
         bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-        
+    
         if abs(bullish_count - bearish_count) >= 3:
             score += 20
         elif abs(bullish_count - bearish_count) >= 1:
             score += 10
-        
+    
         # Volume confirmation
         score += len(signals["volume_signals"]) * 5
-        
+    
         # Divergence signals
         score += len(signals["divergence_signals"]) * 8
-            
+        
         return min(95, max(20, score))
     
     def _generate_trading_implications(self, signals, risk_analysis, deepseek_analysis):
-        """KAI's actionable insights with DeepSeek enhancement"""
-        if deepseek_analysis and isinstance(deepseek_analysis, dict) and 'trading_recommendations' in deepseek_analysis:
-            return deepseek_analysis['trading_recommendations']
-        
+        """KAI's actionable insights with DeepSeek enhancement - FIXED VERSION"""
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            deepseek_analysis.get('trading_recommendations')):
+            recommendations = deepseek_analysis['trading_recommendations']
+            if isinstance(recommendations, list):
+                return recommendations
+    
         # Standard trading implications
         implications = []
-        
+    
         reversal_strength = len(signals["reversal_signals"])
         strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
         risk_score = risk_analysis.get('overall_risk_score', 5)
-        
+    
         if reversal_strength >= 3 and strong_reversals >= 2:
             implications.append("**🎯 STRONG REVERSAL EVIDENCE** - Prepare for major trend change")
             implications.append("**📊 MULTI-TIMEFRAME CONFIRMATION** - High probability setup")
@@ -1428,7 +1444,7 @@ class EnhancedKaiTradingAgent:
         else:
             implications.append("**🔄 RANGE-BOUND CONDITIONS** - Focus on support/resistance levels")
             implications.append("**🎯 MOMENTUM FOLLOWING** - Trade with dominant trend direction")
-        
+    
         # Risk-based position sizing
         if risk_score >= 7:
             implications.append("**🔴 HIGH RISK ENVIRONMENT** - Reduce position size by 50-70%")
@@ -1436,10 +1452,10 @@ class EnhancedKaiTradingAgent:
             implications.append("**🟡 MODERATE RISK** - Use standard position sizing")
         else:
             implications.append("**🟢 LOW RISK** - Normal to aggressive position sizing appropriate")
-        
+    
         # Always include core risk management
         implications.append("**🔒 CORE RISK MANAGEMENT** - 1-3% risk per trade")
-        
+    
         return implications
 
 # -------------------------
