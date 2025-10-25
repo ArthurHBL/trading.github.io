@@ -1090,7 +1090,6 @@ class EnhancedKaiTradingAgent:
                 "confidence_score": 30,
                 "trading_recommendations": ["Proceed with caution", "Verify signals manually"]
             }
-    
     def _parse_deepseek_response(self, response):
         """Parse DeepSeek response and handle various formats - COMPLETELY FIXED VERSION"""
         try:
@@ -1099,12 +1098,12 @@ class EnhancedKaiTradingAgent:
                 'executive_summary' in response and
                 'key_findings' in response):
                 return response
-        
+    
             # If response is a string, try to parse as JSON
             if isinstance(response, str):
                 # Clean the response string first
                 cleaned_response = response.strip()
-            
+        
                 # Try to parse as JSON directly
                 try:
                     parsed = json.loads(cleaned_response)
@@ -1129,17 +1128,17 @@ class EnhancedKaiTradingAgent:
                                 return parsed
                         except json.JSONDecodeError:
                             pass
-                
+            
                     # If no valid JSON found, wrap the entire response as executive summary
                     return self._wrap_string_response(cleaned_response)
-        
+    
             # If response is a dict but missing required fields, wrap it
             if isinstance(response, dict):
                 return self._wrap_string_response(str(response))
-        
+    
             # For any other type, convert to string and wrap
             return self._wrap_string_response(str(response))
-        
+    
         except Exception as e:
             self.logger.error(f"Error parsing DeepSeek response: {e}")
             # Return a safe fallback that definitely has the required structure
