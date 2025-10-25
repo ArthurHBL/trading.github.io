@@ -2362,12 +2362,12 @@ def render_kai_analysis_card(analysis, index, is_admin):
                 st.caption(f"**By:** {analysis['uploaded_by']}")
         
         with col2:
-            # Confidence and risk scores
+            # Confidence and risk scores - FIXED: Removed key parameter from st.metric
             confidence = analysis_data.get('confidence_assessment', 0)
             risk_score = analysis_data.get('risk_assessment_data', {}).get('overall_risk_score', 0)
             
-            st.metric("Confidence", f"{confidence}%", key=f"confidence_{analysis['id']}")
-            st.metric("Risk Score", f"{risk_score}/10", key=f"risk_{analysis['id']}")
+            st.metric("Confidence", f"{confidence}%")
+            st.metric("Risk Score", f"{risk_score}/10")
         
         with col3:
             # FIXED: View full analysis button with unique key
@@ -2389,7 +2389,7 @@ def render_kai_analysis_card(analysis, index, is_admin):
                         st.error("❌ Failed to delete analysis")
         
         st.markdown("---")
-
+        
 def render_single_kai_analysis():
     """Render a single KAI analysis in detail view - FIXED DUPLICATE KEYS"""
     if not st.session_state.selected_kai_analysis_id:
