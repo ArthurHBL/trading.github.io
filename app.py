@@ -236,10 +236,10 @@ class EnhancedKaiTradingAgent:
         
         	# FIX: Handle different response formats from DeepSeek API
         	if "choices" in result and len(result["choices"]) > 0:
-            		if "message" in result["choices"][0]:
-                		return result["choices"][0]["message"]["content"]
-            	    elif "text" in result["choices"][0]:
-                	    return result["choices"][0]["text"]
+            if "message" in result["choices"][0]:
+                return result["choices"][0]["message"]["content"]
+            elif "text" in result["choices"][0]:
+                return result["choices"][0]["text"]
         
         	# If we can't extract the content, return the raw result for debugging
         	self.logger.warning(f"Unexpected DeepSeek response format: {result}")
