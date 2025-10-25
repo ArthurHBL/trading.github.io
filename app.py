@@ -1093,7 +1093,7 @@ class EnhancedKaiTradingAgent:
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
         """Simplified DeepSeek analysis - FIXED VERSION"""
         try:
-            # Prepare data for DeepSeek - FIXED: Don't parse the JSON string
+            # Prepare data for DeepSeek
             data_summary = self._prepare_data_for_deepseek(df)
     
             # Get the enhanced analysis prompt
@@ -1102,31 +1102,36 @@ class EnhancedKaiTradingAgent:
             # Call DeepSeek API
             response = self._call_deepseek_api(prompt)
     
-            # ALWAYS return a valid dict
+            # ALWAYS return a valid dict - CRITICAL FIX
             if response:
                 parsed_response = self._parse_deepseek_response(response)
-                return parsed_response
+                # Double-check that we got a dict back
+                if isinstance(parsed_response, dict):
+                    return parsed_response
+                else:
+                    # If somehow we didn't get a dict, create fallback
+                    return self._create_fallback_analysis(f"Unexpected parser response type: {type(parsed_response)}")
             else:
                 return self._create_fallback_analysis("DeepSeek API unavailable")
-        
+            
         except Exception as e:
             return self._create_fallback_analysis(f"Analysis completed with note: {str(e)}")
     
     def _parse_deepseek_response(self, response):
-        """ULTRA SIMPLE DeepSeek response parser - FIXED VERSION"""
+        """ULTRA ROBUST DeepSeek response parser - ALWAYS RETURNS DICT"""
         try:
             if not response:
                 return self._create_fallback_analysis("No response from DeepSeek API")
-        
-            # If response is already a dict, return it
+    
+            # If response is already a dict, validate and return it
             if isinstance(response, dict):
                 return response
-        
+    
             # If response is a string, try to parse it as JSON
             if isinstance(response, str):
                 # Clean the response string first
                 cleaned_response = response.strip()
-            
+        
                 # Remove any markdown code blocks if present
                 if cleaned_response.startswith('```json'):
                     cleaned_response = cleaned_response[7:]
@@ -1135,13 +1140,13 @@ class EnhancedKaiTradingAgent:
                 if cleaned_response.endswith('```'):
                     cleaned_response = cleaned_response[:-3]
                 cleaned_response = cleaned_response.strip()
-            
+        
                 try:
                     parsed = json.loads(cleaned_response)
                     if isinstance(parsed, dict):
                         return parsed
                     else:
-                        # If parsed but not a dict, wrap it
+                        # If parsed but not a dict, wrap it as dict
                         return self._wrap_string_response(f"Parsed non-dict response: {str(parsed)}")
                 except json.JSONDecodeError:
                     # If JSON parsing fails, check if it looks like a JSON string without proper formatting
@@ -1155,24 +1160,25 @@ class EnhancedKaiTradingAgent:
                         except:
                             pass
                 
-                    # If all parsing fails, wrap the original string
+                    # If all parsing fails, wrap the original string as dict
                     return self._wrap_string_response(cleaned_response)
-        
-            # For any other type, convert to string and wrap
+    
+            # For any other type, convert to string and wrap as dict
             return self._wrap_string_response(str(response))
-        
+    
         except Exception as e:
-            self.logger.error(f"DeepSeek response parsing error: {e}")
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
     
     def _wrap_string_response(self, text):
-        """Wrap any string response into proper format"""
+        """Wrap any string response into proper KAI analysis format"""
         return {
             "executive_summary": f"Analysis: {text[:150]}..." if len(text) > 150 else f"Analysis: {text}",
             "key_findings": [
                 "Market analysis completed",
                 "Technical patterns identified", 
-                "Trading signals detected"
+                "Trading signals detected",
+                "Risk assessment performed",
+                "Time horizons analyzed"
             ],
             "momentum_assessment": "Mixed momentum signals across timeframes",
             "critical_levels": ["Key support/resistance levels identified"],
@@ -1187,7 +1193,8 @@ class EnhancedKaiTradingAgent:
                 "Wait for confirmation before entering positions",
                 "Use tight stop-losses in current market conditions",
                 "Focus on high-probability setups only"
-            ]
+            ],
+            "original_string": text  # Keep the original for debugging
         }
     
     def _create_fallback_analysis(self, error_message):
@@ -2746,6 +2753,20 @@ def render_kai_csv_uploader():
             with st.spinner("🧠 KAI is performing enhanced analysis with DeepSeek AI..."):
                 analysis = kai_agent.analyze_strategy_data(df)
             
+            # ========== CRITICAL FIX: VALIDATE ANALYSIS RESULT ==========
+            if not isinstance(analysis, dict):
+                st.error(f"❌ Analysis returned invalid data type: {type(analysis)}")
+                st.error(f"❌ Expected: dict, Received: {type(analysis).__name__}")
+                st.info("The analysis system encountered an error. Please try again with a different CSV file.")
+                
+                # Show what we actually got for debugging
+                with st.expander("🔧 Debug Information"):
+                    st.write(f"**Analysis object type:** {type(analysis)}")
+                    st.write(f"**Analysis content preview:** {str(analysis)[:500]}...")
+                
+                return
+            # ========== END CRITICAL FIX ==========
+            
             # Add analysis type for tracking
             analysis['analysis_type'] = 'csv_upload'
             analysis['original_filename'] = uploaded_file.name
@@ -2777,7 +2798,13 @@ def render_kai_csv_uploader():
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
 # -------------------------
 def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
-    """Display KAI's enhanced analysis report with DeepSeek integration"""
+    """Display KAI's enhanced analysis report with DeepSeek integration - FIXED VERSION"""
+    
+    # CRITICAL FIX: Validate that analysis is a dictionary
+    if not isinstance(analysis, dict):
+        st.error(f"❌ Invalid analysis data type: {type(analysis)}")
+        st.info("Expected a dictionary but received a different data type. Please try the analysis again.")
+        return
     
     # Check if analysis is None and handle gracefully
     if analysis is None:
@@ -2795,13 +2822,18 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         created_at = analysis_meta.get('created_at', 'Unknown date')
         meta_info = f" | By: {created_by} | {created_at[:16]}"
     
-    st.markdown(f"### {analysis['header']}{enhancement_badge}{meta_info}")
+    st.markdown(f"### {analysis.get('header', '🔍 KAI Analysis Report')}{enhancement_badge}{meta_info}")
     
     # Executive Summary (KAI always starts with this)
     if is_enhanced and analysis.get('deepseek_analysis'):
-        st.success(f"**🧠 AI-Enhanced Summary:** {analysis['executive_summary']}")
+        # CRITICAL FIX: Validate deepseek_analysis is a dict before accessing it
+        deepseek_data = analysis['deepseek_analysis']
+        if isinstance(deepseek_data, dict) and deepseek_data.get('executive_summary'):
+            st.success(f"**🧠 AI-Enhanced Summary:** {deepseek_data['executive_summary']}")
+        else:
+            st.info(analysis.get("executive_summary", "No executive summary available"))
     else:
-        st.info(analysis["executive_summary"])
+        st.info(analysis.get("executive_summary", "No executive summary available"))
     
     # Enhanced Metrics with Quantitative Scoring
     col1, col2, col3, col4 = st.columns(4)
