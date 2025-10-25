@@ -731,37 +731,47 @@ class EnhancedKaiTradingAgent:
             return "REGULAR"
     
     def analyze_strategy_data(self, df):
-        """KAI's main analysis method with DeepSeek enhancement"""
+        """KAI's main analysis method with DeepSeek enhancement - FIXED VERSION"""
         try:
             # PHASE 1: Strategy Scanning (KAI always starts here)
             strategy_overview = self._phase_1_scanning(df)
-        
+    
             # PHASE 2: Signal Extraction  
             signals = self._phase_2_signal_extraction(df)
-        
+    
             # PHASE 3: Time Horizon Mapping
             time_analysis = self._phase_3_time_mapping(df)
-        
+    
             # PHASE 4: Risk Assessment
             risk_analysis = self._phase_4_risk_assessment(df, signals)
-        
+    
             # DEEPSEEK ENHANCED ANALYSIS
             deepseek_analysis = None
             if self.use_deepseek:
                 try:
+                    self.logger.info("Starting DeepSeek enhanced analysis...")
                     deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
-                    if deepseek_analysis is None or not isinstance(deepseek_analysis, dict):
-                        deepseek_analysis = self._create_fallback_analysis("DeepSeek analysis unavailable")
+                
+                    # Validate the response
+                    if deepseek_analysis is None:
+                        self.logger.warning("DeepSeek analysis returned None")
+                        deepseek_analysis = self._create_fallback_analysis("DeepSeek API unavailable")
+                    elif not isinstance(deepseek_analysis, dict):
+                        self.logger.warning(f"DeepSeek analysis is not a dict: {type(deepseek_analysis)}")
+                        deepseek_analysis = self._create_fallback_analysis("DeepSeek response format invalid")
+                    else:
+                        self.logger.info("DeepSeek analysis completed successfully")
+                    
                 except Exception as e:
                     self.logger.error(f"DeepSeek analysis failed: {e}")
                     deepseek_analysis = self._create_fallback_analysis(f"DeepSeek error: {str(e)}")
-        
+    
             # Compile KAI's final report
             analysis = self._generate_kai_report(
                 strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
             )
             return analysis
-        
+    
         except Exception as e:
             self.logger.error(f"Critical error in analyze_strategy_data: {e}")
             return {
