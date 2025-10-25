@@ -731,20 +731,20 @@ class EnhancedKaiTradingAgent:
             return "REGULAR"
     
     def analyze_strategy_data(self, df):
-        """KAI's main analysis method with DeepSeek enhancement - FIXED VERSION"""
+        """KAI's main analysis method with DeepSeek enhancement - ULTRA ROBUST VERSION"""
         try:
             # PHASE 1: Strategy Scanning (KAI always starts here)
             strategy_overview = self._phase_1_scanning(df)
-    
+
             # PHASE 2: Signal Extraction  
             signals = self._phase_2_signal_extraction(df)
-    
+
             # PHASE 3: Time Horizon Mapping
             time_analysis = self._phase_3_time_mapping(df)
-    
+
             # PHASE 4: Risk Assessment
             risk_analysis = self._phase_4_risk_assessment(df, signals)
-    
+
             # DEEPSEEK ENHANCED ANALYSIS
             deepseek_analysis = None
             if self.use_deepseek:
@@ -752,26 +752,31 @@ class EnhancedKaiTradingAgent:
                     self.logger.info("Starting DeepSeek enhanced analysis...")
                     deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
                 
-                    # Validate the response
+                    # Validate the response - ensure it's always a dict
                     if deepseek_analysis is None:
                         self.logger.warning("DeepSeek analysis returned None")
                         deepseek_analysis = self._create_fallback_analysis("DeepSeek API unavailable")
                     elif not isinstance(deepseek_analysis, dict):
                         self.logger.warning(f"DeepSeek analysis is not a dict: {type(deepseek_analysis)}")
-                        deepseek_analysis = self._create_fallback_analysis("DeepSeek response format invalid")
-                    else:
-                        self.logger.info("DeepSeek analysis completed successfully")
-                    
+                        # Try to convert to dict if it's a string
+                        if isinstance(deepseek_analysis, str):
+                            try:
+                                deepseek_analysis = json.loads(deepseek_analysis)
+                            except:
+                                deepseek_analysis = self._create_fallback_analysis(f"DeepSeek returned string: {deepseek_analysis[:100]}...")
+                        else:
+                            deepseek_analysis = self._create_fallback_analysis(f"DeepSeek returned {type(deepseek_analysis)}")
+                
                 except Exception as e:
                     self.logger.error(f"DeepSeek analysis failed: {e}")
                     deepseek_analysis = self._create_fallback_analysis(f"DeepSeek error: {str(e)}")
-    
+
             # Compile KAI's final report
             analysis = self._generate_kai_report(
                 strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
             )
             return analysis
-    
+
         except Exception as e:
             self.logger.error(f"Critical error in analyze_strategy_data: {e}")
             return {
@@ -1211,7 +1216,21 @@ class EnhancedKaiTradingAgent:
         }
     
     def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
-        """KAI's consistent reporting format with DeepSeek enhancement"""
+        """KAI's consistent reporting format with DeepSeek enhancement - FIXED VERSION"""
+    
+        # Ensure deepseek_analysis is always a dictionary
+        if deepseek_analysis is not None and not isinstance(deepseek_analysis, dict):
+            try:
+                # Try to parse if it's a JSON string
+                if isinstance(deepseek_analysis, str):
+                deepseek_analysis = json.loads(deepseek_analysis)
+                else:
+                    # If it's neither dict nor string, create a fallback
+                    deepseek_analysis = self._create_fallback_analysis(f"Unexpected analysis type: {type(deepseek_analysis)}")
+            except:
+                # If parsing fails, create fallback
+                deepseek_analysis = self._create_fallback_analysis("Analysis format error")
+    
         report = {
             "header": f"🔍 **{self.character['name']} Analysis Report**",
             "executive_summary": self._generate_executive_summary(overview, signals, deepseek_analysis),
@@ -1231,18 +1250,18 @@ class EnhancedKaiTradingAgent:
         return report
     
     def _generate_executive_summary(self, overview, signals, deepseek_analysis):
-        """KAI's signature executive summary style"""
+        """KAI's signature executive summary style - FIXED VERSION"""
         if (deepseek_analysis and 
             isinstance(deepseek_analysis, dict) and 
-            'executive_summary' in deepseek_analysis):
+            deepseek_analysis.get('executive_summary')):
             return f"🧠 **DeepSeek Enhanced:** {deepseek_analysis['executive_summary']}"
-        
+    
         # Fallback to standard analysis
         reversal_count = len(signals["reversal_signals"])
         strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
         momentum_bearish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
         momentum_bullish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
-        
+    
         if reversal_count >= 3 and strong_reversals >= 2:
             return f"**{self.character['phrases']['critical_juncture']}** - MULTIPLE STRONG REVERSAL SIGNALS DETECTED"
         elif reversal_count >= 2:
@@ -1255,47 +1274,49 @@ class EnhancedKaiTradingAgent:
             return f"**Consolidation Phase** - Mixed signals across {overview['total_strategies']} strategies"
     
     def _generate_key_findings(self, signals, overview, deepseek_analysis):
-        """KAI always provides 3-5 key findings with DeepSeek enhancement"""
+        """KAI always provides 3-5 key findings with DeepSeek enhancement - FIXED VERSION"""
         if (deepseek_analysis and 
             isinstance(deepseek_analysis, dict) and 
-            'key_findings' in deepseek_analysis):
-            return deepseek_analysis['key_findings'][:5]
-        
+            deepseek_analysis.get('key_findings')):
+            findings = deepseek_analysis['key_findings']
+            if isinstance(findings, list):
+                return findings[:5]
+    
         # Standard key findings
         findings = []
-        
+    
         # Reversal analysis
         reversal_count = len(signals["reversal_signals"])
         strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
         if reversal_count > 0:
             findings.append(f"🔄 **Reversal Patterns**: {reversal_count} reversal signals ({strong_reversals} strong)")
-        
+    
         # Support/Resistance
         support_count = len([s for s in signals["support_signals"] if s.get('level') == 'SUPPORT'])
         resistance_count = len([s for s in signals["support_signals"] if s.get('level') == 'RESISTANCE'])
         if support_count > 0 or resistance_count > 0:
             findings.append(f"📊 **Key Levels**: {support_count} support zones, {resistance_count} resistance zones")
-        
+    
         # Momentum
         bullish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
         bearish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
         if bullish_momentum > 0 or bearish_momentum > 0:
             findings.append(f"🎯 **Momentum**: {bullish_momentum} bullish vs {bearish_momentum} bearish signals")
-        
+    
         # Volume analysis
         if signals["volume_signals"]:
             findings.append(f"📈 **Volume Analysis**: {len(signals['volume_signals'])} volume-based signals")
-        
+    
         # Divergence signals
         if signals["divergence_signals"]:
             divergence_types = {}
             for signal in signals["divergence_signals"]:
                 div_type = signal.get('type', 'UNKNOWN')
                 divergence_types[div_type] = divergence_types.get(div_type, 0) + 1
-            
+        
             divergence_str = ", ".join([f"{count} {typ}" for typ, count in divergence_types.items()])
             findings.append(f"⚡ **Divergence Signals**: {divergence_str}")
-        
+    
         return findings[:5]
     
     def _generate_momentum_analysis(self, signals, deepseek_analysis):
