@@ -772,7 +772,7 @@ class EnhancedKaiTradingAgent:
         return min(10, max(1, risk_score))
     
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
-    """Get enhanced analysis from DeepSeek API - FIXED VERSION"""
+        """Get enhanced analysis from DeepSeek API - FIXED VERSION"""
     	try:
         	# Prepare data for DeepSeek
         	data_summary = self._prepare_data_for_deepseek(df)
@@ -785,51 +785,51 @@ class EnhancedKaiTradingAgent:
         
         	if response:
             		# FIX: Check if response is already a string or needs parsing
-            		if isinstance(response, str):
-                		try:
-                    			# Try to parse the string as JSON
-                    			enhanced_analysis = json.loads(response)
-                		except json.JSONDecodeError:
-                    			# If it's not valid JSON, use it as a text response
-                    			enhanced_analysis = {
-                        			"executive_summary": response[:200] + "..." if len(response) > 200 else response,
-                        			"key_findings": ["Analysis completed but format unexpected"],
-                        			"momentum_assessment": "DeepSeek analysis completed",
-                        			"critical_levels": ["Level data unavailable"],
-                        			"time_horizons": {
-                            				"short_term": "Analysis available",
-                            				"medium_term": "Analysis available", 
-                            				"long_term": "Analysis available"
-                        			},
-                        			"risk_analysis": "Risk assessment completed",
-                        			"confidence_score": 50,
-                        			"trading_recommendations": ["Review DeepSeek analysis for details"]
+            	if isinstance(response, str):
+                	try:
+                    	# Try to parse the string as JSON
+                    	enhanced_analysis = json.loads(response)
+                	except json.JSONDecodeError:
+                    	# If it's not valid JSON, use it as a text response
+                    	enhanced_analysis = {
+                        	"executive_summary": response[:200] + "..." if len(response) > 200 else response,
+                        	"key_findings": ["Analysis completed but format unexpected"],
+                        	"momentum_assessment": "DeepSeek analysis completed",
+                        	"critical_levels": ["Level data unavailable"],
+                        	"time_horizons": {
+                            		"short_term": "Analysis available",
+                            		"medium_term": "Analysis available", 
+                            		"long_term": "Analysis available"
+                        	},
+                        	"risk_analysis": "Risk assessment completed",
+                        	"confidence_score": 50,
+                        	"trading_recommendations": ["Review DeepSeek analysis for details"]
                    	 	}
             	else:
                 	# If response is already a dict, use it directly
                 	enhanced_analysis = response
                 
             	return enhanced_analysis
-       	else:
-           	return None
+       	    else:
+           	    return None
             
-    except Exception as e:
-        self.logger.error(f"DeepSeek enhanced analysis failed: {e}")
-        # Return a fallback analysis instead of None
-        return {
-            "executive_summary": f"DeepSeek analysis unavailable: {str(e)}",
-            "key_findings": ["API connection issue"],
-            "momentum_assessment": "Standard analysis only",
-            "critical_levels": [],
-            "time_horizons": {
-                "short_term": "Use standard analysis",
-                "medium_term": "Use standard analysis", 
-                "long_term": "Use standard analysis"
-            },
-            "risk_analysis": "Limited risk assessment available",
-            "confidence_score": 30,
-            "trading_recommendations": ["Proceed with caution", "Verify signals manually"]
-        }
+        except Exception as e:
+            self.logger.error(f"DeepSeek enhanced analysis failed: {e}")
+            # Return a fallback analysis instead of None
+            return {
+                "executive_summary": f"DeepSeek analysis unavailable: {str(e)}",
+                "key_findings": ["API connection issue"],
+                "momentum_assessment": "Standard analysis only",
+                "critical_levels": [],
+                "time_horizons": {
+                    "short_term": "Use standard analysis",
+                    "medium_term": "Use standard analysis", 
+                    "long_term": "Use standard analysis"
+                },
+                "risk_analysis": "Limited risk assessment available",
+                "confidence_score": 30,
+                "trading_recommendations": ["Proceed with caution", "Verify signals manually"]
+            }
     
     def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
         """KAI's consistent reporting format with DeepSeek enhancement"""
