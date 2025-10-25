@@ -773,7 +773,7 @@ class EnhancedKaiTradingAgent:
     
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
         """Get enhanced analysis from DeepSeek API - FIXED VERSION"""
-    	try:
+        try:
         	# Prepare data for DeepSeek
         	data_summary = self._prepare_data_for_deepseek(df)
         
