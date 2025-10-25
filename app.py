@@ -1086,24 +1086,24 @@ class EnhancedKaiTradingAgent:
         return min(10, max(1, risk_score))
     
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
-        """Simplified DeepSeek analysis"""
+        """Simplified DeepSeek analysis - FIXED VERSION"""
         try:
-            # Prepare data for DeepSeek
+            # Prepare data for DeepSeek - FIXED: Don't parse the JSON string
             data_summary = self._prepare_data_for_deepseek(df)
-        
+    
             # Get the enhanced analysis prompt
             prompt = self.deepseek_prompts["enhanced_analysis"].format(data_summary=data_summary)
-        
+    
             # Call DeepSeek API
             response = self._call_deepseek_api(prompt)
-        
+    
             # ALWAYS return a valid dict
             if response:
                 parsed_response = self._parse_deepseek_response(response)
                 return parsed_response
             else:
                 return self._create_fallback_analysis("DeepSeek API unavailable")
-            
+        
         except Exception as e:
             return self._create_fallback_analysis(f"Analysis completed with note: {str(e)}")
     
@@ -2631,7 +2631,7 @@ def render_kai_analysis_archive(is_admin):
         render_kai_analysis_card(analysis, i, is_admin)
         
 def render_kai_csv_uploader():
-    """Render the CSV uploader for KAI analysis (admin only)"""
+    """Render the CSV uploader for KAI analysis (admin only) - FIXED VERSION"""
     st.subheader("🔄 Upload CSV for KAI Analysis")
     
     st.info("""
@@ -2662,8 +2662,17 @@ def render_kai_csv_uploader():
             # Read and analyze data
             df = pd.read_csv(uploaded_file)
             
+            # Validate required columns
+            required_columns = ['Strategy', 'Indicator']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
+                st.info("Please upload a CSV with the correct format including 'Strategy' and 'Indicator' columns.")
+                return
+            
             # Display basic file info
-            st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique()) if 'Strategy' in df.columns else 'N/A'} strategies")
+            st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique())} strategies")
             
             # Show Auto-Explainer analysis
             with st.expander("🔄 Auto-Explainer CSV Analysis", expanded=True):
@@ -2680,7 +2689,8 @@ def render_kai_csv_uploader():
                         st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
                         st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
                         st.write(f"**Completion Rate:** {overview.get('completion_rate', 'N/A')}")
-                        st.write(f"**Data Quality:** {auto_analysis.get('quality_metrics', {}).get('overall_quality', 'N/A'):.1f}%")
+                        if 'quality_metrics' in auto_analysis:
+                            st.write(f"**Data Quality:** {auto_analysis['quality_metrics'].get('overall_quality', 'N/A'):.1f}%")
                 
                 with col2:
                     if 'signal_analysis' in auto_analysis:
@@ -2688,7 +2698,8 @@ def render_kai_csv_uploader():
                         signals = auto_analysis['signal_analysis']
                         st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
                         st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
-                        st.write(f"**Signal Quality:** {signals.get('metrics', {}).get('signal_quality_score', 'N/A'):.1f}%")
+                        if 'metrics' in signals:
+                            st.write(f"**Signal Quality:** {signals['metrics'].get('signal_quality_score', 'N/A'):.1f}%")
             
             # Show data preview
             with st.expander("📋 Data Preview", expanded=False):
@@ -2721,6 +2732,9 @@ def render_kai_csv_uploader():
         except Exception as e:
             st.error(f"❌ Error analyzing CSV: {str(e)}")
             st.info("Please ensure you're uploading a valid strategy analysis CSV export from the dashboard.")
+            # Show more detailed error for debugging
+            with st.expander("🔧 Technical Details (for debugging)"):
+                st.code(f"Error type: {type(e).__name__}\nError message: {str(e)}")
 
 # -------------------------
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
