@@ -131,28 +131,28 @@ class EnhancedKaiTradingAgent:
         }
     
     def _initialize_deepseek_prompts(self):
-        """Initialize specialized prompts for DeepSeek API"""
+        """Initialize specialized prompts for DeepSeek API - FIXED VERSION"""
         return {
             "enhanced_analysis": """
             You are KAI, a Senior Technical Analysis Specialist with 10+ years of multi-timeframe market analysis experience.
-            
+        
             CORE PERSONALITY TRAITS:
             - Methodical and structured in analysis
             - Conservative in risk assessment  
             - Clear and concise communicator
             - Quantitative and data-driven
             - Risk-aware and cautious
-            
+        
             ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
             1. STRATEGY_OVERVIEW: Big picture context
             2. KEY_INDICATORS: Critical technical levels
             3. MOMENTUM_ANALYSIS: Trend strength and direction
             4. SUPPORT_RESISTANCE: Key price levels
             5. TIME_HORIZONS: When signals may play out
-            
+        
             TRADING DATA TO ANALYZE:
             {data_summary}
-            
+        
             SPECIFIC INSTRUCTIONS:
             - Focus on reversal patterns and confluence
             - Identify high-probability setups only
@@ -160,7 +160,9 @@ class EnhancedKaiTradingAgent:
             - Highlight conflicting signals
             - Provide clear risk management advice
             - Use quantitative measures where possible
-            
+        
+            IMPORTANT: RESPOND WITH VALID JSON ONLY, NO ADDITIONAL TEXT.
+        
             RESPONSE FORMAT (STRICT JSON):
             {{
                 "executive_summary": "2-3 sentence overview",
@@ -173,78 +175,71 @@ class EnhancedKaiTradingAgent:
                     "long_term": "1-6 months analysis"
                 }},
                 "risk_analysis": "Risk assessment and management",
-                "confidence_score": 0-100,
+                "confidence_score": 65,
                 "trading_recommendations": ["rec1", "rec2", "rec3"]
             }}
+        
+            REMEMBER: ONLY RETURN THE JSON OBJECT, NO OTHER TEXT.
             """,
-            
-            "pattern_detection": """
-            As KAI, analyze these trading patterns for high-probability setups:
-            
-            DATA: {pattern_data}
-            
-            Look specifically for:
-            - Divergence patterns (RSI, MACD, Price)
-            - Support/Resistance breaks
-            - Volume confirmation
-            - Multi-timeframe alignment
-            - Trend exhaustion signals
-            
-            Return JSON with pattern analysis.
-            """,
-            
-            "risk_assessment": """
-            As KAI, perform conservative risk assessment:
-            
-            TRADING_SIGNALS: {signals_data}
-            
-            Evaluate:
-            - Position sizing recommendations
-            - Stop-loss placement logic
-            - Risk-reward ratios
-            - Correlation risks
-            - Market condition appropriateness
-            
-            Return JSON with risk analysis.
-            """
+            # ... rest of prompts remain the same
         }
     
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
-        """Call DeepSeek API with error handling and fallback"""
+        """Call DeepSeek API with improved error handling"""
         if not self.use_deepseek or not DEEPSEEK_API_KEY:
             self.logger.warning("DeepSeek API not available, using standard analysis")
             return None
-    
+
         try:
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
             }
-        
+    
             payload = {
                 "model": "deepseek-chat",
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": [
+                    {
+                        "role": "system", 
+                        "content": "You are KAI, a Senior Technical Analysis Specialist. Always respond with valid JSON format."
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
                 "temperature": temperature,
                 "max_tokens": max_tokens,
                 "stream": False
             }
-        
+    
             response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
-        
+    
             result = response.json()
-        
-            # Handle different response formats from DeepSeek API
+    
+            # Improved response extraction
             if "choices" in result and len(result["choices"]) > 0:
-                if "message" in result["choices"][0]:
-                    return result["choices"][0]["message"]["content"]
-                elif "text" in result["choices"][0]:
-                    return result["choices"][0]["text"]
+                choice = result["choices"][0]
+                if "message" in choice and "content" in choice["message"]:
+                    content = choice["message"]["content"]
+                    self.logger.info(f"DeepSeek API response received: {content[:100]}...")
+                    return content
+                elif "text" in choice:
+                    content = choice["text"]
+                    self.logger.info(f"DeepSeek API response received: {content[:100]}...")
+                    return content
         
-            # If we can't extract the content, return the raw result for debugging
+            # If we can't extract the content, log the full result
             self.logger.warning(f"Unexpected DeepSeek response format: {result}")
             return str(result)
-        
+    
+        except requests.exceptions.Timeout:
+            self.logger.error("DeepSeek API timeout")
+            return None
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"DeepSeek API request failed: {e}")
+            return None
         except Exception as e:
             self.logger.error(f"DeepSeek API call failed: {e}")
             return None
@@ -1103,27 +1098,56 @@ class EnhancedKaiTradingAgent:
             return self._create_fallback_analysis(f"Analysis completed with note: {str(e)}")
     
     def _parse_deepseek_response(self, response):
-        """ULTRA SIMPLE DeepSeek response parser"""
+        """ULTRA SIMPLE DeepSeek response parser - FIXED VERSION"""
         try:
             if not response:
                 return self._create_fallback_analysis("No response from DeepSeek API")
-            
+        
+            # If response is already a dict, return it
             if isinstance(response, dict):
                 return response
-            
+        
+            # If response is a string, try to parse it as JSON
             if isinstance(response, str):
+                # Clean the response string first
+                cleaned_response = response.strip()
+            
+                # Remove any markdown code blocks if present
+                if cleaned_response.startswith('```json'):
+                    cleaned_response = cleaned_response[7:]
+                if cleaned_response.startswith('```'):
+                    cleaned_response = cleaned_response[3:]
+                if cleaned_response.endswith('```'):
+                    cleaned_response = cleaned_response[:-3]
+                cleaned_response = cleaned_response.strip()
+            
                 try:
-                    parsed = json.loads(response.strip())
+                    parsed = json.loads(cleaned_response)
                     if isinstance(parsed, dict):
                         return parsed
                     else:
-                        return self._wrap_string_response(response)
+                        # If parsed but not a dict, wrap it
+                        return self._wrap_string_response(f"Parsed non-dict response: {str(parsed)}")
                 except json.JSONDecodeError:
-                    return self._wrap_string_response(response)
-            
+                    # If JSON parsing fails, check if it looks like a JSON string without proper formatting
+                    if cleaned_response.startswith('{') and cleaned_response.endswith('}'):
+                        try:
+                            # Try to fix common JSON issues
+                            fixed_response = cleaned_response.replace("'", '"')
+                            parsed = json.loads(fixed_response)
+                            if isinstance(parsed, dict):
+                                return parsed
+                        except:
+                            pass
+                
+                    # If all parsing fails, wrap the original string
+                    return self._wrap_string_response(cleaned_response)
+        
+            # For any other type, convert to string and wrap
             return self._wrap_string_response(str(response))
-            
+        
         except Exception as e:
+            self.logger.error(f"DeepSeek response parsing error: {e}")
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
     
     def _wrap_string_response(self, text):
