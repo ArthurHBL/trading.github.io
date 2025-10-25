@@ -2278,7 +2278,7 @@ def render_kai_agent():
             render_latest_kai_analysis(is_admin)
             
 def render_latest_kai_analysis(is_admin):
-    """Render the latest KAI analysis with enhanced display"""
+    """Render the latest KAI analysis with enhanced display - FIXED DUPLICATE KEYS"""
     st.subheader("📊 Latest KAI Analysis")
     
     # Load latest analysis
@@ -2301,12 +2301,13 @@ def render_latest_kai_analysis(is_admin):
     analysis_data = latest_analysis['analysis_data']
     display_enhanced_kai_analysis_report(analysis_data, latest_analysis)
     
-    # Additional actions for the latest analysis
+    # Additional actions for the latest analysis - FIXED: Use unique keys with analysis ID
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("📋 View in Archive", use_container_width=True, key="view_latest_in_archive"):
+        if st.button("📋 View in Archive", use_container_width=True, 
+                    key=f"view_latest_in_archive_{latest_analysis['id']}"):
             st.session_state.kai_analysis_view = 'archive'
             st.session_state.selected_kai_analysis_id = latest_analysis['id']
             st.rerun()
@@ -2320,11 +2321,12 @@ def render_latest_kai_analysis(is_admin):
             file_name=f"kai_analysis_{latest_analysis['created_at'][:10]}.json",
             mime="application/json",
             use_container_width=True,
-            key="export_latest_json"
+            key=f"export_latest_json_{latest_analysis['id']}"
         )
     
     with col3:
-        if is_admin and st.button("🗑️ Delete This Analysis", use_container_width=True, key="delete_latest_analysis"):
+        if is_admin and st.button("🗑️ Delete This Analysis", use_container_width=True, 
+                                 key=f"delete_latest_analysis_{latest_analysis['id']}"):
             if delete_kai_analysis(latest_analysis['id']):
                 st.success("✅ Analysis deleted successfully!")
                 st.session_state.kai_analyses = load_kai_analyses()
@@ -2333,6 +2335,134 @@ def render_latest_kai_analysis(is_admin):
             else:
                 st.error("❌ Failed to delete analysis")
 
+def render_kai_analysis_card(analysis, index, is_admin):
+    """Render a card for a KAI analysis in the archive - FIXED DUPLICATE KEYS"""
+    analysis_data = analysis['analysis_data']
+    
+    with st.container():
+        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+        
+        with col1:
+            # Analysis title and basic info
+            enhancement_badge = " 🧠 AI Enhanced" if analysis.get('deepseek_enhanced', False) else " 📊 Standard"
+            st.markdown(f"### {analysis['created_at'][:16]}{enhancement_badge}")
+            
+            # Executive summary preview
+            exec_summary = analysis_data.get('executive_summary', 'No summary available')
+            preview = exec_summary[:100] + "..." if len(exec_summary) > 100 else exec_summary
+            st.write(preview)
+            
+            # Analysis metrics
+            col_metrics1, col_metrics2, col_metrics3 = st.columns(3)
+            with col_metrics1:
+                st.caption(f"**Strategies:** {analysis.get('total_strategies', 'N/A')}")
+            with col_metrics2:
+                st.caption(f"**Reversals:** {analysis.get('reversal_signals', 'N/A')}")
+            with col_metrics3:
+                st.caption(f"**By:** {analysis['uploaded_by']}")
+        
+        with col2:
+            # Confidence and risk scores
+            confidence = analysis_data.get('confidence_assessment', 0)
+            risk_score = analysis_data.get('risk_assessment_data', {}).get('overall_risk_score', 0)
+            
+            st.metric("Confidence", f"{confidence}%", key=f"confidence_{analysis['id']}")
+            st.metric("Risk Score", f"{risk_score}/10", key=f"risk_{analysis['id']}")
+        
+        with col3:
+            # FIXED: View full analysis button with unique key
+            if st.button("👁️ View", key=f"view_analysis_{analysis['id']}", use_container_width=True):
+                st.session_state.kai_analysis_view = 'view_analysis'
+                st.session_state.selected_kai_analysis_id = analysis['id']
+                st.rerun()
+        
+        with col4:
+            # Delete button (admin only) - FIXED: Unique key
+            if is_admin:
+                if st.button("🗑️", key=f"delete_analysis_{analysis['id']}", use_container_width=True, help="Delete this analysis"):
+                    if delete_kai_analysis(analysis['id']):
+                        st.success("✅ Analysis deleted!")
+                        st.session_state.kai_analyses = load_kai_analyses()
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete analysis")
+        
+        st.markdown("---")
+
+def render_single_kai_analysis():
+    """Render a single KAI analysis in detail view - FIXED DUPLICATE KEYS"""
+    if not st.session_state.selected_kai_analysis_id:
+        st.error("No analysis selected")
+        st.session_state.kai_analysis_view = 'archive'
+        st.rerun()
+        return
+    
+    # Find the selected analysis
+    selected_analysis = None
+    for analysis in st.session_state.kai_analyses:
+        if analysis['id'] == st.session_state.selected_kai_analysis_id:
+            selected_analysis = analysis
+            break
+    
+    if not selected_analysis:
+        st.error("Analysis not found")
+        st.session_state.kai_analysis_view = 'archive'
+        st.rerun()
+        return
+    
+    # Header with back button - FIXED: Unique keys
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("🔙 Back to Archive", use_container_width=True, key=f"back_to_archive_{selected_analysis['id']}"):
+            st.session_state.kai_analysis_view = 'archive'
+            st.session_state.selected_kai_analysis_id = None
+            st.rerun()
+    
+    with col2:
+        st.title(f"🧠 KAI Analysis - {selected_analysis['created_at'][:16]}")
+    
+    st.markdown("---")
+    
+    # Display the full analysis
+    display_enhanced_kai_analysis_report(selected_analysis['analysis_data'], selected_analysis)
+    
+    # Additional actions - FIXED: Unique keys
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📋 Back to Archive", use_container_width=True, key=f"back_to_archive_bottom_{selected_analysis['id']}"):
+            st.session_state.kai_analysis_view = 'archive'
+            st.session_state.selected_kai_analysis_id = None
+            st.rerun()
+    
+    with col2:
+        # Export analysis as JSON
+        analysis_json = json.dumps(selected_analysis['analysis_data'], indent=2)
+        st.download_button(
+            label="💾 Export JSON",
+            data=analysis_json,
+            file_name=f"kai_analysis_{selected_analysis['created_at'][:10]}.json",
+            mime="application/json",
+            use_container_width=True,
+            key=f"export_single_json_{selected_analysis['id']}"
+        )
+    
+    with col3:
+        if st.session_state.user['plan'] == 'admin' and st.button("🗑️ Delete This Analysis", 
+                                                                use_container_width=True, 
+                                                                key=f"delete_single_analysis_{selected_analysis['id']}"):
+            if delete_kai_analysis(selected_analysis['id']):
+                st.success("✅ Analysis deleted successfully!")
+                st.session_state.kai_analyses = load_kai_analyses()
+                st.session_state.kai_analysis_view = 'archive'
+                st.session_state.selected_kai_analysis_id = None
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("❌ Failed to delete analysis")
+                
 def render_kai_analysis_archive(is_admin):
     """Render the comprehensive KAI analysis archive for ALL users"""
     st.subheader("📚 KAI Analysis Archive")
@@ -2436,62 +2566,6 @@ def render_kai_analysis_archive(is_admin):
     # Display analyses in a responsive grid
     for i, analysis in enumerate(filtered_analyses):
         render_kai_analysis_card(analysis, i, is_admin)
-
-def render_kai_analysis_card(analysis, index, is_admin):
-    """Render a card for a KAI analysis in the archive - FIXED VIEW BUTTON"""
-    analysis_data = analysis['analysis_data']
-    
-    with st.container():
-        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
-        
-        with col1:
-            # Analysis title and basic info
-            enhancement_badge = " 🧠 AI Enhanced" if analysis.get('deepseek_enhanced', False) else " 📊 Standard"
-            st.markdown(f"### {analysis['created_at'][:16]}{enhancement_badge}")
-            
-            # Executive summary preview
-            exec_summary = analysis_data.get('executive_summary', 'No summary available')
-            preview = exec_summary[:100] + "..." if len(exec_summary) > 100 else exec_summary
-            st.write(preview)
-            
-            # Analysis metrics
-            col_metrics1, col_metrics2, col_metrics3 = st.columns(3)
-            with col_metrics1:
-                st.caption(f"**Strategies:** {analysis.get('total_strategies', 'N/A')}")
-            with col_metrics2:
-                st.caption(f"**Reversals:** {analysis.get('reversal_signals', 'N/A')}")
-            with col_metrics3:
-                st.caption(f"**By:** {analysis['uploaded_by']}")
-        
-        with col2:
-            # Confidence and risk scores
-            confidence = analysis_data.get('confidence_assessment', 0)
-            risk_score = analysis_data.get('risk_assessment_data', {}).get('overall_risk_score', 0)
-            
-            st.metric("Confidence", f"{confidence}%")
-            st.metric("Risk Score", f"{risk_score}/10")
-        
-        with col3:
-            # FIXED: View full analysis button with proper callback
-            if st.button("👁️ View", key=f"view_analysis_{analysis['id']}", use_container_width=True):
-                st.session_state.kai_analysis_view = 'view_analysis'
-                st.session_state.selected_kai_analysis_id = analysis['id']
-                # Force immediate rerun - FIXED: Use st.rerun() instead of st.experimental_rerun()
-                st.rerun()
-        
-        with col4:
-            # Delete button (admin only)
-            if is_admin:
-                if st.button("🗑️", key=f"delete_analysis_{analysis['id']}", use_container_width=True, help="Delete this analysis"):
-                    if delete_kai_analysis(analysis['id']):
-                        st.success("✅ Analysis deleted!")
-                        st.session_state.kai_analyses = load_kai_analyses()
-                        time.sleep(2)
-                        st.rerun()  # FIXED: Use st.rerun()
-                    else:
-                        st.error("❌ Failed to delete analysis")
-        
-        st.markdown("---")
         
 def render_kai_csv_uploader():
     """Render the CSV uploader for KAI analysis (admin only)"""
@@ -2822,77 +2896,6 @@ def display_kai_analysis_summary(analysis):
     st.write("**Key Findings:**")
     for finding in analysis["key_findings"][:3]:
         st.write(f"• {finding}")
-
-def render_single_kai_analysis():
-    """Render a single KAI analysis in detail view"""
-    if not st.session_state.selected_kai_analysis_id:
-        st.error("No analysis selected")
-        st.session_state.kai_analysis_view = 'archive'
-        st.rerun()
-        return
-    
-    # Find the selected analysis
-    selected_analysis = None
-    for analysis in st.session_state.kai_analyses:
-        if analysis['id'] == st.session_state.selected_kai_analysis_id:
-            selected_analysis = analysis
-            break
-    
-    if not selected_analysis:
-        st.error("Analysis not found")
-        st.session_state.kai_analysis_view = 'archive'
-        st.rerun()
-        return
-    
-    # Header with back button
-    col1, col2 = st.columns([1, 5])
-    with col1:
-        if st.button("🔙 Back to Archive", use_container_width=True, key="back_to_archive"):
-            st.session_state.kai_analysis_view = 'archive'
-            st.session_state.selected_kai_analysis_id = None
-            st.rerun()
-    
-    with col2:
-        st.title(f"🧠 KAI Analysis - {selected_analysis['created_at'][:16]}")
-    
-    st.markdown("---")
-    
-    # Display the full analysis
-    display_enhanced_kai_analysis_report(selected_analysis['analysis_data'], selected_analysis)
-    
-    # Additional actions
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("📋 Back to Archive", use_container_width=True, key="back_to_archive_bottom"):
-            st.session_state.kai_analysis_view = 'archive'
-            st.session_state.selected_kai_analysis_id = None
-            st.rerun()
-    
-    with col2:
-        # Export analysis as JSON
-        analysis_json = json.dumps(selected_analysis['analysis_data'], indent=2)
-        st.download_button(
-            label="💾 Export JSON",
-            data=analysis_json,
-            file_name=f"kai_analysis_{selected_analysis['created_at'][:10]}.json",
-            mime="application/json",
-            use_container_width=True,
-            key="export_single_json"
-        )
-    
-    with col3:
-        if st.session_state.user['plan'] == 'admin' and st.button("🗑️ Delete This Analysis", use_container_width=True, key="delete_single_analysis"):
-            if delete_kai_analysis(selected_analysis['id']):
-                st.success("✅ Analysis deleted successfully!")
-                st.session_state.kai_analyses = load_kai_analyses()
-                st.session_state.kai_analysis_view = 'archive'
-                st.session_state.selected_kai_analysis_id = None
-                time.sleep(2)
-                st.rerun()
-            else:
-                st.error("❌ Failed to delete analysis")
 
 # -------------------------
 # PRODUCTION CONFIGURATION
