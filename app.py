@@ -995,9 +995,10 @@ class EnhancedKaiTradingAgent:
     
     def _classify_time_horizon(self, note):
         """Enhanced time horizon classification"""
-        immediate_keywords = ['now', 'immediate', 'today', 'intraday', 'right now', 'currently']
-        short_term_keywords = ['short term', 'this week', 'next few days', 'coming days', '1-7 days']
-        long_term_keywords = ['long term', '2026', 'next year', 'months ahead', '1-6 months']
+        immediate_keywords = ['now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'next few hours']
+        short_term_keywords = ['short term', 'this week', 'next few days', 'coming days', '1-7 days', 'next week', 'few days']
+        long_term_keywords = ['long term', '2026', 'next year', 'months ahead', '1-6 months', 'next quarter', 'coming months']
+        medium_term_keywords = ['medium term', 'next 2 weeks', '2-4 weeks', 'coming weeks', 'next month']
         
         if any(keyword in note for keyword in immediate_keywords):
             return "immediate"
