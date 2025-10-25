@@ -1091,81 +1091,81 @@ class EnhancedKaiTradingAgent:
                 "trading_recommendations": ["Proceed with caution", "Verify signals manually"]
             }
     
-        def _parse_deepseek_response(self, response):
-            """Parse DeepSeek response and handle various formats - COMPLETELY FIXED VERSION"""
-            try:
-                # If response is already a properly formatted dict, return it
-                if (isinstance(response, dict) and 
-                    'executive_summary' in response and
-                    'key_findings' in response):
-                    return response
+    def _parse_deepseek_response(self, response):
+        """Parse DeepSeek response and handle various formats - COMPLETELY FIXED VERSION"""
+        try:
+            # If response is already a properly formatted dict, return it
+            if (isinstance(response, dict) and 
+                'executive_summary' in response and
+                'key_findings' in response):
+                return response
+        
+            # If response is a string, try to parse as JSON
+            if isinstance(response, str):
+                # Clean the response string first
+                cleaned_response = response.strip()
             
-                # If response is a string, try to parse as JSON
-                if isinstance(response, str):
-                    # Clean the response string first
-                    cleaned_response = response.strip()
-                
-                    # Try to parse as JSON directly
-                    try:
-                        parsed = json.loads(cleaned_response)
-                        if (isinstance(parsed, dict) and 
-                            'executive_summary' in parsed and
-                            'key_findings' in parsed):
-                            return parsed
-                        else:
-                            # If parsed JSON doesn't have the right structure, wrap it
-                            self.logger.warning(f"DeepSeek JSON missing required fields: {list(parsed.keys()) if isinstance(parsed, dict) else type(parsed)}")
-                            return self._wrap_string_response(cleaned_response)
-                    except json.JSONDecodeError:
-                        # If not valid JSON, try to extract JSON object from text
-                        json_match = re.search(r'\{[^{}]*"[^"]*"[^{}]*\}', cleaned_response, re.DOTALL)
-                        if json_match:
-                            try:
-                                json_text = json_match.group()
-                                parsed = json.loads(json_text)
-                                if (isinstance(parsed, dict) and 
-                                    'executive_summary' in parsed and
-                                    'key_findings' in parsed):
-                                    return parsed
-                            except json.JSONDecodeError:
-                                pass
-                    
-                        # If no valid JSON found, wrap the entire response as executive summary
+                # Try to parse as JSON directly
+                try:
+                    parsed = json.loads(cleaned_response)
+                    if (isinstance(parsed, dict) and 
+                        'executive_summary' in parsed and
+                        'key_findings' in parsed):
+                        return parsed
+                    else:
+                        # If parsed JSON doesn't have the right structure, wrap it
+                        self.logger.warning(f"DeepSeek JSON missing required fields: {list(parsed.keys()) if isinstance(parsed, dict) else type(parsed)}")
                         return self._wrap_string_response(cleaned_response)
-            
-                # If response is a dict but missing required fields, wrap it
-                if isinstance(response, dict):
-                    return self._wrap_string_response(str(response))
-            
-                # For any other type, convert to string and wrap
+                except json.JSONDecodeError:
+                    # If not valid JSON, try to extract JSON object from text
+                    json_match = re.search(r'\{[^{}]*"[^"]*"[^{}]*\}', cleaned_response, re.DOTALL)
+                    if json_match:
+                        try:
+                            json_text = json_match.group()
+                            parsed = json.loads(json_text)
+                            if (isinstance(parsed, dict) and 
+                                'executive_summary' in parsed and
+                                'key_findings' in parsed):
+                                return parsed
+                        except json.JSONDecodeError:
+                            pass
+                
+                    # If no valid JSON found, wrap the entire response as executive summary
+                    return self._wrap_string_response(cleaned_response)
+        
+            # If response is a dict but missing required fields, wrap it
+            if isinstance(response, dict):
                 return self._wrap_string_response(str(response))
-            
-            except Exception as e:
-                self.logger.error(f"Error parsing DeepSeek response: {e}")
-                # Return a safe fallback that definitely has the required structure
-                return {
-                    "executive_summary": f"Analysis completed. Error during parsing: {str(e)}",
-                    "key_findings": [
-                        "Analysis completed successfully",
-                        "Technical parsing issue encountered",
-                        "Results may need manual verification"
-                    ],
-                    "momentum_assessment": "Available in standard analysis",
-                    "critical_levels": ["Refer to standard analysis"],
-                    "time_horizons": {
-                        "short_term": "Standard analysis timeframe",
-                        "medium_term": "Standard analysis timeframe", 
-                        "long_term": "Standard analysis timeframe"
-                    },
-                    "risk_analysis": "Standard risk assessment applied",
-                    "confidence_score": 60,
-                    "trading_recommendations": [
-                        "Verify analysis manually",
-                        "Use standard risk management",
-                        "Combine with other technical indicators"
-                    ]
-                }
-    
+        
+            # For any other type, convert to string and wrap
+            return self._wrap_string_response(str(response))
+        
+        except Exception as e:
+            self.logger.error(f"Error parsing DeepSeek response: {e}")
+            # Return a safe fallback that definitely has the required structure
+            return {
+                "executive_summary": f"Analysis completed. Error during parsing: {str(e)}",
+                "key_findings": [
+                    "Analysis completed successfully",
+                    "Technical parsing issue encountered",
+                    "Results may need manual verification"
+                ],
+                "momentum_assessment": "Available in standard analysis",
+                "critical_levels": ["Refer to standard analysis"],
+                "time_horizons": {
+                    "short_term": "Standard analysis timeframe",
+                    "medium_term": "Standard analysis timeframe", 
+                    "long_term": "Standard analysis timeframe"
+                },
+                "risk_analysis": "Standard risk assessment applied",
+                "confidence_score": 60,
+                "trading_recommendations": [
+                    "Verify analysis manually",
+                    "Use standard risk management",
+                    "Combine with other technical indicators"
+                ]
+            }
+
     def _wrap_string_response(self, text):
         """Wrap a string response into the expected analysis format"""
         return {
@@ -1801,9 +1801,9 @@ def supabase_delete_strategy_indicator_image(strategy_name, indicator_name):
         st.error(f"Error deleting strategy indicator image: {e}")
         return False
 
-# NEW: KAI Analyses table functions
+# NEW: KAI Analyses table functions - ENHANCED WITH COMPREHENSIVE ARCHIVE
 def supabase_get_kai_analyses():
-    """Get KAI analyses from Supabase - FIXED VERSION"""
+    """Get ALL KAI analyses from Supabase - FIXED VERSION"""
     if not supabase_client:
         return []
     try:
@@ -1821,11 +1821,21 @@ def supabase_save_kai_analysis(analysis_data):
     if not supabase_client:
         return False
     try:
-        # Prepare the record
+        # Generate a unique ID for this analysis
+        analysis_id = str(uuid.uuid4())
+        
+        # Prepare the record with enhanced metadata
         record = {
+            'id': analysis_id,
             'analysis_data': analysis_data,
             'uploaded_by': st.session_state.user['username'],
-            'created_at': datetime.now().isoformat()
+            'created_at': datetime.now().isoformat(),
+            'analysis_type': analysis_data.get('analysis_type', 'standard'),
+            'deepseek_enhanced': analysis_data.get('deepseek_enhanced', False),
+            'confidence_score': analysis_data.get('confidence_assessment', 0),
+            'total_strategies': analysis_data.get('overview_metrics', {}).get('total_strategies', 0),
+            'reversal_signals': len(analysis_data.get('signal_details', {}).get('reversal_signals', [])),
+            'risk_score': analysis_data.get('risk_assessment_data', {}).get('overall_risk_score', 0)
         }
         
         response = supabase_client.table('kai_analyses').insert(record).execute()
@@ -1852,6 +1862,34 @@ def supabase_get_latest_kai_analysis():
     except Exception as e:
         st.error(f"Error getting latest KAI analysis: {e}")
         return None
+
+def supabase_delete_kai_analysis(analysis_id):
+    """Delete a specific KAI analysis from Supabase"""
+    if not supabase_client:
+        return False
+    try:
+        response = supabase_client.table('kai_analyses').delete().eq('id', analysis_id).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error deleting KAI analysis: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error deleting KAI analysis: {e}")
+        return False
+
+def supabase_clear_all_kai_analyses():
+    """Clear ALL KAI analyses from Supabase (admin only)"""
+    if not supabase_client:
+        return False
+    try:
+        response = supabase_client.table('kai_analyses').delete().neq('id', 0).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error clearing KAI analyses: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error clearing KAI analyses: {e}")
+        return False
 
 # -------------------------
 # SESSION MANAGEMENT - UPDATED WITH ENHANCED KAI
@@ -1969,11 +2007,19 @@ def init_session():
     # NEW: User password change state
     if 'show_user_password_change' not in st.session_state:
         st.session_state.show_user_password_change = False
-    # NEW: Enhanced KAI AI Agent state
+    # NEW: Enhanced KAI AI Agent state - COMPREHENSIVE ARCHIVE
     if 'kai_analyses' not in st.session_state:
         st.session_state.kai_analyses = load_kai_analyses()
     if 'current_kai_analysis' not in st.session_state:
         st.session_state.current_kai_analysis = None
+    if 'kai_analysis_view' not in st.session_state:
+        st.session_state.kai_analysis_view = 'latest'  # 'latest', 'archive', 'view_analysis'
+    if 'selected_kai_analysis_id' not in st.session_state:
+        st.session_state.selected_kai_analysis_id = None
+    if 'kai_analysis_filter' not in st.session_state:
+        st.session_state.kai_analysis_filter = 'all'  # 'all', 'enhanced', 'standard'
+    if 'kai_analysis_sort' not in st.session_state:
+        st.session_state.kai_analysis_sort = 'newest'  # 'newest', 'oldest', 'confidence'
     # NEW: DeepSeek API configuration
     if 'use_deepseek' not in st.session_state:
         st.session_state.use_deepseek = True
@@ -1992,10 +2038,10 @@ def save_app_settings(settings):
     return supabase_save_app_settings(settings)
 
 # -------------------------
-# KAI ANALYSES PERSISTENCE
+# KAI ANALYSES PERSISTENCE - ENHANCED WITH COMPREHENSIVE ARCHIVE
 # -------------------------
 def load_kai_analyses():
-    """Load KAI analyses from Supabase"""
+    """Load ALL KAI analyses from Supabase"""
     return supabase_get_kai_analyses()
 
 def save_kai_analysis(analysis_data):
@@ -2005,6 +2051,14 @@ def save_kai_analysis(analysis_data):
 def get_latest_kai_analysis():
     """Get the latest KAI analysis from Supabase"""
     return supabase_get_latest_kai_analysis()
+
+def delete_kai_analysis(analysis_id):
+    """Delete a specific KAI analysis"""
+    return supabase_delete_kai_analysis(analysis_id)
+
+def clear_all_kai_analyses():
+    """Clear ALL KAI analyses (admin only)"""
+    return supabase_clear_all_kai_analyses()
 
 # -------------------------
 # DATA PERSISTENCE SETUP
@@ -2159,10 +2213,10 @@ def save_gallery_images(images):
     return supabase_save_gallery_images(images)
 
 # -------------------------
-# ENHANCED KAI AI AGENT INTERFACE WITH DEEPSEEK
+# ENHANCED KAI AI AGENT INTERFACE WITH COMPREHENSIVE ANALYSIS ARCHIVE
 # -------------------------
 def render_kai_agent():
-    """Enhanced KAI AI Agent interface with DeepSeek integration and Auto-Explainer"""
+    """Enhanced KAI AI Agent interface with comprehensive analysis archive"""
     
     # Check if user is admin or regular user
     is_admin = st.session_state.user['plan'] == 'admin'
@@ -2181,6 +2235,8 @@ def render_kai_agent():
         
         **🔄 NEW: AUTO-EXPLAINER CSV ANALYSIS** - KAI automatically analyzes your CSV structure and converts it to optimized analysis for DeepSeek.
         
+        **📚 COMPREHENSIVE ANALYSIS ARCHIVE** - Access all past KAI analyses, not just the latest one.
+        
         KAI provides consistent, structured analysis of trading strategies using a methodical 4-phase approach.
         """)
     
@@ -2193,170 +2249,340 @@ def render_kai_agent():
         - Phase 4: Risk Assessment
         - 🧠 DeepSeek AI Enhancement
         - 🔄 Auto-Explainer CSV Analysis
+        - 📚 Analysis Archive
         """)
     
-    # DeepSeek Configuration (Admin Only)
-    if is_admin:
-        with st.expander("🔧 DeepSeek AI Configuration", expanded=False):
-            col1, col2 = st.columns(2)
-            with col1:
-                use_deepseek = st.checkbox(
-                    "Enable DeepSeek AI Enhancement", 
-                    value=st.session_state.use_deepseek,
-                    help="Use DeepSeek API for enhanced analysis (requires API key)"
-                )
-                st.session_state.use_deepseek = use_deepseek
-                
-            with col2:
-                api_key = st.text_input(
-                    "DeepSeek API Key",
-                    value=st.session_state.deepseek_api_key,
-                    type="password",
-                    help="Enter your DeepSeek API key",
-                    disabled=not use_deepseek
-                )
-                if api_key != st.session_state.deepseek_api_key:
-                    st.session_state.deepseek_api_key = api_key
-                    st.success("API key updated")
-            
-            if use_deepseek and not st.session_state.deepseek_api_key:
-                st.warning("⚠️ DeepSeek API key required for enhanced analysis")
+    # Navigation for KAI views
+    st.markdown("---")
     
-    # Load latest KAI analysis for display
+    # KAI Navigation Tabs - AVAILABLE FOR ALL USERS
+    kai_tabs = st.tabs(["📊 Latest Analysis", "📚 Analysis Archive", "🔄 Upload CSV"])
+    
+    with kai_tabs[0]:
+        render_latest_kai_analysis(is_admin)
+    
+    with kai_tabs[1]:
+        render_kai_analysis_archive(is_admin)
+    
+    with kai_tabs[2]:
+        if is_admin:
+            render_kai_csv_uploader()
+        else:
+            st.info("📊 CSV upload is available for administrators only. Please contact an admin to analyze new trading data.")
+            # Show latest analysis instead for regular users
+            render_latest_kai_analysis(is_admin)
+
+def render_latest_kai_analysis(is_admin):
+    """Render the latest KAI analysis with enhanced display"""
+    st.subheader("📊 Latest KAI Analysis")
+    
+    # Load latest analysis
     latest_analysis = get_latest_kai_analysis()
     
-    # Admin Section - CSV Upload and Analysis
-    if is_admin:
-        st.markdown("### 📊 Upload Strategy CSV for Enhanced Analysis")
-        
-        uploaded_file = st.file_uploader(
-            "Upload your strategy analysis CSV", 
-            type=['csv'],
-            key="kai_csv_uploader",
-            help="Upload the CSV export from your trading dashboard for KAI analysis"
-        )
-        
-        if uploaded_file is not None:
-            try:
-                # Initialize Enhanced KAI with DeepSeek
-                kai_agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
-                
-                # Read and analyze data
-                df = pd.read_csv(uploaded_file)
-                
-                # Display basic file info
-                st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique()) if 'Strategy' in df.columns else 'N/A'} strategies")
-                
-                # Show Auto-Explainer analysis
-                with st.expander("🔄 Auto-Explainer CSV Analysis", expanded=True):
-                    st.info("KAI is automatically analyzing your CSV structure and extracting trading signals...")
-                    
-                    # Run Auto-Explainer analysis
-                    auto_analysis = kai_agent._auto_explain_csv_data(df)
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if 'dataset_overview' in auto_analysis:
-                            st.subheader("📊 Dataset Overview")
-                            overview = auto_analysis['dataset_overview']
-                            st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
-                            st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
-                            st.write(f"**Completion Rate:** {overview.get('completion_rate', 'N/A')}")
-                            st.write(f"**Data Quality:** {auto_analysis.get('quality_metrics', {}).get('overall_quality', 'N/A'):.1f}%")
-                    
-                    with col2:
-                        if 'signal_analysis' in auto_analysis:
-                            st.subheader("📈 Signal Summary")
-                            signals = auto_analysis['signal_analysis']
-                            st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
-                            st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
-                            st.write(f"**Signal Quality:** {signals.get('metrics', {}).get('signal_quality_score', 'N/A'):.1f}%")
-                    
-                    # Show risk assessment
-                    if 'risk_assessment' in auto_analysis:
-                        risk = auto_analysis['risk_assessment']
-                        st.subheader("🛡️ Risk Assessment")
-                        st.write(f"**Overall Risk Score:** {risk.get('overall_risk_score', 'N/A'):.1f}/100")
-                        st.write(f"**High Risk Indicators:** {risk.get('high_risk_indicators', 'N/A')}")
-                
-                # Show data preview
-                with st.expander("📋 Data Preview", expanded=False):
-                    st.dataframe(df.head(10), use_container_width=True)
-                
-                # KAI analyzes the data with enhanced processing
-                with st.spinner("🧠 KAI is performing enhanced analysis with DeepSeek AI..."):
-                    analysis = kai_agent.analyze_strategy_data(df)
-                
-                # Display KAI's enhanced report
-                display_enhanced_kai_analysis_report(analysis)
-                
-                # Save analysis to Supabase
-                if st.button("💾 Save Enhanced Analysis to Database", use_container_width=True):
-                    if save_kai_analysis(analysis):
-                        st.success("✅ Enhanced KAI analysis saved to database!")
-                        # Refresh the analyses list
-                        st.session_state.kai_analyses = load_kai_analyses()
-                    else:
-                        st.error("❌ Failed to save analysis to database")
-                
-            except Exception as e:
-                st.error(f"❌ Error analyzing CSV: {str(e)}")
-                st.info("Please ensure you're uploading a valid strategy analysis CSV export from the dashboard.")
-    
-    # Display latest analysis for all users (admin and regular users)
-    if latest_analysis:
-        st.markdown("---")
-        st.subheader("📋 Latest KAI Analysis")
-        analysis_data = latest_analysis['analysis_data']
-        is_enhanced = analysis_data.get('deepseek_enhanced', False)
-        
-        st.info(f"**Generated by:** {latest_analysis['uploaded_by']} | **Date:** {latest_analysis['created_at'][:16]} | **AI Enhanced:** {'✅ Yes' if is_enhanced else '❌ No'}")
-        
-        # Display the analysis
-        display_enhanced_kai_analysis_report(analysis_data)
-    
-    # Show analysis history for admin
-    if is_admin and st.session_state.kai_analyses:
-        st.markdown("---")
-        st.subheader("📜 Analysis History")
-        
-        for analysis in st.session_state.kai_analyses[:5]:  # Show last 5 analyses
-            with st.expander(f"Analysis by {analysis['uploaded_by']} - {analysis['created_at'][:16]} - {'🧠 Enhanced' if analysis['analysis_data'].get('deepseek_enhanced') else '📊 Standard'}"):
-                display_kai_analysis_summary(analysis['analysis_data'])
-    
-    # Show help information when no analysis available
     if not latest_analysis:
-        st.markdown("---")
         st.info("""
-        **📋 Expected CSV Format:**
-        Your CSV should contain the following columns:
-        - `Strategy` (Strategy name)
-        - `Indicator` (Indicator name) 
-        - `Note` (Analysis notes)
-        - `Status` (Done/Open)
-        - `Momentum` (Momentum type)
-        - `Tag` (Buy/Sell/Neutral)
-        - `Analysis_Date` (Date of analysis)
-        - `Last_Modified` (Timestamp)
+        **No KAI analyses available yet!**
         
-        **🔄 Auto-Explainer Feature:**
-        KAI automatically:
-        - Analyzes your CSV structure
-        - Extracts trading signals and patterns
-        - Calculates risk metrics
-        - Assesses data quality
-        - Converts everything to optimized format for DeepSeek
+        To get started:
+        1. **Admins:** Upload a CSV file in the "Upload CSV" tab
+        2. **All Users:** View analysis history in the "Analysis Archive" tab
+        3. **Coming Soon:** Real-time market analysis integration
         
-        **🎯 KAI's Enhanced Analysis Focus:**
-        - Advanced reversal pattern detection
-        - Quantitative signal scoring
-        - Multi-timeframe confluence analysis
-        - Risk assessment and position sizing
-        - DeepSeek AI enhanced insights
-        - Confidence scoring with machine learning
+        KAI will analyze your trading strategies and provide enhanced technical insights.
         """)
+        return
+    
+    # Display the latest analysis
+    analysis_data = latest_analysis['analysis_data']
+    display_enhanced_kai_analysis_report(analysis_data, latest_analysis)
+    
+    # Additional actions for the latest analysis
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📋 View in Archive", use_container_width=True, key="view_latest_in_archive"):
+            st.session_state.kai_analysis_view = 'archive'
+            st.session_state.selected_kai_analysis_id = latest_analysis['id']
+            st.rerun()
+    
+    with col2:
+        # Export analysis as JSON
+        analysis_json = json.dumps(analysis_data, indent=2)
+        st.download_button(
+            label="💾 Export JSON",
+            data=analysis_json,
+            file_name=f"kai_analysis_{latest_analysis['created_at'][:10]}.json",
+            mime="application/json",
+            use_container_width=True,
+            key="export_latest_json"
+        )
+    
+    with col3:
+        if is_admin and st.button("🗑️ Delete This Analysis", use_container_width=True, key="delete_latest_analysis"):
+            if delete_kai_analysis(latest_analysis['id']):
+                st.success("✅ Analysis deleted successfully!")
+                st.session_state.kai_analyses = load_kai_analyses()
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error("❌ Failed to delete analysis")
+
+def render_kai_analysis_archive(is_admin):
+    """Render the comprehensive KAI analysis archive for ALL users"""
+    st.subheader("📚 KAI Analysis Archive")
+    
+    if not st.session_state.kai_analyses:
+        st.info("""
+        **No analyses in the archive yet!**
         
-def display_enhanced_kai_analysis_report(analysis):
+        The archive will show all KAI analyses once they are created.
+        Check back later or ask an administrator to upload trading data for analysis.
+        """)
+        return
+    
+    # Archive statistics
+    total_analyses = len(st.session_state.kai_analyses)
+    enhanced_analyses = len([a for a in st.session_state.kai_analyses if a.get('deepseek_enhanced', False)])
+    standard_analyses = total_analyses - enhanced_analyses
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Analyses", total_analyses)
+    with col2:
+        st.metric("AI Enhanced", enhanced_analyses)
+    with col3:
+        st.metric("Standard", standard_analyses)
+    with col4:
+        avg_confidence = sum(a.get('confidence_score', 0) for a in st.session_state.kai_analyses) / total_analyses
+        st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
+    
+    st.markdown("---")
+    
+    # Filter and sort controls
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        analysis_filter = st.selectbox(
+            "Filter by Type:",
+            ["All Analyses", "AI Enhanced", "Standard Only"],
+            key="kai_archive_filter"
+        )
+    
+    with col2:
+        sort_option = st.selectbox(
+            "Sort by:",
+            ["Newest First", "Oldest First", "Highest Confidence", "Most Strategies"],
+            key="kai_archive_sort"
+        )
+    
+    with col3:
+        # Quick date filter
+        date_options = ["All Time", "Last 7 Days", "Last 30 Days", "Last 90 Days"]
+        date_filter = st.selectbox("Time Range:", date_options, key="kai_date_filter")
+    
+    with col4:
+        if is_admin and st.button("🔄 Refresh Archive", use_container_width=True, key="refresh_archive"):
+            st.session_state.kai_analyses = load_kai_analyses()
+            st.rerun()
+    
+    # Apply filters
+    filtered_analyses = st.session_state.kai_analyses.copy()
+    
+    # Filter by type
+    if analysis_filter == "AI Enhanced":
+        filtered_analyses = [a for a in filtered_analyses if a.get('deepseek_enhanced', False)]
+    elif analysis_filter == "Standard Only":
+        filtered_analyses = [a for a in filtered_analyses if not a.get('deepseek_enhanced', False)]
+    
+    # Filter by date
+    if date_filter != "All Time":
+        cutoff_date = datetime.now()
+        if date_filter == "Last 7 Days":
+            cutoff_date = cutoff_date - timedelta(days=7)
+        elif date_filter == "Last 30 Days":
+            cutoff_date = cutoff_date - timedelta(days=30)
+        elif date_filter == "Last 90 Days":
+            cutoff_date = cutoff_date - timedelta(days=90)
+        
+        filtered_analyses = [
+            a for a in filtered_analyses 
+            if datetime.fromisoformat(a['created_at']) >= cutoff_date
+        ]
+    
+    # Apply sorting
+    if sort_option == "Newest First":
+        filtered_analyses.sort(key=lambda x: x['created_at'], reverse=True)
+    elif sort_option == "Oldest First":
+        filtered_analyses.sort(key=lambda x: x['created_at'])
+    elif sort_option == "Highest Confidence":
+        filtered_analyses.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
+    elif sort_option == "Most Strategies":
+        filtered_analyses.sort(key=lambda x: x.get('total_strategies', 0), reverse=True)
+    
+    # Display analyses in a grid
+    st.write(f"**Displaying {len(filtered_analyses)} analyses**")
+    st.markdown("---")
+    
+    if not filtered_analyses:
+        st.warning("No analyses match your current filters.")
+        return
+    
+    # Display analyses in a responsive grid
+    for i, analysis in enumerate(filtered_analyses):
+        render_kai_analysis_card(analysis, i, is_admin)
+
+def render_kai_analysis_card(analysis, index, is_admin):
+    """Render a card for a KAI analysis in the archive"""
+    analysis_data = analysis['analysis_data']
+    
+    with st.container():
+        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+        
+        with col1:
+            # Analysis title and basic info
+            enhancement_badge = " 🧠 AI Enhanced" if analysis.get('deepseek_enhanced', False) else " 📊 Standard"
+            st.markdown(f"### {analysis['created_at'][:16]}{enhancement_badge}")
+            
+            # Executive summary preview
+            exec_summary = analysis_data.get('executive_summary', 'No summary available')
+            preview = exec_summary[:100] + "..." if len(exec_summary) > 100 else exec_summary
+            st.write(preview)
+            
+            # Analysis metrics
+            col_metrics1, col_metrics2, col_metrics3 = st.columns(3)
+            with col_metrics1:
+                st.caption(f"**Strategies:** {analysis.get('total_strategies', 'N/A')}")
+            with col_metrics2:
+                st.caption(f"**Reversals:** {analysis.get('reversal_signals', 'N/A')}")
+            with col_metrics3:
+                st.caption(f"**By:** {analysis['uploaded_by']}")
+        
+        with col2:
+            # Confidence and risk scores
+            confidence = analysis_data.get('confidence_assessment', 0)
+            risk_score = analysis_data.get('risk_assessment_data', {}).get('overall_risk_score', 0)
+            
+            st.metric("Confidence", f"{confidence}%")
+            st.metric("Risk Score", f"{risk_score}/10")
+        
+        with col3:
+            # View full analysis button
+            if st.button("👁️ View", key=f"view_analysis_{analysis['id']}", use_container_width=True):
+                st.session_state.kai_analysis_view = 'view_analysis'
+                st.session_state.selected_kai_analysis_id = analysis['id']
+                st.rerun()
+        
+        with col4:
+            # Delete button (admin only)
+            if is_admin:
+                if st.button("🗑️", key=f"delete_analysis_{analysis['id']}", use_container_width=True, help="Delete this analysis"):
+                    if delete_kai_analysis(analysis['id']):
+                        st.success("✅ Analysis deleted!")
+                        st.session_state.kai_analyses = load_kai_analyses()
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to delete analysis")
+        
+        st.markdown("---")
+
+def render_kai_csv_uploader():
+    """Render the CSV uploader for KAI analysis (admin only)"""
+    st.subheader("🔄 Upload CSV for KAI Analysis")
+    
+    st.info("""
+    **Upload your trading strategy CSV for enhanced KAI analysis**
+    
+    Expected CSV format should include:
+    - `Strategy` (Strategy name)
+    - `Indicator` (Indicator name)
+    - `Note` (Analysis notes)
+    - `Status` (Done/Open)
+    - `Momentum` (Momentum type)
+    - `Tag` (Buy/Sell/Neutral)
+    - `Analysis_Date` (Date of analysis)
+    """)
+    
+    uploaded_file = st.file_uploader(
+        "Choose your strategy analysis CSV", 
+        type=['csv'],
+        key="kai_csv_uploader",
+        help="Upload the CSV export from your trading dashboard"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Initialize Enhanced KAI with DeepSeek
+            kai_agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+            
+            # Read and analyze data
+            df = pd.read_csv(uploaded_file)
+            
+            # Display basic file info
+            st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique()) if 'Strategy' in df.columns else 'N/A'} strategies")
+            
+            # Show Auto-Explainer analysis
+            with st.expander("🔄 Auto-Explainer CSV Analysis", expanded=True):
+                st.info("KAI is automatically analyzing your CSV structure and extracting trading signals...")
+                
+                # Run Auto-Explainer analysis
+                auto_analysis = kai_agent._auto_explain_csv_data(df)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if 'dataset_overview' in auto_analysis:
+                        st.subheader("📊 Dataset Overview")
+                        overview = auto_analysis['dataset_overview']
+                        st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
+                        st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
+                        st.write(f"**Completion Rate:** {overview.get('completion_rate', 'N/A')}")
+                        st.write(f"**Data Quality:** {auto_analysis.get('quality_metrics', {}).get('overall_quality', 'N/A'):.1f}%")
+                
+                with col2:
+                    if 'signal_analysis' in auto_analysis:
+                        st.subheader("📈 Signal Summary")
+                        signals = auto_analysis['signal_analysis']
+                        st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
+                        st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
+                        st.write(f"**Signal Quality:** {signals.get('metrics', {}).get('signal_quality_score', 'N/A'):.1f}%")
+            
+            # Show data preview
+            with st.expander("📋 Data Preview", expanded=False):
+                st.dataframe(df.head(10), use_container_width=True)
+            
+            # KAI analyzes the data with enhanced processing
+            with st.spinner("🧠 KAI is performing enhanced analysis with DeepSeek AI..."):
+                analysis = kai_agent.analyze_strategy_data(df)
+            
+            # Add analysis type for tracking
+            analysis['analysis_type'] = 'csv_upload'
+            analysis['original_filename'] = uploaded_file.name
+            analysis['total_records_analyzed'] = len(df)
+            
+            # Display KAI's enhanced report
+            display_enhanced_kai_analysis_report(analysis)
+            
+            # Save analysis to Supabase
+            if st.button("💾 Save Enhanced Analysis to Archive", use_container_width=True, type="primary"):
+                if save_kai_analysis(analysis):
+                    st.success("✅ Enhanced KAI analysis saved to archive!")
+                    st.balloons()
+                    # Refresh the analyses list
+                    st.session_state.kai_analyses = load_kai_analyses()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to save analysis to database")
+            
+        except Exception as e:
+            st.error(f"❌ Error analyzing CSV: {str(e)}")
+            st.info("Please ensure you're uploading a valid strategy analysis CSV export from the dashboard.")
+
+# -------------------------
+# ENHANCED KAI ANALYSIS REPORT DISPLAY
+# -------------------------
+def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     """Display KAI's enhanced analysis report with DeepSeek integration"""
     
     # Check if analysis is None and handle gracefully
@@ -2368,7 +2594,14 @@ def display_enhanced_kai_analysis_report(analysis):
     is_enhanced = analysis.get('deepseek_enhanced', False)
     enhancement_badge = " 🧠 **DEEPSEEK AI ENHANCED**" if is_enhanced else " 📊 **STANDARD ANALYSIS**"
     
-    st.markdown(f"### {analysis['header']}{enhancement_badge}")
+    # Add metadata if available
+    meta_info = ""
+    if analysis_meta:
+        created_by = analysis_meta.get('uploaded_by', 'Unknown')
+        created_at = analysis_meta.get('created_at', 'Unknown date')
+        meta_info = f" | By: {created_by} | {created_at[:16]}"
+    
+    st.markdown(f"### {analysis['header']}{enhancement_badge}{meta_info}")
     
     # Executive Summary (KAI always starts with this)
     if is_enhanced and analysis.get('deepseek_analysis'):
@@ -2569,7 +2802,7 @@ def display_enhanced_kai_analysis_report(analysis):
     with summary_cols[2]:
         conflict_count = len(signals.get("conflicting_signals", []))
         st.metric("Conflicting Signals", conflict_count, delta_color="inverse")
-        
+
 def display_kai_analysis_summary(analysis):
     """Display a summary of KAI analysis for history view"""
     is_enhanced = analysis.get('deepseek_enhanced', False)
