@@ -210,7 +210,7 @@ class EnhancedKaiTradingAgent:
         }
     
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
-        """Call DeepSeek API with error handling and fallback - FIXED VERSION"""
+        """Call DeepSeek API with error handling and fallback"""
         if not self.use_deepseek or not DEEPSEEK_API_KEY:
             self.logger.warning("DeepSeek API not available, using standard analysis")
             return None
@@ -234,7 +234,7 @@ class EnhancedKaiTradingAgent:
         
             result = response.json()
         
-            # FIX: Handle different response formats from DeepSeek API
+            # Handle different response formats from DeepSeek API
             if "choices" in result and len(result["choices"]) > 0:
                 if "message" in result["choices"][0]:
                     return result["choices"][0]["message"]["content"]
@@ -250,7 +250,7 @@ class EnhancedKaiTradingAgent:
             return None
     
     def _prepare_data_for_deepseek(self, df):
-        """Prepare trading data for DeepSeek analysis - ENHANCED WITH AUTO-EXPLAINER"""
+        """Prepare trading data for DeepSeek analysis"""
         try:
             # Auto-Explainer: Convert CSV to structured dict with explanations
             structured_data = self._auto_explain_csv_data(df)
@@ -261,7 +261,7 @@ class EnhancedKaiTradingAgent:
             return "{}"
     
     def _auto_explain_csv_data(self, df):
-        """NEW: Auto-Explainer - Convert CSV data to structured analysis with explanations"""
+        """Auto-Explainer - Convert CSV data to structured analysis with explanations"""
         try:
             analysis_summary = {
                 "dataset_overview": self._get_dataset_overview(df),
@@ -348,7 +348,7 @@ class EnhancedKaiTradingAgent:
         return {"signals": signals, "metrics": signal_metrics}
     
     def _extract_reversal_signals(self, df):
-        """Extract potential reversal signals from data - ENHANCED VERSION"""
+        """Extract potential reversal signals from data"""
         reversal_keywords = ['reversal', 'reverse', 'turnaround', 'revert', 'exhaustion', 'divergence']
         reversals = []
         
@@ -371,7 +371,7 @@ class EnhancedKaiTradingAgent:
         return reversals
     
     def _extract_momentum_signals(self, df):
-        """Extract momentum signals from data - ENHANCED VERSION"""
+        """Extract momentum signals from data"""
         momentum_signals = {"bullish": [], "bearish": [], "neutral": []}
         
         for _, row in df.iterrows():
@@ -405,7 +405,7 @@ class EnhancedKaiTradingAgent:
         return momentum_signals
     
     def _extract_support_resistance(self, df):
-        """Extract support and resistance levels - ENHANCED VERSION"""
+        """Extract support and resistance levels"""
         levels = {"support": [], "resistance": []}
         level_keywords = {
             "support": ['support', 'holding', 'bounce', 'floor', 'demand', 'base'],
@@ -736,7 +736,7 @@ class EnhancedKaiTradingAgent:
             return "REGULAR"
     
     def analyze_strategy_data(self, df):
-        """KAI's main analysis method with DeepSeek enhancement - ULTRA ROBUST VERSION"""
+        """KAI's main analysis method with DeepSeek enhancement"""
         try:
             # PHASE 1: Strategy Scanning (KAI always starts here)
             strategy_overview = self._phase_1_scanning(df)
@@ -750,16 +750,15 @@ class EnhancedKaiTradingAgent:
             # PHASE 4: Risk Assessment
             risk_analysis = self._phase_4_risk_assessment(df, signals)
         
-            # DEEPSEEK ENHANCED ANALYSIS - WITH COMPLETE ERROR HANDLING
+            # DEEPSEEK ENHANCED ANALYSIS
             deepseek_analysis = None
             if self.use_deepseek:
                 try:
                     deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
-                    # Ensure deepseek_analysis is always a dict
                     if deepseek_analysis is None or not isinstance(deepseek_analysis, dict):
                         deepseek_analysis = self._create_fallback_analysis("DeepSeek analysis unavailable")
                 except Exception as e:
-                    self.logger.error(f"DeepSeek analysis failed completely: {e}")
+                    self.logger.error(f"DeepSeek analysis failed: {e}")
                     deepseek_analysis = self._create_fallback_analysis(f"DeepSeek error: {str(e)}")
         
             # Compile KAI's final report
@@ -770,7 +769,6 @@ class EnhancedKaiTradingAgent:
         
         except Exception as e:
             self.logger.error(f"Critical error in analyze_strategy_data: {e}")
-            # Return a minimal analysis to prevent complete failure
             return {
                 "header": "🔍 **KAI Analysis Report**",
                 "executive_summary": f"Analysis completed with errors: {str(e)}",
@@ -1014,7 +1012,7 @@ class EnhancedKaiTradingAgent:
         return max(10, min(95, confidence))
     
     def _phase_4_risk_assessment(self, df, signals):
-        """NEW: Comprehensive risk assessment"""
+        """Comprehensive risk assessment"""
         risk_factors = {
             "high_risk_indicators": [],
             "false_signal_risks": [],
@@ -1083,7 +1081,7 @@ class EnhancedKaiTradingAgent:
         return min(10, max(1, risk_score))
     
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
-        """Simplified DeepSeek analysis - GUARANTEED TO WORK"""
+        """Simplified DeepSeek analysis"""
         try:
             # Prepare data for DeepSeek
             data_summary = self._prepare_data_for_deepseek(df)
@@ -1094,224 +1092,40 @@ class EnhancedKaiTradingAgent:
             # Call DeepSeek API
             response = self._call_deepseek_api(prompt)
         
-            # ALWAYS return a valid dict, no matter what
+            # ALWAYS return a valid dict
             if response:
                 parsed_response = self._parse_deepseek_response(response)
                 return parsed_response
             else:
-                # If no response, return fallback
                 return self._create_fallback_analysis("DeepSeek API unavailable")
             
         except Exception as e:
-            # If anything fails, return fallback
             return self._create_fallback_analysis(f"Analysis completed with note: {str(e)}")
-        
+    
     def _parse_deepseek_response(self, response):
-        """ULTRA SIMPLE DeepSeek response parser - GUARANTEED TO WORK"""
+        """ULTRA SIMPLE DeepSeek response parser"""
         try:
-            # If response is None or empty, return fallback
             if not response:
                 return self._create_fallback_analysis("No response from DeepSeek API")
             
-            # If it's already a dict, return it as-is
             if isinstance(response, dict):
                 return response
             
-            # If it's a string, try to parse as JSON
             if isinstance(response, str):
                 try:
-                    # Try to parse as JSON
                     parsed = json.loads(response.strip())
                     if isinstance(parsed, dict):
                         return parsed
                     else:
-                        # If it's not a dict, wrap it
                         return self._wrap_string_response(response)
                 except json.JSONDecodeError:
-                    # If JSON parsing fails, wrap the string
                     return self._wrap_string_response(response)
             
-            # For any other type, convert to string and wrap
             return self._wrap_string_response(str(response))
             
         except Exception as e:
-            # If anything fails, return a safe fallback
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
-            
-def _parse_string_response(self, response_str):
-    """Parse string response from DeepSeek"""
-    try:
-        # Clean the response
-        cleaned = response_str.strip()
-        
-        # First try: Direct JSON parsing
-        try:
-            parsed = json.loads(cleaned)
-            if self._is_valid_analysis(parsed):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-        
-        # Second try: Extract JSON from text using multiple patterns
-        json_patterns = [
-            r'\{[^{}]*"[^"]*"[^{}]*\}',  # Simple JSON object
-            r'\{.*\}',  # Any JSON object
-            r'\{[\s\S]*\}',  # Multi-line JSON object
-        ]
-        
-        for pattern in json_patterns:
-            matches = re.findall(pattern, cleaned, re.DOTALL)
-            for match in matches:
-                try:
-                    parsed = json.loads(match)
-                    if self._is_valid_analysis(parsed):
-                        return parsed
-                except json.JSONDecodeError:
-                    continue
-        
-        # Third try: Look for specific sections in the text
-        extracted_data = self._extract_from_text(cleaned)
-        if extracted_data:
-            return extracted_data
-        
-        # Final fallback: Wrap the entire text
-        return self._wrap_string_response(cleaned)
-        
-    except Exception as e:
-        self.logger.error(f"Error parsing string response: {e}")
-        return self._wrap_string_response(response_str)
-
-def _is_valid_analysis(self, data):
-    """Check if data has the basic structure we need"""
-    return (isinstance(data, dict) and 
-            data.get('executive_summary') is not None and
-            data.get('key_findings') is not None)
-
-def _extract_from_partial_dict(self, data):
-    """Extract analysis from a partial dict"""
-    try:
-        executive_summary = data.get('executive_summary')
-        if not executive_summary:
-            # Try to find summary in other keys
-            for key in ['summary', 'analysis', 'overview', 'executive', 'findings']:
-                if key in data and data[key]:
-                    executive_summary = str(data[key])
-                    break
-            if not executive_summary:
-                executive_summary = "Analysis completed"
-        
-        key_findings = data.get('key_findings', [])
-        if not key_findings:
-            # Try to extract findings from other keys
-            for key in ['findings', 'key_points', 'points', 'insights']:
-                if key in data:
-                    if isinstance(data[key], list):
-                        key_findings = data[key]
-                    elif isinstance(data[key], str):
-                        key_findings = [data[key]]
-                    break
-            if not key_findings:
-                key_findings = ["Analysis processed successfully"]
-        
-        return {
-            "executive_summary": executive_summary,
-            "key_findings": key_findings,
-            "momentum_assessment": data.get('momentum_assessment', 'Available in standard analysis'),
-            "critical_levels": data.get('critical_levels', ['Check analysis for details']),
-            "time_horizons": data.get('time_horizons', {
-                "short_term": "Refer to analysis",
-                "medium_term": "Refer to analysis", 
-                "long_term": "Refer to analysis"
-            }),
-            "risk_analysis": data.get('risk_analysis', 'Standard risk assessment applied'),
-            "confidence_score": data.get('confidence_score', 65),
-            "trading_recommendations": data.get('trading_recommendations', [
-                "Review analysis carefully",
-                "Use proper risk management"
-            ])
-        }
-    except Exception as e:
-        self.logger.error(f"Error extracting from partial dict: {e}")
-        return self._create_fallback_analysis(f"Partial dict error: {str(e)}")
-
-def _extract_from_text(self, text):
-    """Extract structured data from plain text"""
-    try:
-        # Look for common sections in the text
-        sections = {
-            'executive_summary': self._extract_section(text, ['executive summary', 'summary', 'overview']),
-            'key_findings': self._extract_list_section(text, ['key findings', 'main points', 'findings']),
-            'momentum_assessment': self._extract_section(text, ['momentum', 'trend', 'direction']),
-            'risk_analysis': self._extract_section(text, ['risk', 'warning', 'caution']),
-            'trading_recommendations': self._extract_list_section(text, ['recommendations', 'suggestions', 'actions'])
-        }
-        
-        # Only return if we found meaningful content
-        if any(sections.values()):
-            return {
-                "executive_summary": sections['executive_summary'] or "Analysis completed from text",
-                "key_findings": sections['key_findings'] or ["Text analysis processed"],
-                "momentum_assessment": sections['momentum_assessment'] or "Available in text analysis",
-                "critical_levels": ["Refer to text analysis"],
-                "time_horizons": {
-                    "short_term": "Text analysis timeframe",
-                    "medium_term": "Text analysis timeframe", 
-                    "long_term": "Text analysis timeframe"
-                },
-                "risk_analysis": sections['risk_analysis'] or "Standard risk assessment",
-                "confidence_score": 60,
-                "trading_recommendations": sections['trading_recommendations'] or [
-                    "Review text analysis",
-                    "Verify signals manually"
-                ]
-            }
-        
-        return None
-    except Exception as e:
-        self.logger.error(f"Error extracting from text: {e}")
-        return None
-
-def _extract_section(self, text, keywords):
-    """Extract a section from text based on keywords"""
-    try:
-        lines = text.split('\n')
-        for i, line in enumerate(lines):
-            line_lower = line.lower()
-            for keyword in keywords:
-                if keyword in line_lower:
-                    # Return the next line as content
-                    if i + 1 < len(lines) and lines[i + 1].strip():
-                        return lines[i + 1].strip()
-                    return line.strip()
-        return ""
-    except Exception:
-        return ""
-
-def _extract_list_section(self, text, keywords):
-    """Extract a list section from text"""
-    try:
-        lines = text.split('\n')
-        items = []
-        in_section = False
-        
-        for line in lines:
-            line_lower = line.lower()
-            # Check if we're entering the section
-            if any(keyword in line_lower for keyword in keywords):
-                in_section = True
-                continue
-            
-            # Collect bullet points or numbered items
-            if in_section and line.strip():
-                if line.strip().startswith(('-', '*', '•', '→', '=>', '1.', '2.', '3.')):
-                    items.append(line.strip().lstrip('-*•→=>123.').strip())
-                elif len(items) > 0:  # Stop if we hit a non-bullet line after starting
-                    break
-        
-        return items if items else []
-    except Exception:
-        return []
-
+    
     def _wrap_string_response(self, text):
         """Wrap any string response into proper format"""
         return {
@@ -1336,7 +1150,7 @@ def _extract_list_section(self, text, keywords):
                 "Focus on high-probability setups only"
             ]
         }
-        
+    
     def _create_fallback_analysis(self, error_message):
         """Create fallback analysis when DeepSeek fails"""
         return {
@@ -1363,7 +1177,7 @@ def _extract_list_section(self, text, keywords):
         }
     
     def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
-        """KAI's consistent reporting format with DeepSeek enhancement - FIXED VERSION"""
+        """KAI's consistent reporting format with DeepSeek enhancement"""
         report = {
             "header": f"🔍 **{self.character['name']} Analysis Report**",
             "executive_summary": self._generate_executive_summary(overview, signals, deepseek_analysis),
@@ -1371,8 +1185,8 @@ def _extract_list_section(self, text, keywords):
             "momentum_analysis": self._generate_momentum_analysis(signals, deepseek_analysis),
             "support_resistance_levels": self._generate_support_resistance(signals, deepseek_analysis),
             "time_horizon_outlook": self._generate_time_outlook(time_analysis, deepseek_analysis),
-            "risk_assessment_data": risk_analysis,  # FIX: Store the full risk data dictionary
-            "risk_assessment_summary": self._generate_risk_assessment(risk_analysis, deepseek_analysis), # FIX: Store the summary string in a new key
+            "risk_assessment_data": risk_analysis,
+            "risk_assessment_summary": self._generate_risk_assessment(risk_analysis, deepseek_analysis),
             "confidence_assessment": self._calculate_confidence(signals, deepseek_analysis),
             "trading_implications": self._generate_trading_implications(signals, risk_analysis, deepseek_analysis),
             "signal_details": signals,
@@ -1383,8 +1197,7 @@ def _extract_list_section(self, text, keywords):
         return report
     
     def _generate_executive_summary(self, overview, signals, deepseek_analysis):
-        """KAI's signature executive summary style with DeepSeek enhancement - FIXED"""
-        # FIXED: Check if deepseek_analysis is a dict with the expected key
+        """KAI's signature executive summary style"""
         if (deepseek_analysis and 
             isinstance(deepseek_analysis, dict) and 
             'executive_summary' in deepseek_analysis):
@@ -1408,12 +1221,11 @@ def _extract_list_section(self, text, keywords):
             return f"**Consolidation Phase** - Mixed signals across {overview['total_strategies']} strategies"
     
     def _generate_key_findings(self, signals, overview, deepseek_analysis):
-        """KAI always provides 3-5 key findings with DeepSeek enhancement - FIXED"""
-        # FIXED: Check if deepseek_analysis is a dict with the expected key
+        """KAI always provides 3-5 key findings with DeepSeek enhancement"""
         if (deepseek_analysis and 
             isinstance(deepseek_analysis, dict) and 
             'key_findings' in deepseek_analysis):
-            return deepseek_analysis['key_findings'][:5]  # Limit to 5 findings
+            return deepseek_analysis['key_findings'][:5]
         
         # Standard key findings
         findings = []
@@ -1481,7 +1293,7 @@ def _extract_list_section(self, text, keywords):
                 level_info += " (STRONG)"
             levels.append(level_info)
         
-        return levels[:5]  # Return top 5 levels
+        return levels[:5]
     
     def _generate_time_outlook(self, time_analysis, deepseek_analysis):
         """Enhanced time horizon outlook"""
@@ -1526,9 +1338,9 @@ def _extract_list_section(self, text, keywords):
         bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
         bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
         
-        if abs(bullish_count - bearish_count) >= 3:  # Clear bias
+        if abs(bullish_count - bearish_count) >= 3:
             score += 20
-        elif abs(bullish_count - bearish_count) >= 1:  # Moderate bias
+        elif abs(bullish_count - bearish_count) >= 1:
             score += 10
         
         # Volume confirmation
@@ -1537,7 +1349,7 @@ def _extract_list_section(self, text, keywords):
         # Divergence signals
         score += len(signals["divergence_signals"]) * 8
             
-        return min(95, max(20, score))  # KAI is conservative, never gives 100% or too low
+        return min(95, max(20, score))
     
     def _generate_trading_implications(self, signals, risk_analysis, deepseek_analysis):
         """KAI's actionable insights with DeepSeek enhancement"""
