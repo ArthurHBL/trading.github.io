@@ -1192,7 +1192,7 @@ class EnhancedKaiTradingAgent:
         }
     
     def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
-        """KAI's consistent reporting format with DeepSeek enhancement"""
+        """KAI's consistent reporting format with DeepSeek enhancement - FIXED VERSION"""
         report = {
             "header": f"🔍 **{self.character['name']} Analysis Report**",
             "executive_summary": self._generate_executive_summary(overview, signals, deepseek_analysis),
@@ -1200,7 +1200,8 @@ class EnhancedKaiTradingAgent:
             "momentum_analysis": self._generate_momentum_analysis(signals, deepseek_analysis),
             "support_resistance_levels": self._generate_support_resistance(signals, deepseek_analysis),
             "time_horizon_outlook": self._generate_time_outlook(time_analysis, deepseek_analysis),
-            "risk_assessment": self._generate_risk_assessment(risk_analysis, deepseek_analysis),
+            "risk_assessment_data": risk_analysis,  # FIX: Store the full risk data dictionary
+            "risk_assessment_summary": self._generate_risk_assessment(risk_analysis, deepseek_analysis), # FIX: Store the summary string in a new key
             "confidence_assessment": self._calculate_confidence(signals, deepseek_analysis),
             "trading_implications": self._generate_trading_implications(signals, risk_analysis, deepseek_analysis),
             "signal_details": signals,
@@ -2393,7 +2394,9 @@ def display_enhanced_kai_analysis_report(analysis):
             analysis.get('overview_metrics', {}).get('completion_rate', '0/0')
         )
     with col4:
-        risk_score = analysis.get('risk_assessment', {}).get('overall_risk_score', 'N/A')
+        # FIX: Use risk_assessment_data to get the overall_risk_score
+        risk_data = analysis.get('risk_assessment_data', {})
+        risk_score = risk_data.get('overall_risk_score', 'N/A')
         if isinstance(risk_score, (int, float)):
             delta_value = "High" if risk_score >= 7 else "Medium" if risk_score >= 5 else "Low"
             delta_color_setting = "inverse" if risk_score >= 7 else "normal" if risk_score >= 5 else "normal"
@@ -2457,29 +2460,40 @@ def display_enhanced_kai_analysis_report(analysis):
                 type_icon = "🟢" if signal.get('type') == 'BULLISH' else "🔴" if signal.get('type') == 'BEARISH' else "🟡"
                 st.write(f"{type_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
     
-    # Enhanced Risk Assessment
-    st.markdown("### 🛡️ Risk Assessment & Management")
+    # Enhanced Risk Assessment - FIXED VERSION
+st.markdown("### 🛡️ Risk Assessment & Management")
+
+# Display the risk summary string (which is now in 'risk_assessment_summary')
+risk_summary = analysis.get('risk_assessment_summary', '')
+if risk_summary:
+    if "HIGH RISK" in risk_summary:
+        st.error(f"**Risk Summary:** {risk_summary}")
+    elif "MODERATE RISK" in risk_summary:
+        st.warning(f"**Risk Summary:** {risk_summary}")
+    else:
+        st.info(f"**Risk Summary:** {risk_summary}")
+
+# Now display the risk factors from the risk data
+risk_data = analysis.get('risk_assessment_data', {})
+
+if risk_data:
+    col1, col2 = st.columns(2)
     
-    risk_assessment = analysis.get('risk_assessment', {})
+    with col1:
+        st.write("**High Risk Indicators:**")
+        if risk_data.get('high_risk_indicators'):
+            for risk in risk_data['high_risk_indicators'][:3]:
+                st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+        else:
+            st.write("• No high risk indicators detected")
     
-    if risk_assessment:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**High Risk Indicators:**")
-            if risk_assessment.get('high_risk_indicators'):
-                for risk in risk_assessment['high_risk_indicators'][:3]:
-                    st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
-            else:
-                st.write("• No high risk indicators detected")
-        
-        with col2:
-            st.write("**Position Sizing Recommendations:**")
-            if risk_assessment.get('position_sizing_recommendations'):
-                for rec in risk_assessment['position_sizing_recommendations']:
-                    st.write(f"• {rec}")
-            else:
-                st.write("• Standard position sizing appropriate")
+    with col2:
+        st.write("**Position Sizing Recommendations:**")
+        if risk_data.get('position_sizing_recommendations'):
+            for rec in risk_data['position_sizing_recommendations']:
+                st.write(f"• {rec}")
+        else:
+            st.write("• Standard position sizing appropriate")
     
     # Enhanced Time Horizon Analysis
     st.markdown("### ⏰ Enhanced Time Horizon Outlook")
@@ -2515,9 +2529,6 @@ def display_enhanced_kai_analysis_report(analysis):
         
         if deepseek_data.get('momentum_assessment'):
             st.info(f"**Momentum Analysis:** {deepseek_data['momentum_assessment']}")
-        
-        if deepseek_data.get('risk_analysis'):
-            st.warning(f"**Risk Analysis:** {deepseek_data['risk_analysis']}")
         
         if deepseek_data.get('critical_levels'):
             st.write("**Critical Price Levels:**")
