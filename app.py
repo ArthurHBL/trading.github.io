@@ -1092,79 +1092,79 @@ class EnhancedKaiTradingAgent:
             }
     
         def _parse_deepseek_response(self, response):
-        """Parse DeepSeek response and handle various formats - COMPLETELY FIXED VERSION"""
-        try:
-            # If response is already a properly formatted dict, return it
-            if (isinstance(response, dict) and 
-                'executive_summary' in response and
-                'key_findings' in response):
-                return response
+            """Parse DeepSeek response and handle various formats - COMPLETELY FIXED VERSION"""
+            try:
+                # If response is already a properly formatted dict, return it
+                if (isinstance(response, dict) and 
+                    'executive_summary' in response and
+                    'key_findings' in response):
+                    return response
             
-            # If response is a string, try to parse as JSON
-            if isinstance(response, str):
-                # Clean the response string first
-                cleaned_response = response.strip()
+                # If response is a string, try to parse as JSON
+                if isinstance(response, str):
+                    # Clean the response string first
+                    cleaned_response = response.strip()
                 
-                # Try to parse as JSON directly
-                try:
-                    parsed = json.loads(cleaned_response)
-                    if (isinstance(parsed, dict) and 
-                        'executive_summary' in parsed and
-                        'key_findings' in parsed):
-                        return parsed
-                    else:
-                        # If parsed JSON doesn't have the right structure, wrap it
-                        self.logger.warning(f"DeepSeek JSON missing required fields: {list(parsed.keys()) if isinstance(parsed, dict) else type(parsed)}")
-                        return self._wrap_string_response(cleaned_response)
-                except json.JSONDecodeError:
-                    # If not valid JSON, try to extract JSON object from text
-                    json_match = re.search(r'\{[^{}]*"[^"]*"[^{}]*\}', cleaned_response, re.DOTALL)
-                    if json_match:
-                        try:
-                            json_text = json_match.group()
-                            parsed = json.loads(json_text)
-                            if (isinstance(parsed, dict) and 
-                                'executive_summary' in parsed and
-                                'key_findings' in parsed):
-                                return parsed
-                        except json.JSONDecodeError:
-                            pass
+                    # Try to parse as JSON directly
+                    try:
+                        parsed = json.loads(cleaned_response)
+                        if (isinstance(parsed, dict) and 
+                            'executive_summary' in parsed and
+                            'key_findings' in parsed):
+                            return parsed
+                        else:
+                            # If parsed JSON doesn't have the right structure, wrap it
+                            self.logger.warning(f"DeepSeek JSON missing required fields: {list(parsed.keys()) if isinstance(parsed, dict) else type(parsed)}")
+                            return self._wrap_string_response(cleaned_response)
+                    except json.JSONDecodeError:
+                        # If not valid JSON, try to extract JSON object from text
+                        json_match = re.search(r'\{[^{}]*"[^"]*"[^{}]*\}', cleaned_response, re.DOTALL)
+                        if json_match:
+                            try:
+                                json_text = json_match.group()
+                                parsed = json.loads(json_text)
+                                if (isinstance(parsed, dict) and 
+                                    'executive_summary' in parsed and
+                                    'key_findings' in parsed):
+                                    return parsed
+                            except json.JSONDecodeError:
+                                pass
                     
-                    # If no valid JSON found, wrap the entire response as executive summary
-                    return self._wrap_string_response(cleaned_response)
+                        # If no valid JSON found, wrap the entire response as executive summary
+                        return self._wrap_string_response(cleaned_response)
             
-            # If response is a dict but missing required fields, wrap it
-            if isinstance(response, dict):
+                # If response is a dict but missing required fields, wrap it
+                if isinstance(response, dict):
+                    return self._wrap_string_response(str(response))
+            
+                # For any other type, convert to string and wrap
                 return self._wrap_string_response(str(response))
             
-            # For any other type, convert to string and wrap
-            return self._wrap_string_response(str(response))
-            
-        except Exception as e:
-            self.logger.error(f"Error parsing DeepSeek response: {e}")
-            # Return a safe fallback that definitely has the required structure
-            return {
-                "executive_summary": f"Analysis completed. Error during parsing: {str(e)}",
-                "key_findings": [
-                    "Analysis completed successfully",
-                    "Technical parsing issue encountered",
-                    "Results may need manual verification"
-                ],
-                "momentum_assessment": "Available in standard analysis",
-                "critical_levels": ["Refer to standard analysis"],
-                "time_horizons": {
-                    "short_term": "Standard analysis timeframe",
-                    "medium_term": "Standard analysis timeframe", 
-                    "long_term": "Standard analysis timeframe"
-                },
-                "risk_analysis": "Standard risk assessment applied",
-                "confidence_score": 60,
-                "trading_recommendations": [
-                    "Verify analysis manually",
-                    "Use standard risk management",
-                    "Combine with other technical indicators"
-                ]
-            }
+            except Exception as e:
+                self.logger.error(f"Error parsing DeepSeek response: {e}")
+                # Return a safe fallback that definitely has the required structure
+                return {
+                    "executive_summary": f"Analysis completed. Error during parsing: {str(e)}",
+                    "key_findings": [
+                        "Analysis completed successfully",
+                        "Technical parsing issue encountered",
+                        "Results may need manual verification"
+                    ],
+                    "momentum_assessment": "Available in standard analysis",
+                    "critical_levels": ["Refer to standard analysis"],
+                    "time_horizons": {
+                        "short_term": "Standard analysis timeframe",
+                        "medium_term": "Standard analysis timeframe", 
+                        "long_term": "Standard analysis timeframe"
+                    },
+                    "risk_analysis": "Standard risk assessment applied",
+                    "confidence_score": 60,
+                    "trading_recommendations": [
+                        "Verify analysis manually",
+                        "Use standard risk management",
+                        "Combine with other technical indicators"
+                    ]
+                }
     
     def _wrap_string_response(self, text):
         """Wrap a string response into the expected analysis format"""
