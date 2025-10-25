@@ -1916,42 +1916,39 @@ def display_enhanced_kai_analysis_report(analysis):
     # Enhanced Metrics with Quantitative Scoring
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-    	confidence_score = analysis['confidence_assessment']
-    	# Remove the color variable and use appropriate delta_color values
-    	delta_value = "High" if confidence_score >= 70 else "Medium" if confidence_score >= 50 else "Low"
-    	# Use "normal" for positive, "inverse" for negative, or "off" to hide
-    	delta_color_setting = "normal" if confidence_score >= 50 else "inverse"
-    
-    	st.metric(
-        	f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
-        	f"{confidence_score}%",
-        	delta=delta_value,
-        	delta_color=delta_color_setting  # Fixed: using valid Streamlit values
-    	)
+        confidence_score = analysis.get('confidence_assessment', 50)
+        delta_value = "High" if confidence_score >= 70 else "Medium" if confidence_score >= 50 else "Low"
+        delta_color_setting = "normal" if confidence_score >= 50 else "inverse"
+        
+        st.metric(
+            f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
+            f"{confidence_score}%",
+            delta=delta_value,
+            delta_color=delta_color_setting
+        )
     with col2:
         st.metric(
             "Strategies Analyzed", 
-            f"{analysis['overview_metrics']['total_strategies']}"
+            f"{analysis.get('overview_metrics', {}).get('total_strategies', 0)}"
         )
     with col3:
         st.metric(
             "Analysis Completion", 
-            analysis['overview_metrics']['completion_rate']
+            analysis.get('overview_metrics', {}).get('completion_rate', '0/0')
         )
     with col4:
-    	risk_score = analysis.get('risk_assessment', {}).get('overall_risk_score', 'N/A')
-    	if isinstance(risk_score, (int, float)):
-        	delta_value = "High" if risk_score >= 7 else "Medium" if risk_score >= 5 else "Low"
-        	# For risk, higher is worse, so use "inverse" for high risk
-        	delta_color_setting = "inverse" if risk_score >= 7 else "normal" if risk_score >= 5 else "normal"
-        	st.metric(
-            		"Risk Score",
-            		f"{risk_score}/10",
-            		delta=delta_value,
-            		delta_color=delta_color_setting  # Fixed
-        	)
-    	else:
-        	st.metric("Risk Assessment", "Not Available")
+        risk_score = analysis.get('risk_assessment', {}).get('overall_risk_score', 'N/A')
+        if isinstance(risk_score, (int, float)):
+            delta_value = "High" if risk_score >= 7 else "Medium" if risk_score >= 5 else "Low"
+            delta_color_setting = "inverse" if risk_score >= 7 else "normal" if risk_score >= 5 else "normal"
+            st.metric(
+                "Risk Score",
+                f"{risk_score}/10",
+                delta=delta_value,
+                delta_color=delta_color_setting
+            )
+        else:
+            st.metric("Risk Assessment", "Not Available")
     
     # Key Findings (Enhanced with AI insights)
     st.markdown("### 🔑 Key Findings & AI Insights")
@@ -1962,16 +1959,16 @@ def display_enhanced_kai_analysis_report(analysis):
             st.write(f"• {finding}")
     else:
         # Use standard findings
-        for finding in analysis["key_findings"]:
+        for finding in analysis.get("key_findings", []):
             st.write(f"• {finding}")
     
     # Enhanced Signal Breakdown with Quantitative Scoring
     st.markdown("### 📈 Enhanced Signal Breakdown")
     
-    signals = analysis['signal_details']
+    signals = analysis.get('signal_details', {})
     
     # Reversal Signals with Scoring (KAI's priority)
-    if signals["reversal_signals"]:
+    if signals.get("reversal_signals"):
         with st.expander(f"🔄 Reversal Signals ({len(signals['reversal_signals'])}) - SCORED ANALYSIS", expanded=True):
             for signal in signals["reversal_signals"]:
                 strength_icon = "🔥" if signal.get('strength') == 'HIGH' else "⚠️"
@@ -1981,7 +1978,7 @@ def display_enhanced_kai_analysis_report(analysis):
                 st.write(f"   *{signal['message']}*")
     
     # Enhanced Support/Resistance Levels with Price Levels
-    if signals["support_signals"]:
+    if signals.get("support_signals"):
         with st.expander(f"📊 Support/Resistance Levels ({len(signals['support_signals'])}) - PRICE LEVELS"):
             for signal in signals["support_signals"]:
                 level_icon = "🟢" if signal.get('level') == 'SUPPORT' else "🔴"
@@ -1990,15 +1987,15 @@ def display_enhanced_kai_analysis_report(analysis):
                 st.write(f"{level_icon} **{signal['strategy']} - {signal['indicator']}**: {signal.get('level')}{price_info}{strength_info}")
     
     # Enhanced Momentum Analysis
-    if signals["momentum_signals"]:
+    if signals.get("momentum_signals"):
         with st.expander(f"🎯 Momentum Signals ({len(signals['momentum_signals'])}) - DIRECTIONAL BIAS"):
             for signal in signals["momentum_signals"]:
                 direction_icon = "📈" if signal.get('direction') == 'BULLISH' else "📉"
                 strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
                 st.write(f"{direction_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}{strength_info}")
     
-    # NEW: Divergence Signals
-    if signals["divergence_signals"]:
+    # NEW: Divergence Signals - FIXED: Use .get() to avoid KeyError
+    if signals.get("divergence_signals"):
         with st.expander(f"⚡ Divergence Signals ({len(signals['divergence_signals'])})"):
             for signal in signals["divergence_signals"]:
                 type_icon = "🟢" if signal.get('type') == 'BULLISH' else "🔴" if signal.get('type') == 'BEARISH' else "🟡"
@@ -2030,7 +2027,7 @@ def display_enhanced_kai_analysis_report(analysis):
     
     # Enhanced Time Horizon Analysis
     st.markdown("### ⏰ Enhanced Time Horizon Outlook")
-    time_analysis = analysis['time_horizon_outlook']
+    time_analysis = analysis.get('time_horizon_outlook', {})
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -2080,7 +2077,7 @@ def display_enhanced_kai_analysis_report(analysis):
             st.write(implication)
     else:
         # Use standard implications
-        for implication in analysis["trading_implications"]:
+        for implication in analysis.get("trading_implications", []):
             st.write(implication)
     
     # Quantitative Analysis Summary
@@ -2089,15 +2086,15 @@ def display_enhanced_kai_analysis_report(analysis):
     summary_cols = st.columns(3)
     
     with summary_cols[0]:
-        total_signals = sum(len(signals[signal_type]) for signal_type in signals if signal_type != "conflicting_signals")
+        total_signals = sum(len(signals.get(signal_type, [])) for signal_type in ['reversal_signals', 'momentum_signals', 'support_signals', 'volume_signals', 'breakout_signals', 'divergence_signals'])
         st.metric("Total Signals Detected", total_signals)
     
     with summary_cols[1]:
-        high_confidence_signals = len([s for s in signals["reversal_signals"] if s.get('confidence', 0) >= 70])
+        high_confidence_signals = len([s for s in signals.get("reversal_signals", []) if s.get('confidence', 0) >= 70])
         st.metric("High Confidence Signals", high_confidence_signals)
     
     with summary_cols[2]:
-        conflict_count = len(signals["conflicting_signals"])
+        conflict_count = len(signals.get("conflicting_signals", []))
         st.metric("Conflicting Signals", conflict_count, delta_color="inverse")
 
 def display_kai_analysis_summary(analysis):
