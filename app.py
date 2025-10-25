@@ -1223,7 +1223,7 @@ class EnhancedKaiTradingAgent:
             try:
                 # Try to parse if it's a JSON string
                 if isinstance(deepseek_analysis, str):
-                deepseek_analysis = json.loads(deepseek_analysis)
+                    deepseek_analysis = json.loads(deepseek_analysis)
                 else:
                     # If it's neither dict nor string, create a fallback
                     deepseek_analysis = self._create_fallback_analysis(f"Unexpected analysis type: {type(deepseek_analysis)}")
