@@ -784,12 +784,12 @@ class EnhancedKaiTradingAgent:
         	response = self._call_deepseek_api(prompt)
         
         	if response:
-            		# FIX: Check if response is already a string or needs parsing
-            	if isinstance(response, str):
-                	try:
+                # FIX: Check if response is already a string or needs parsing
+                if isinstance(response, str):
+                    try:
                     	# Try to parse the string as JSON
                     	enhanced_analysis = json.loads(response)
-                	except json.JSONDecodeError:
+                     except json.JSONDecodeError:
                     	# If it's not valid JSON, use it as a text response
                     	enhanced_analysis = {
                         	"executive_summary": response[:200] + "..." if len(response) > 200 else response,
