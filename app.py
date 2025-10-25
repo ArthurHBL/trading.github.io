@@ -774,44 +774,44 @@ class EnhancedKaiTradingAgent:
     def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
         """Get enhanced analysis from DeepSeek API - FIXED VERSION"""
         try:
-        	# Prepare data for DeepSeek
-        	data_summary = self._prepare_data_for_deepseek(df)
+            # Prepare data for DeepSeek
+            data_summary = self._prepare_data_for_deepseek(df)
         
-        	# Get the enhanced analysis prompt
-        	prompt = self.deepseek_prompts["enhanced_analysis"].format(data_summary=data_summary)
+            # Get the enhanced analysis prompt
+            prompt = self.deepseek_prompts["enhanced_analysis"].format(data_summary=data_summary)
         
-        	# Call DeepSeek API
-        	response = self._call_deepseek_api(prompt)
+            # Call DeepSeek API
+            response = self._call_deepseek_api(prompt)
         
-        	if response:
+            if response:
                 # FIX: Check if response is already a string or needs parsing
                 if isinstance(response, str):
                     try:
-                    	# Try to parse the string as JSON
-                    	enhanced_analysis = json.loads(response)
-                     except json.JSONDecodeError:
-                    	# If it's not valid JSON, use it as a text response
-                    	enhanced_analysis = {
-                        	"executive_summary": response[:200] + "..." if len(response) > 200 else response,
-                        	"key_findings": ["Analysis completed but format unexpected"],
-                        	"momentum_assessment": "DeepSeek analysis completed",
-                        	"critical_levels": ["Level data unavailable"],
-                        	"time_horizons": {
-                            		"short_term": "Analysis available",
-                            		"medium_term": "Analysis available", 
-                            		"long_term": "Analysis available"
-                        	},
-                        	"risk_analysis": "Risk assessment completed",
-                        	"confidence_score": 50,
-                        	"trading_recommendations": ["Review DeepSeek analysis for details"]
-                   	 	}
-            	else:
-                	# If response is already a dict, use it directly
-                	enhanced_analysis = response
+                        # Try to parse the string as JSON
+                        enhanced_analysis = json.loads(response)
+                    except json.JSONDecodeError:
+                        # If it's not valid JSON, use it as a text response
+                        enhanced_analysis = {
+                            "executive_summary": response[:200] + "..." if len(response) > 200 else response,
+                            "key_findings": ["Analysis completed but format unexpected"],
+                            "momentum_assessment": "DeepSeek analysis completed",
+                            "critical_levels": ["Level data unavailable"],
+                            "time_horizons": {
+                                "short_term": "Analysis available",
+                                "medium_term": "Analysis available", 
+                                "long_term": "Analysis available"
+                            },
+                            "risk_analysis": "Risk assessment completed",
+                            "confidence_score": 50,
+                            "trading_recommendations": ["Review DeepSeek analysis for details"]
+                        }
+                else:
+                    # If response is already a dict, use it directly
+                    enhanced_analysis = response
                 
-            	return enhanced_analysis
-       	    else:
-           	    return None
+                return enhanced_analysis
+            else:
+                return None
             
         except Exception as e:
             self.logger.error(f"DeepSeek enhanced analysis failed: {e}")
@@ -851,12 +851,12 @@ class EnhancedKaiTradingAgent:
         return report
     
     def _generate_executive_summary(self, overview, signals, deepseek_analysis):
-    	"""KAI's signature executive summary style with DeepSeek enhancement - FIXED"""
-    	# FIX: Check if deepseek_analysis is a dict with the expected key
-    	if (deepseek_analysis and 
-        	isinstance(deepseek_analysis, dict) and 
-        	'executive_summary' in deepseek_analysis):
-        	return f"🧠 **DeepSeek Enhanced:** {deepseek_analysis['executive_summary']}"
+        """KAI's signature executive summary style with DeepSeek enhancement - FIXED"""
+        # FIX: Check if deepseek_analysis is a dict with the expected key
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            'executive_summary' in deepseek_analysis):
+            return f"🧠 **DeepSeek Enhanced:** {deepseek_analysis['executive_summary']}"
         
         # Fallback to standard analysis
         reversal_count = len(signals["reversal_signals"])
@@ -876,12 +876,12 @@ class EnhancedKaiTradingAgent:
             return f"**Consolidation Phase** - Mixed signals across {overview['total_strategies']} strategies"
     
     def _generate_key_findings(self, signals, overview, deepseek_analysis):
-    	"""KAI always provides 3-5 key findings with DeepSeek enhancement - FIXED"""
-    	# FIX: Check if deepseek_analysis is a dict with the expected key
-    	if (deepseek_analysis and 
-        	isinstance(deepseek_analysis, dict) and 
-        	'key_findings' in deepseek_analysis):
-        	return deepseek_analysis['key_findings'][:5]  # Limit to 5 findings
+        """KAI always provides 3-5 key findings with DeepSeek enhancement - FIXED"""
+        # FIX: Check if deepseek_analysis is a dict with the expected key
+        if (deepseek_analysis and 
+            isinstance(deepseek_analysis, dict) and 
+            'key_findings' in deepseek_analysis):
+            return deepseek_analysis['key_findings'][:5]  # Limit to 5 findings
         
         # Standard key findings
         findings = []
