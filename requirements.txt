@@ -8,3 +8,5 @@ yfinance
 Pillow
 supabase
 python-dotenv
+requests
+numpy
