@@ -2358,6 +2358,12 @@ def render_kai_agent():
         
 def display_enhanced_kai_analysis_report(analysis):
     """Display KAI's enhanced analysis report with DeepSeek integration"""
+    
+    # Check if analysis is None and handle gracefully
+    if analysis is None:
+        st.error("❌ No analysis data available. Please try running the analysis again.")
+        return
+    
     # Header with enhancement indicator
     is_enhanced = analysis.get('deepseek_enhanced', False)
     enhancement_badge = " 🧠 **DEEPSEEK AI ENHANCED**" if is_enhanced else " 📊 **STANDARD ANALYSIS**"
@@ -2461,39 +2467,39 @@ def display_enhanced_kai_analysis_report(analysis):
                 st.write(f"{type_icon} **{signal['strategy']} - {signal['indicator']}**: {signal['message']}")
     
     # Enhanced Risk Assessment - FIXED VERSION
-st.markdown("### 🛡️ Risk Assessment & Management")
+    st.markdown("### 🛡️ Risk Assessment & Management")
 
-# Display the risk summary string (which is now in 'risk_assessment_summary')
-risk_summary = analysis.get('risk_assessment_summary', '')
-if risk_summary:
-    if "HIGH RISK" in risk_summary:
-        st.error(f"**Risk Summary:** {risk_summary}")
-    elif "MODERATE RISK" in risk_summary:
-        st.warning(f"**Risk Summary:** {risk_summary}")
-    else:
-        st.info(f"**Risk Summary:** {risk_summary}")
-
-# Now display the risk factors from the risk data
-risk_data = analysis.get('risk_assessment_data', {})
-
-if risk_data:
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.write("**High Risk Indicators:**")
-        if risk_data.get('high_risk_indicators'):
-            for risk in risk_data['high_risk_indicators'][:3]:
-                st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+    # Display the risk summary string (which is now in 'risk_assessment_summary')
+    risk_summary = analysis.get('risk_assessment_summary', '')
+    if risk_summary:
+        if "HIGH RISK" in risk_summary:
+            st.error(f"**Risk Summary:** {risk_summary}")
+        elif "MODERATE RISK" in risk_summary:
+            st.warning(f"**Risk Summary:** {risk_summary}")
         else:
-            st.write("• No high risk indicators detected")
-    
-    with col2:
-        st.write("**Position Sizing Recommendations:**")
-        if risk_data.get('position_sizing_recommendations'):
-            for rec in risk_data['position_sizing_recommendations']:
-                st.write(f"• {rec}")
-        else:
-            st.write("• Standard position sizing appropriate")
+            st.info(f"**Risk Summary:** {risk_summary}")
+
+    # Now display the risk factors from the risk data
+    risk_data = analysis.get('risk_assessment_data', {})
+
+    if risk_data:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**High Risk Indicators:**")
+            if risk_data.get('high_risk_indicators'):
+                for risk in risk_data['high_risk_indicators'][:3]:
+                    st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+            else:
+                st.write("• No high risk indicators detected")
+        
+        with col2:
+            st.write("**Position Sizing Recommendations:**")
+            if risk_data.get('position_sizing_recommendations'):
+                for rec in risk_data['position_sizing_recommendations']:
+                    st.write(f"• {rec}")
+            else:
+                st.write("• Standard position sizing appropriate")
     
     # Enhanced Time Horizon Analysis
     st.markdown("### ⏰ Enhanced Time Horizon Outlook")
@@ -2563,7 +2569,7 @@ if risk_data:
     with summary_cols[2]:
         conflict_count = len(signals.get("conflicting_signals", []))
         st.metric("Conflicting Signals", conflict_count, delta_color="inverse")
-
+        
 def display_kai_analysis_summary(analysis):
     """Display a summary of KAI analysis for history view"""
     is_enhanced = analysis.get('deepseek_enhanced', False)
