@@ -1916,14 +1916,18 @@ def display_enhanced_kai_analysis_report(analysis):
     # Enhanced Metrics with Quantitative Scoring
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        confidence_score = analysis['confidence_assessment']
-        color = "green" if confidence_score >= 70 else "orange" if confidence_score >= 50 else "red"
-        st.metric(
-            f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
-            f"{confidence_score}%",
-            delta="High" if confidence_score >= 70 else "Medium" if confidence_score >= 50 else "Low",
-            delta_color=color
-        )
+    	confidence_score = analysis['confidence_assessment']
+    	# Remove the color variable and use appropriate delta_color values
+    	delta_value = "High" if confidence_score >= 70 else "Medium" if confidence_score >= 50 else "Low"
+    	# Use "normal" for positive, "inverse" for negative, or "off" to hide
+    	delta_color_setting = "normal" if confidence_score >= 50 else "inverse"
+    
+    	st.metric(
+        	f"🧠 {KAI_CHARACTER['phrases']['confidence_level']}", 
+        	f"{confidence_score}%",
+        	delta=delta_value,
+        	delta_color=delta_color_setting  # Fixed: using valid Streamlit values
+    	)
     with col2:
         st.metric(
             "Strategies Analyzed", 
@@ -1935,17 +1939,19 @@ def display_enhanced_kai_analysis_report(analysis):
             analysis['overview_metrics']['completion_rate']
         )
     with col4:
-        risk_score = analysis.get('risk_assessment', {}).get('overall_risk_score', 'N/A')
-        if isinstance(risk_score, (int, float)):
-            risk_color = "red" if risk_score >= 7 else "orange" if risk_score >= 5 else "green"
-            st.metric(
-                "Risk Score",
-                f"{risk_score}/10",
-                delta="High" if risk_score >= 7 else "Medium" if risk_score >= 5 else "Low",
-                delta_color=risk_color
-            )
-        else:
-            st.metric("Risk Assessment", "Not Available")
+    	risk_score = analysis.get('risk_assessment', {}).get('overall_risk_score', 'N/A')
+    	if isinstance(risk_score, (int, float)):
+        	delta_value = "High" if risk_score >= 7 else "Medium" if risk_score >= 5 else "Low"
+        	# For risk, higher is worse, so use "inverse" for high risk
+        	delta_color_setting = "inverse" if risk_score >= 7 else "normal" if risk_score >= 5 else "normal"
+        	st.metric(
+            		"Risk Score",
+            		f"{risk_score}/10",
+            		delta=delta_value,
+            		delta_color=delta_color_setting  # Fixed
+        	)
+    	else:
+        	st.metric("Risk Assessment", "Not Available")
     
     # Key Findings (Enhanced with AI insights)
     st.markdown("### 🔑 Key Findings & AI Insights")
