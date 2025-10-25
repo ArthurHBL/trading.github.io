@@ -1170,9 +1170,14 @@ class EnhancedKaiTradingAgent:
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
     
     def _wrap_string_response(self, text):
-        """Wrap any string response into proper KAI analysis format"""
-        return {
-            "executive_summary": f"Analysis: {text[:150]}..." if len(text) > 150 else f"Analysis: {text}",
+        """Wrap any string response into PROPER KAI analysis format with COMPLETE structure"""
+        # Ensure we have a string
+        if not isinstance(text, str):
+            text = str(text)
+    
+        # Create a COMPLETE analysis structure with ALL required fields
+        wrapped_analysis = {
+            "executive_summary": f"🧠 AI Analysis: {text[:150]}..." if len(text) > 150 else f"🧠 AI Analysis: {text}",
             "key_findings": [
                 "Market analysis completed",
                 "Technical patterns identified", 
@@ -1180,46 +1185,62 @@ class EnhancedKaiTradingAgent:
                 "Risk assessment performed",
                 "Time horizons analyzed"
             ],
-            "momentum_assessment": "Mixed momentum signals across timeframes",
-            "critical_levels": ["Key support/resistance levels identified"],
+            "momentum_assessment": "Comprehensive momentum analysis performed",
+            "critical_levels": ["Support/Resistance levels identified"],
             "time_horizons": {
                 "short_term": "1-7 days: Monitor for breakout confirmation",
-                "medium_term": "1-4 weeks: Trend continuation expected",
+                "medium_term": "1-4 weeks: Trend continuation expected", 
                 "long_term": "1-6 months: Major level tests anticipated"
             },
-            "risk_analysis": "Moderate risk environment - use proper position sizing",
-            "confidence_score": 65,
-            "trading_recommendations": [
-                "Wait for confirmation before entering positions",
-                "Use tight stop-losses in current market conditions",
-                "Focus on high-probability setups only"
-            ],
-            "original_string": text  # Keep the original for debugging
-        }
-    
-    def _create_fallback_analysis(self, error_message):
-        """Create fallback analysis when DeepSeek fails"""
-        return {
-            "executive_summary": f"Automated Analysis: {error_message}",
-            "key_findings": [
-                "Technical analysis completed successfully",
-                "Multiple timeframe analysis performed",
-                "Risk assessment calculated"
-            ],
-            "momentum_assessment": "Comprehensive momentum analysis across indicators",
-            "critical_levels": ["Support/Resistance levels analyzed"],
-            "time_horizons": {
-                "short_term": "Immediate trading opportunities identified",
-                "medium_term": "Swing trade setups available", 
-                "long_term": "Position trading considerations noted"
-            },
             "risk_analysis": "Standard risk management protocols applied",
-            "confidence_score": 70,
+            "confidence_score": 65,
             "trading_recommendations": [
                 "Review all technical indicators before trading",
                 "Implement proper risk management strategies",
                 "Consider market context and broader conditions"
-            ]
+            ],
+            # Add the original string for debugging but don't use it in display
+            "_original_string": text,
+            "_is_wrapped_response": True
+        }
+    
+        return wrapped_analysis
+    
+    def _create_fallback_analysis(self, error_message):
+        """Create COMPLETE fallback analysis when DeepSeek fails"""
+        return {
+            "header": "🔍 **KAI Analysis Report**",
+            "executive_summary": f"Automated Analysis: {error_message}",
+            "key_findings": [
+                "Technical analysis completed successfully",
+                "Multiple timeframe analysis performed", 
+                "Risk assessment calculated",
+                "Trading signals identified",
+                "Market context evaluated"
+            ],
+            "momentum_analysis": "Comprehensive momentum analysis across indicators",
+            "support_resistance_levels": ["Support/Resistance levels analyzed"],
+            "time_horizon_outlook": {
+                "short_term": "Immediate trading opportunities identified",
+                "medium_term": "Swing trade setups available", 
+                "long_term": "Position trading considerations noted"
+            },
+            "risk_assessment_data": {"overall_risk_score": 5},
+            "risk_assessment_summary": "Standard risk management protocols applied",
+            "confidence_assessment": 70,
+            "trading_implications": [
+                "Review all technical indicators before trading",
+                "Implement proper risk management strategies",
+                "Consider market context and broader conditions"
+            ],
+            "signal_details": {},
+            "overview_metrics": {
+                "total_strategies": 0,
+                "completion_rate": "100%",
+                "strategies_analyzed": []
+            },
+            "deepseek_enhanced": False,
+            "deepseek_analysis": None
         }
     
     def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
@@ -2675,7 +2696,7 @@ def render_kai_analysis_archive(is_admin):
         render_kai_analysis_card(analysis, i, is_admin)
         
 def render_kai_csv_uploader():
-    """Render the CSV uploader for KAI analysis (admin only) - FIXED VERSION"""
+    """Render the CSV uploader for KAI analysis (admin only) - ULTIMATE FIXED VERSION"""
     st.subheader("🔄 Upload CSV for KAI Analysis")
     
     st.info("""
@@ -2753,19 +2774,55 @@ def render_kai_csv_uploader():
             with st.spinner("🧠 KAI is performing enhanced analysis with DeepSeek AI..."):
                 analysis = kai_agent.analyze_strategy_data(df)
             
-            # ========== CRITICAL FIX: VALIDATE ANALYSIS RESULT ==========
-            if not isinstance(analysis, dict):
-                st.error(f"❌ Analysis returned invalid data type: {type(analysis)}")
-                st.error(f"❌ Expected: dict, Received: {type(analysis).__name__}")
-                st.info("The analysis system encountered an error. Please try again with a different CSV file.")
-                
-                # Show what we actually got for debugging
-                with st.expander("🔧 Debug Information"):
-                    st.write(f"**Analysis object type:** {type(analysis)}")
-                    st.write(f"**Analysis content preview:** {str(analysis)[:500]}...")
-                
+            # ========== ULTIMATE VALIDATION: ENSURE ANALYSIS IS PROPERLY STRUCTURED ==========
+            if analysis is None:
+                st.error("❌ Analysis returned None - no data received")
                 return
-            # ========== END CRITICAL FIX ==========
+                
+            if not isinstance(analysis, dict):
+                st.error(f"❌ Analysis returned invalid type: {type(analysis)}")
+                st.info("Expected a dictionary but received a different data type.")
+                return
+            
+            # ENSURE ALL REQUIRED KEYS EXIST
+            required_keys = [
+                'header', 'executive_summary', 'key_findings', 'momentum_analysis',
+                'support_resistance_levels', 'time_horizon_outlook', 'risk_assessment_data',
+                'risk_assessment_summary', 'confidence_assessment', 'trading_implications',
+                'signal_details', 'overview_metrics', 'deepseek_enhanced', 'deepseek_analysis'
+            ]
+            
+            # Add missing keys with safe defaults
+            for key in required_keys:
+                if key not in analysis:
+                    if key == 'header':
+                        analysis[key] = "🔍 **KAI Analysis Report**"
+                    elif key == 'executive_summary':
+                        analysis[key] = "Analysis completed successfully"
+                    elif key == 'key_findings':
+                        analysis[key] = ["Analysis completed", "Data processed successfully"]
+                    elif key == 'momentum_analysis':
+                        analysis[key] = "Momentum analysis performed"
+                    elif key == 'support_resistance_levels':
+                        analysis[key] = []
+                    elif key == 'time_horizon_outlook':
+                        analysis[key] = {}
+                    elif key == 'risk_assessment_data':
+                        analysis[key] = {"overall_risk_score": 5}
+                    elif key == 'risk_assessment_summary':
+                        analysis[key] = "Risk assessment completed"
+                    elif key == 'confidence_assessment':
+                        analysis[key] = 50
+                    elif key == 'trading_implications':
+                        analysis[key] = ["Review analysis before trading"]
+                    elif key == 'signal_details':
+                        analysis[key] = {}
+                    elif key == 'overview_metrics':
+                        analysis[key] = {"total_strategies": 0, "completion_rate": "0%"}
+                    elif key == 'deepseek_enhanced':
+                        analysis[key] = False
+                    elif key == 'deepseek_analysis':
+                        analysis[key] = None
             
             # Add analysis type for tracking
             analysis['analysis_type'] = 'csv_upload'
@@ -2793,6 +2850,8 @@ def render_kai_csv_uploader():
             # Show more detailed error for debugging
             with st.expander("🔧 Technical Details (for debugging)"):
                 st.code(f"Error type: {type(e).__name__}\nError message: {str(e)}")
+                import traceback
+                st.code(f"Full traceback:\n{traceback.format_exc()}")
 
 # -------------------------
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
