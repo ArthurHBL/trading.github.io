@@ -2960,7 +2960,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         reversal_signals = signals["reversal_signals"]
         # CRITICAL FIX: Ensure reversal_signals is a list
         if isinstance(reversal_signals, list):
-            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)}) - SCORED ANALYSIS", expanded=True):
+            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)}) - SCORED ANALYSIS", expanded=False):
                 for signal in reversal_signals:
                     # CRITICAL FIX: Check if signal is a dict before calling .get()
                     if isinstance(signal, dict):
