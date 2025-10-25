@@ -210,44 +210,44 @@ class EnhancedKaiTradingAgent:
         }
     
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
-    	"""Call DeepSeek API with error handling and fallback - IMPROVED VERSION"""
-    	if not self.use_deepseek or not DEEPSEEK_API_KEY:
-        	self.logger.warning("DeepSeek API not available, using standard analysis")
-        	return None
+        """Call DeepSeek API with error handling and fallback - FIXED VERSION"""
+        if not self.use_deepseek or not DEEPSEEK_API_KEY:
+            self.logger.warning("DeepSeek API not available, using standard analysis")
+            return None
+    
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+            }
         
-    	try:
-        	headers = {
-            		"Content-Type": "application/json",
-            		"Authorization": f"Bearer {DEEPSEEK_API_KEY}"
-        	}
+            payload = {
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": False
+            }
         
-        	payload = {
-            		"model": "deepseek-chat",
-            		"messages": [{"role": "user", "content": prompt}],
-            		"temperature": temperature,
-            		"max_tokens": max_tokens,
-            		"stream": False
-        	}
+            response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
         
-        	response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=30)
-        	response.raise_for_status()
+            result = response.json()
         
-        	result = response.json()
+            # FIX: Handle different response formats from DeepSeek API
+            if "choices" in result and len(result["choices"]) > 0:
+                if "message" in result["choices"][0]:
+                    return result["choices"][0]["message"]["content"]
+                elif "text" in result["choices"][0]:
+                    return result["choices"][0]["text"]
         
-        	# FIX: Handle different response formats from DeepSeek API
-        	if "choices" in result and len(result["choices"]) > 0:
-            if "message" in result["choices"][0]:
-                return result["choices"][0]["message"]["content"]
-            elif "text" in result["choices"][0]:
-                return result["choices"][0]["text"]
+            # If we can't extract the content, return the raw result for debugging
+            self.logger.warning(f"Unexpected DeepSeek response format: {result}")
+            return str(result)
         
-        	# If we can't extract the content, return the raw result for debugging
-        	self.logger.warning(f"Unexpected DeepSeek response format: {result}")
-        	return str(result)
-        
-    	except Exception as e:
-        	self.logger.error(f"DeepSeek API call failed: {e}")
-        	return None
+        except Exception as e:
+            self.logger.error(f"DeepSeek API call failed: {e}")
+            return None
     
     def _prepare_data_for_deepseek(self, df):
         """Prepare trading data for DeepSeek analysis"""
