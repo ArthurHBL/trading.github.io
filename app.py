@@ -3037,7 +3037,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**High Risk Indicators:**")
+            st.write("**Sharp Volatility Indicators:**")
             if risk_data.get('high_risk_indicators'):
                 high_risk_indicators = risk_data['high_risk_indicators']
                 if isinstance(high_risk_indicators, list):
