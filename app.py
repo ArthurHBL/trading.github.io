@@ -1206,15 +1206,37 @@ def _balance_time_horizons(self, time_signals):
     def _calculate_time_confidence(self, note):
         """Calculate confidence score for time horizon predictions"""
         confidence = 50  # Base confidence
-        
-        if 'confirmed' in note or 'confirmed' in note:
-            confidence += 20
-        if 'likely' in note or 'probable' in note:
-            confidence += 10
-        if 'potential' in note or 'possible' in note:
+    
+        # Increase confidence for specific time references
+        if any(keyword in note.lower() for keyword in ['confirmed', 'definite', 'certain', 'clear']):
+            confidence += 25
+        elif any(keyword in note.lower() for keyword in ['likely', 'probable', 'expected', 'should']):
+            confidence += 15
+        elif any(keyword in note.lower() for keyword in ['potential', 'possible', 'might', 'could']):
+            confidence += 5
+    
+        # Decrease confidence for uncertain language
+        if any(keyword in note.lower() for keyword in ['uncertain', 'unclear', 'maybe', 'perhaps', 'possibly']):
+            confidence -= 15
+        elif any(keyword in note.lower() for keyword in ['waiting', 'pending', 'monitor', 'watch']):
             confidence -= 10
-            
-        return max(10, min(95, confidence))
+    
+        # Increase confidence for specific timeframes
+        if any(keyword in note.lower() for keyword in ['today', 'now', 'immediate', 'right now', 'this session']):
+            confidence += 10
+        elif any(keyword in note.lower() for keyword in ['this week', 'next few days', 'coming days']):
+            confidence += 8
+        elif any(keyword in note.lower() for keyword in ['next week', 'next month', 'coming weeks']):
+            confidence += 5
+    
+        # Increase confidence for technical confirmation
+        if any(keyword in note.lower() for keyword in ['confirmed by', 'supported by', 'multiple timeframes', 'confluence']):
+            confidence += 12
+        elif any(keyword in note.lower() for keyword in ['breaking', 'crossing', 'bouncing', 'rejecting']):
+            confidence += 8
+    
+        # Ensure confidence stays within reasonable bounds
+        return max(20, min(95, confidence))
     
     def _phase_4_risk_assessment(self, df, signals):
         """Comprehensive risk assessment"""
