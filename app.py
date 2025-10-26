@@ -1124,68 +1124,68 @@ class EnhancedKaiTradingAgent:
                 # Default to medium_term if no clear signal
                 return "medium_term"
 
-def _create_intelligent_time_placeholders(self, df, time_signals):
-    """Create intelligent time horizon placeholders when classification is low"""
+    def _create_intelligent_time_placeholders(self, df, time_signals):
+        """Create intelligent time horizon placeholders when classification is low"""
     
-    # Analyze the dataset to create reasonable time distributions
-    total_signals = sum(len(signals) for signals in time_signals.values())
+        # Analyze the dataset to create reasonable time distributions
+        total_signals = sum(len(signals) for signals in time_signals.values())
     
-    if total_signals == 0:
-        # If no signals classified, distribute based on strategy types
-        for strategy in df['Strategy'].unique() if 'Strategy' in df.columns else []:
-            strategy_data = df[df['Strategy'] == strategy]
+        if total_signals == 0:
+            # If no signals classified, distribute based on strategy types
+            for strategy in df['Strategy'].unique() if 'Strategy' in df.columns else []:
+                strategy_data = df[df['Strategy'] == strategy]
             
-            # Determine strategy timeframe bias
-            strategy_name = str(strategy).lower()
-            if any(term in strategy_name for term in ['intraday', 'scalp', 'momentum']):
-                target_horizon = "immediate"
-            elif any(term in strategy_name for term in ['swing', 'short', 'weekly']):
-                target_horizon = "short_term"
-            elif any(term in strategy_name for term in ['position', 'medium', 'monthly']):
-                target_horizon = "medium_term"
-            else:
-                target_horizon = "long_term"
+                # Determine strategy timeframe bias
+                strategy_name = str(strategy).lower()
+                if any(term in strategy_name for term in ['intraday', 'scalp', 'momentum']):
+                    target_horizon = "immediate"
+                elif any(term in strategy_name for term in ['swing', 'short', 'weekly']):
+                    target_horizon = "short_term"
+                elif any(term in strategy_name for term in ['position', 'medium', 'monthly']):
+                    target_horizon = "medium_term"
+                else:
+                    target_horizon = "long_term"
             
-            # Add placeholder signals for this strategy
-            for _, row in strategy_data.iterrows():
-                if pd.isna(row.get('Note')) or row.get('Note') == '':
-                    continue
+                # Add placeholder signals for this strategy
+                for _, row in strategy_data.iterrows():
+                    if pd.isna(row.get('Note')) or row.get('Note') == '':
+                        continue
                     
-                time_signals[target_horizon].append({
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "strategy": strategy,
-                    "message": row.get('Note', ''),
-                    "confidence": 40,  # Lower confidence for placeholders
-                    "classified_by": "intelligent_placeholder"
+                    time_signals[target_horizon].append({
+                        "indicator": row.get('Indicator', 'Unknown'),
+                        "strategy": strategy,
+                        "message": row.get('Note', ''),
+                        "confidence": 40,  # Lower confidence for placeholders
+                        "classified_by": "intelligent_placeholder"
+                    })
+    
+        return time_signals
+
+    def _balance_time_horizons(self, time_signals):
+        """Ensure each timeframe has at least some representation"""
+    
+        # Minimum signals per timeframe to ensure display
+        min_signals_per_horizon = 1
+    
+        for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
+            if len(time_signals[horizon]) < min_signals_per_horizon:
+                # Add a generic placeholder for this timeframe
+                placeholder_message = {
+                    "immediate": "Monitor for intraday breakout opportunities",
+                    "short_term": "Watch for weekly trend confirmation", 
+                    "medium_term": "Evaluate monthly position sizing",
+                    "long_term": "Consider long-term accumulation zones"
+                }
+            
+                time_signals[horizon].append({
+                    "indicator": "System",
+                    "strategy": "Time Analysis",
+                    "message": placeholder_message[horizon],
+                    "confidence": 30,
+                    "classified_by": "balance_placeholder"
                 })
     
-    return time_signals
-
-def _balance_time_horizons(self, time_signals):
-    """Ensure each timeframe has at least some representation"""
-    
-    # Minimum signals per timeframe to ensure display
-    min_signals_per_horizon = 1
-    
-    for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
-        if len(time_signals[horizon]) < min_signals_per_horizon:
-            # Add a generic placeholder for this timeframe
-            placeholder_message = {
-                "immediate": "Monitor for intraday breakout opportunities",
-                "short_term": "Watch for weekly trend confirmation", 
-                "medium_term": "Evaluate monthly position sizing",
-                "long_term": "Consider long-term accumulation zones"
-            }
-            
-            time_signals[horizon].append({
-                "indicator": "System",
-                "strategy": "Time Analysis",
-                "message": placeholder_message[horizon],
-                "confidence": 30,
-                "classified_by": "balance_placeholder"
-            })
-    
-    return time_signals
+        return time_signals
     
     def _classify_time_horizon(self, note):
         """Enhanced time horizon classification"""
