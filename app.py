@@ -3534,6 +3534,8 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         quality_score = quality.get('quality_score', 0)
         quality_tag = DataQualityFramework.get_quality_tag(quality_score)
         st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
+
+        st.markdown("---")
         
         # Quality metrics only - no tier/acceptable display
         st.markdown("---")
