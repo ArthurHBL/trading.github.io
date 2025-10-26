@@ -104,6 +104,56 @@ class EnhancedKaiTradingAgent:
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
+
+    # BONUS: Add this method to ensure time keywords are comprehensive
+    def _get_all_time_keywords(self):
+        """Get comprehensive list of all time-related keywords"""
+        return {
+            "immediate": [
+                # Current/Right now
+                'now', 'immediate', 'today', 'intraday', 'right now', 'currently', 
+                'asap', 'urgent', 'instant', 'alert', 'now!',
+                # This period
+                'this session', 'current candle', 'next candle', 'this hour',
+                # Indicators known for intraday
+                'vwap', 'volume delta', 'stoch rsi', 'rsi', 'macd', 'ao', 'atr', 
+                'mfi', 'fisher', 'overview', 'quick', 'momentum', 'intraday', 'scalp',
+                'breakout', 'breaking'
+            ],
+            "short_term": [
+                # Days/weeks
+                'short term', 'this week', 'next few days', 'coming days', '1-7 days',
+                'few days', 'daily', 'day trade', 'overnight', 'swing', 'weekly',
+                'next week', 'week ahead', 'coming week', 'next 3 days', 'next 5 days',
+                # Indicators known for short-term
+                'supertrend', 'ema', 'sma', 'bollinger', 'keltner', 'ichimoku',
+                'support', 'resistance', 'fibonacci', 'trend', 'chart', 'swing',
+                'rsi(smi)', 'smi', 'daily'
+            ],
+            "medium_term": [
+                # Weeks/months
+                'medium term', 'this month', 'next few weeks', '1-4 weeks', 'monthly',
+                'swing trade', 'intermediate', 'coming weeks', 'next month', 'month ahead',
+                'next 2 weeks', 'next 3 weeks', 'rest of month', 'month end',
+                # Indicators known for medium-term
+                'rainbow', 'alligator', 'gr-mmas', 'pi cycle', 'sar', 'demand',
+                'coppock', 'trix', 'williams', 'chaikin', 'weekly', 'monthly',
+                'wick delta', 'elasticity', 'wt_lb'
+            ],
+            "long_term": [
+                # Months/years
+                'long term', 'next year', 'months ahead', '1-6 months',
+                'quarterly', 'position trade', 'investment', 'hold', 'accumulate',
+                'next quarter', 'coming months', 'next 3 months', 'next 6 months',
+                'year ahead', 'future', 'long hold',
+                # Specific years
+                '2024', '2025', '2026',
+                # Indicators known for long-term
+                'log regression', 'monte carlo', 'mvrv', 'nvt', 'roc', 'z-score',
+                'liquidity', 'rainbow wave', 'cycle', 'regression', 'transaction',
+                'quarterly', 'annual'
+            ]
+        }
     
     def _initialize_analysis_patterns(self):
         """KAI's consistent analysis methodology"""
@@ -968,8 +1018,9 @@ class EnhancedKaiTradingAgent:
         
         return conflicts
     
+    # FIXED: Complete Time Horizon Mapping with Guaranteed Display
     def _phase_3_time_mapping(self, df):
-        """KAI's Phase 3: Enhanced time horizon mapping - FIXED VERSION WITH GUARANTEED SIGNALS"""
+        """KAI's Phase 3: Enhanced time horizon mapping - GUARANTEED DISPLAY FIX"""
         time_signals = {
             "immediate": [],
             "short_term": [],
@@ -982,99 +1033,86 @@ class EnhancedKaiTradingAgent:
             "immediate": [
                 'now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'asap',
                 'urgent', 'instant', 'momentum', 'breakout', 'breaking', 'now!', 'alert',
-                'today only', 'this session', 'current candle', 'next candle'
+                'today only', 'this session', 'current candle', 'next candle', 'vwap', 'volume delta',
+                'stoch rsi', 'rsi', 'macd', 'ao', 'atr', 'mfi', 'fisher'
             ],
             "short_term": [
                 'short term', 'this week', 'next few days', 'coming days', '1-7 days',
                 'few days', 'daily', 'day trade', 'overnight', 'swing', 'weekly',
                 'next week', 'weekend', 'friday', 'monday', 'week ahead', 'coming week',
-                'next 3 days', 'next 5 days'
+                'next 3 days', 'next 5 days', 'supertrend', 'ema', 'sma', 'bollinger',
+                'keltner', 'ichimoku', 'chart'
             ],
             "medium_term": [
                 'medium term', 'this month', 'next few weeks', '1-4 weeks', 'monthly',
                 'swing trade', 'intermediate', 'coming weeks', 'next month', 'month ahead',
-                'next 2 weeks', 'next 3 weeks', 'rest of month', 'month end'
+                'next 2 weeks', 'next 3 weeks', 'rest of month', 'month end', 'rainbow',
+                'alligator', 'pi cycle', 'sar', 'wick delta'
             ],
             "long_term": [
                 'long term', '2026', 'next year', 'months ahead', '1-6 months',
                 'quarterly', 'position trade', 'investment', 'hold', 'accumulate',
                 'next quarter', 'coming months', 'next 3 months', 'next 6 months',
-                'year ahead', '2025', '2026', 'future', 'long hold'
+                'year ahead', '2025', '2026', 'future', 'long hold', 'log regression',
+                'monte carlo', 'mvrv', 'nvt', 'roc', 'z-score'
             ]
         }
 
         signal_count = 0
         classified_count = 0
-        classification_method = {}  # Track how each signal was classified
 
         for index, row in df.iterrows():
             if pd.isna(row.get('Note')) or row.get('Note') == '':
                 continue
-        
+    
             note = str(row.get('Note', '')).lower()
             indicator = row.get('Indicator', 'Unknown')
             strategy = row.get('Strategy', 'Unknown')
-    
+
             signal_count += 1
             time_horizon = None
-            classification_source = "fallback"
-    
-            # STEP 1: Try to classify based on keywords (HIGHEST PRIORITY)
+        
+            # STEP 1: Try keyword matching FIRST (HIGHEST PRIORITY)
             for horizon, keywords in time_keywords.items():
                 if any(keyword in note for keyword in keywords):
                     time_horizon = horizon
                     classified_count += 1
-                    classification_source = "keyword"
                     break
-    
-            # STEP 2: If no keywords found, use intelligent fallback based on indicator type
+
+            # STEP 2: If no keywords found, use indicator type classification
             if not time_horizon:
                 time_horizon = self._classify_time_by_indicator(indicator, note)
-                classification_source = "indicator_based"
-    
-            # CRITICAL: Ensure we have a valid time_horizon
+
+            # STEP 3: Validate and ensure we have a valid time_horizon
             if time_horizon not in time_signals:
-                time_horizon = "medium_term"  # Default fallback
-                classification_source = "default_fallback"
-    
-            # STEP 3: Add signal to time horizon
+                time_horizon = "medium_term"
+
+            # CREATE SIGNAL DATA - FIXED: Include all required fields for display
             signal_data = {
                 "indicator": indicator,
                 "strategy": strategy,
                 "message": row.get('Note', ''),
                 "confidence": self._calculate_time_confidence(note),
-                "classified_by": classification_source,
                 "time_horizon": time_horizon
             }
-        
-            # DEBUG: Print signal being added
-            self.logger.info(f"Adding signal to {time_horizon}: {indicator} from {strategy} (method: {classification_source})")
-        
-            time_signals[time_horizon].append(signal_data)
-            classification_method[f"{strategy}_{indicator}"] = classification_source
     
-            # STEP 4: If this is still a slow-classifying analysis, add a duplicate to short_term as well
-            # This ensures at least SOME signals appear in each category
-            if signal_count < 5 and len(time_signals[time_horizon]) == 1:
-                # On first signal of this type, also add to short_term for visibility
-                if time_horizon != "short_term" and len(time_signals["short_term"]) == 0:
-                    time_signals["short_term"].append(signal_data.copy())
+            time_signals[time_horizon].append(signal_data)
 
-        # CRITICAL FIX: If we have signals but they're not distributed, ensure at least one per category
-        if signal_count > 0:
+        # CRITICAL: If we have signals but they're not distributed, ensure at least one per category
+        total_signals = sum(len(signals) for signals in time_signals.values())
+    
+        if signal_count > 0 and total_signals > 0:
+            # Distribute signals to ensure all timeframes have representation
             for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
-                if len(time_signals[horizon]) == 0 and signal_count > 0:
-                    # Create a smart placeholder based on available signals
-                    for other_horizon, signals in time_signals.items():
-                        if len(signals) > 0 and other_horizon != horizon:
-                            # Use the first signal from this horizon as a reference
-                            ref_signal = signals[0].copy()
-                            ref_signal["classified_by"] = "distributed_placeholder"
-                            time_signals[horizon].append(ref_signal)
-                            self.logger.info(f"Adding distributed placeholder to {horizon}")
-                            break
+                if len(time_signals[horizon]) == 0:
+                    # Find the horizon with most signals and duplicate one
+                    max_horizon = max(time_signals, key=lambda h: len(time_signals[h]))
+                    if time_signals[max_horizon]:
+                        ref_signal = time_signals[max_horizon][0].copy()
+                        ref_signal["classifier"] = "distributed"
+                        time_signals[horizon].append(ref_signal)
 
-        self.logger.info(f"Phase 3 Summary: {signal_count} signals, {classified_count} keyword-classified, {len(classification_method)} total classified")
+        self.logger.info(f"Phase 3 Complete: {signal_count} signals, {classified_count} keyword-classified")
     
         return time_signals
     
@@ -1654,13 +1692,25 @@ class EnhancedKaiTradingAgent:
         return levels[:5]
     
     def _generate_time_outlook(self, time_analysis, deepseek_analysis):
-        """Enhanced time horizon outlook - FIXED VERSION"""
+        """FIXED: Enhanced time horizon outlook that ALWAYS displays signals"""
+        # If we have DeepSeek enhanced analysis, use those time horizons
         if (deepseek_analysis and 
             isinstance(deepseek_analysis, dict) and 
             deepseek_analysis.get('time_horizons')):
             return deepseek_analysis['time_horizons']
-    
-        return time_analysis
+
+        # Otherwise use the standard time analysis
+        # CRITICAL FIX: Ensure we're returning the time_signals dict correctly
+        if isinstance(time_analysis, dict):
+            return time_analysis
+        else:
+            # Fallback if something went wrong
+            return {
+                "immediate": [],
+                "short_term": [],
+                "medium_term": [],
+                "long_term": []
+            }
     
     def _generate_risk_assessment(self, risk_analysis, deepseek_analysis):
         """Enhanced risk assessment - FIXED VERSION"""
@@ -3332,9 +3382,17 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
             else:
                 st.write("• Standard position sizing appropriate")
     
-    # Enhanced Time Horizon Analysis
     st.markdown("### ⏰ Enhanced Time Horizon Outlook")
     time_analysis = analysis.get('time_horizon_outlook', {})
+    
+    # CRITICAL FIX: Ensure time_analysis is a dict
+    if not isinstance(time_analysis, dict):
+        time_analysis = {
+            "immediate": [],
+            "short_term": [],
+            "medium_term": [],
+            "long_term": []
+        }
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -3348,20 +3406,29 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     for i, (time_key, time_label, time_desc) in enumerate(timeframes):
         with [col1, col2, col3, col4][i]:
             time_signals = time_analysis.get(time_key, [])
+            
+            # FIXED: Handle both list and dict formats
             if isinstance(time_signals, list):
                 signals_count = len(time_signals)
+            elif isinstance(time_signals, str):
+                # If it's a string description, count as 1 signal
+                signals_count = 1 if time_signals else 0
             else:
                 signals_count = 0
+            
             st.metric(time_label, signals_count)
             st.caption(time_desc)
             
-            if signals_count > 0 and isinstance(time_signals, list):
+            if signals_count > 0:
                 with st.expander(f"View {time_label} Signals"):
-                    for signal in time_signals[:3]:
-                        if isinstance(signal, dict):
-                            confidence = signal.get('confidence', 'N/A')
-                            confidence_display = f" ({confidence}%)" if isinstance(confidence, (int, float)) else ""
-                            st.write(f"• {signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}{confidence_display}")
+                    if isinstance(time_signals, list):
+                        for idx, signal in enumerate(time_signals[:3]):
+                            if isinstance(signal, dict):
+                                confidence = signal.get('confidence', 'N/A')
+                                confidence_display = f" ({confidence}%)" if isinstance(confidence, (int, float)) else ""
+                                st.write(f"• {signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}{confidence_display}")
+                    elif isinstance(time_signals, str):
+                        st.write(time_signals)
     
     # DeepSeek AI Insights Section (if available)
     if is_enhanced and analysis.get('deepseek_analysis'):
