@@ -6276,7 +6276,7 @@ def render_user_image_card(img_data, index):
 # STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS - FIXED VERSION
 # -------------------------
 def render_strategy_indicator_image_upload(strategy_name, indicator_name):
-    """Render image upload for a specific strategy indicator - FIXED VERSION"""
+    """Render image upload for a specific strategy indicator - NORMAL SIZE"""
     st.subheader(f"🖼️ {indicator_name} - Chart Image")
     
     # Check if there's already an image for this indicator
@@ -6285,21 +6285,33 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
     if existing_image:
         st.success("✅ Image already uploaded for this indicator")
         
-        # Display the existing image as thumbnail
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.image(existing_image['bytes'], use_container_width=True, caption=f"Current {indicator_name} Chart")
+        # Display the existing image at NORMAL SIZE (not thumbnail)
+        st.markdown(f"**Current {indicator_name} Chart:**")
+        st.image(
+            existing_image['bytes'], 
+            use_container_width=True,  # Full width - normal size
+            caption=f"{indicator_name} Chart"
+        )
         
+        # Image info
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.caption(f"📤 Uploaded by: {existing_image['uploaded_by']}")
         with col2:
-            # Full view button
+            st.caption(f"📅 {datetime.fromisoformat(existing_image['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+        with col3:
+            st.caption(f"📋 Format: {existing_image['format']}")
+        
+        # Action buttons
+        col_v, col_r = st.columns(2)
+        with col_v:
             if st.button("🖼️ Full View", key=f"full_view_{strategy_name}_{indicator_name}", use_container_width=True):
-                # Set up the image viewer for strategy indicator images
                 st.session_state.current_strategy_indicator_image = existing_image
                 st.session_state.strategy_indicator_viewer_mode = True
                 st.session_state.current_strategy_indicator = f"{strategy_name}_{indicator_name}"
                 st.rerun()
-            
-            # Remove image button
+        
+        with col_r:
             if st.button("🗑️ Remove", key=f"remove_{strategy_name}_{indicator_name}", use_container_width=True):
                 success = delete_strategy_indicator_image(strategy_name, indicator_name)
                 if success:
@@ -6319,8 +6331,9 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
     )
     
     if uploaded_file is not None:
-        # Display preview
-        st.image(uploaded_file, caption="Preview", use_container_width=True)
+        # Display preview at NORMAL SIZE
+        st.markdown("**Preview:**")
+        st.image(uploaded_file, use_container_width=True)
         
         # Upload button
         if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
@@ -6394,7 +6407,7 @@ def render_strategy_indicator_image_viewer():
         st.error("Download unavailable")
 
 def display_strategy_indicator_images_user(strategy_name):
-    """Display strategy indicator images for users (view only)"""
+    """Display strategy indicator images for users (view only) - NORMAL SIZE"""
     if strategy_name not in st.session_state.strategy_indicator_images:
         return
     
@@ -6406,27 +6419,44 @@ def display_strategy_indicator_images_user(strategy_name):
         st.info("No chart images available for this strategy yet.")
         return
     
-    # Display images in a grid
-    cols = st.columns(2)
-    for i, (indicator_name, img_data) in enumerate(indicators_with_images.items()):
-        col = cols[i % 2]
-        
-        with col:
-            with st.container():
-                st.markdown(f"**{indicator_name}**")
-                
-                # Display thumbnail
-                st.image(img_data['bytes'], use_container_width=True, caption=f"{indicator_name} Chart")
-                
-                # Full view button
-                if st.button("🖼️ Full View", key=f"user_view_{strategy_name}_{indicator_name}", use_container_width=True):
+    # Display images ONE PER ROW at normal size
+    for indicator_name, img_data in indicators_with_images.items():
+        with st.container():
+            # Display image at normal/full size - NOT thumbnail
+            st.markdown(f"#### **{indicator_name}**")
+            
+            st.image(
+                img_data['bytes'], 
+                use_container_width=True,  # Use full available width
+                caption=f"{indicator_name} Chart"
+            )
+            
+            # Image info below
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.caption(f"📤 Uploaded by: {img_data['uploaded_by']}")
+            with col2:
+                st.caption(f"📅 {datetime.fromisoformat(img_data['timestamp']).strftime('%Y-%m-%d %H:%M')}")
+            with col3:
+                st.caption(f"📋 Format: {img_data['format']}")
+            
+            # Action buttons
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("🖼️ Fullscreen", key=f"user_view_strat_{strategy_name}_{indicator_name}", use_container_width=True):
                     st.session_state.current_strategy_indicator_image = img_data
                     st.session_state.strategy_indicator_viewer_mode = True
                     st.session_state.current_strategy_indicator = f"{strategy_name}_{indicator_name}"
                     st.rerun()
-                
-                st.caption(f"Updated: {datetime.fromisoformat(img_data['timestamp']).strftime('%Y-%m-%d %H:%M')}")
-                st.markdown("---")
+            with col_b:
+                try:
+                    b64_img = base64.b64encode(img_data['bytes']).decode()
+                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px 12px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                except:
+                    st.button("⬇️ Download", disabled=True, use_container_width=True)
+            
+            st.markdown("---")
 
 # -------------------------
 # FIXED: USER PASSWORD CHANGE FUNCTIONALITY
