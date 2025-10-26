@@ -159,7 +159,7 @@ class DataQualityFramework:
             consistency = 0
         
         # Overall quality score (weighted average)
-        quality_score = (completeness * 0.4 + accuracy * 0.4 + consistency * 0.2)
+        quality_score = (completeness * 0.2 + accuracy * 0.5 + consistency * 0.3)
         
         # Check if acceptable for tier
         completeness_ok = completeness >= tier_config.get("completeness_required", 50)
