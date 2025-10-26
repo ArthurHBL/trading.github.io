@@ -6288,10 +6288,12 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
         # Display the existing image at FULL WIDTH
         st.markdown(f"**Current {indicator_name} Chart:**")
         
+        # Force reload and display at full width
         st.image(
             existing_image['bytes'], 
             use_container_width=True,
-            caption=f"{indicator_name} Chart"
+            caption=f"{indicator_name} Chart",
+            clamp=True
         )
         
         # Image info
@@ -6335,7 +6337,7 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
         # Display preview at FULL WIDTH
         st.markdown("**Preview:**")
         
-        st.image(uploaded_file, use_container_width=True)
+        st.image(uploaded_file, use_container_width=True, clamp=True)
         
         # Upload button
         if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
@@ -6427,10 +6429,12 @@ def display_strategy_indicator_images_user(strategy_name):
             st.markdown(f"#### **{indicator_name}**")
             
             # Display at full width
+            # Force reload and display at full width
             st.image(
                 img_data['bytes'], 
                 use_container_width=True,
-                caption=f"{indicator_name} Chart"
+                caption=f"{indicator_name} Chart",
+                clamp=True
             )
             
             # Image info below
