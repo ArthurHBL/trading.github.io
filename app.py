@@ -6276,7 +6276,7 @@ def render_user_image_card(img_data, index):
 # STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS - FIXED VERSION
 # -------------------------
 def render_strategy_indicator_image_upload(strategy_name, indicator_name):
-    """Render image upload for a specific strategy indicator - NORMAL SIZE"""
+    """Render image upload for a specific strategy indicator - FIXED SIZE (HALF WIDTH)"""
     st.subheader(f"🖼️ {indicator_name} - Chart Image")
     
     # Check if there's already an image for this indicator
@@ -6285,13 +6285,18 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
     if existing_image:
         st.success("✅ Image already uploaded for this indicator")
         
-        # Display the existing image at NORMAL SIZE (not thumbnail)
+        # Display the existing image at FIXED SIZE (half width)
         st.markdown(f"**Current {indicator_name} Chart:**")
-        st.image(
-            existing_image['bytes'], 
-            use_container_width=True,  # Full width - normal size
-            caption=f"{indicator_name} Chart"
-        )
+        
+        # Use columns to control size - left empty space, middle for image (50% width)
+        col_empty, col_image, col_empty2 = st.columns([0.25, 0.5, 0.25])
+        
+        with col_image:
+            st.image(
+                existing_image['bytes'], 
+                use_container_width=True,  # Fill the 50% column width
+                caption=f"{indicator_name} Chart"
+            )
         
         # Image info
         col1, col2, col3 = st.columns(3)
@@ -6331,9 +6336,13 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
     )
     
     if uploaded_file is not None:
-        # Display preview at NORMAL SIZE
+        # Display preview at FIXED SIZE (half width)
         st.markdown("**Preview:**")
-        st.image(uploaded_file, use_container_width=True)
+        
+        col_empty, col_preview, col_empty2 = st.columns([0.25, 0.5, 0.25])
+        
+        with col_preview:
+            st.image(uploaded_file, use_container_width=True)
         
         # Upload button
         if st.button("💾 Save Image to Indicator", key=f"save_{strategy_name}_{indicator_name}", use_container_width=True):
@@ -6407,7 +6416,7 @@ def render_strategy_indicator_image_viewer():
         st.error("Download unavailable")
 
 def display_strategy_indicator_images_user(strategy_name):
-    """Display strategy indicator images for users (view only) - NORMAL SIZE"""
+    """Display strategy indicator images for users (view only) - FIXED SIZE (HALF WIDTH)"""
     if strategy_name not in st.session_state.strategy_indicator_images:
         return
     
@@ -6419,17 +6428,20 @@ def display_strategy_indicator_images_user(strategy_name):
         st.info("No chart images available for this strategy yet.")
         return
     
-    # Display images ONE PER ROW at normal size
+    # Display images ONE PER ROW at FIXED SIZE (half width)
     for indicator_name, img_data in indicators_with_images.items():
         with st.container():
-            # Display image at normal/full size - NOT thumbnail
             st.markdown(f"#### **{indicator_name}**")
             
-            st.image(
-                img_data['bytes'], 
-                use_container_width=True,  # Use full available width
-                caption=f"{indicator_name} Chart"
-            )
+            # Use columns to control size - left empty space, middle for image (50% width)
+            col_empty, col_image, col_empty2 = st.columns([0.25, 0.5, 0.25])
+            
+            with col_image:
+                st.image(
+                    img_data['bytes'], 
+                    use_container_width=True,  # Fill the 50% column width
+                    caption=f"{indicator_name} Chart"
+                )
             
             # Image info below
             col1, col2, col3 = st.columns(3)
