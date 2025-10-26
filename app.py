@@ -3535,9 +3535,6 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         quality_tag = DataQualityFramework.get_quality_tag(quality_score)
         st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
         
-        # Quality metrics only - no tier/acceptable display
-        st.markdown("---")
-    
     st.markdown("---")
     
     # NOW DISPLAY AI-ENHANCED RISK ASSESSMENT
