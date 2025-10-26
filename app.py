@@ -3446,6 +3446,79 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         for finding in analysis.get("key_findings", []):
             st.write(f"• {finding}")
     
+    # Enhanced Signal Breakdown with Quantitative Scoring
+    st.markdown("### 📈 Enhanced Signal Breakdown")
+    
+    signals = analysis.get('signal_details', {})
+    
+    # CRITICAL FIX: Add type checking for ALL signal processing
+    if not isinstance(signals, dict):
+        st.warning("⚠️ Signal data format issue detected")
+        signals = {}
+    
+    # Reversal Signals with Scoring (KAI's priority)
+    if signals.get("reversal_signals"):
+        reversal_signals = signals["reversal_signals"]
+        # CRITICAL FIX: Ensure reversal_signals is a list
+        if isinstance(reversal_signals, list):
+            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)}) - SCORED ANALYSIS", expanded=False):
+                for signal in reversal_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        strength_icon = "🔥" if signal.get('strength') == 'HIGH' else "⚠️"
+                        score_display = f" | Score: {signal.get('score', 'N/A')}/10" if signal.get('score') else ""
+                        confidence_display = f" | Confidence: {signal.get('confidence', 'N/A')}%" if signal.get('confidence') else ""
+                        st.write(f"{strength_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**{score_display}{confidence_display}")
+                        st.write(f"   *{signal.get('message', 'No message')}*")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
+    
+    # Enhanced Support/Resistance Levels with Price Levels
+    if signals.get("support_signals"):
+        support_signals = signals["support_signals"]
+        # CRITICAL FIX: Ensure support_signals is a list
+        if isinstance(support_signals, list):
+            with st.expander(f"📊 Support/Resistance Levels ({len(support_signals)}) - PRICE LEVELS"):
+                for signal in support_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        level_icon = "🟢" if signal.get('level') == 'SUPPORT' else "🔴"
+                        price_info = f" at {signal.get('price_level', 'N/A')}" if signal.get('price_level') else ""
+                        strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
+                        st.write(f"{level_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('level', 'LEVEL')}{price_info}{strength_info}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
+    
+    # Enhanced Momentum Analysis
+    if signals.get("momentum_signals"):
+        momentum_signals = signals["momentum_signals"]
+        # CRITICAL FIX: Ensure momentum_signals is a list
+        if isinstance(momentum_signals, list):
+            with st.expander(f"🎯 Momentum Signals ({len(momentum_signals)}) - DIRECTIONAL BIAS"):
+                for signal in momentum_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        direction_icon = "📈" if signal.get('direction') == 'BULLISH' else "📉"
+                        strength_info = f" ({signal.get('strength', 'N/A')})" if signal.get('strength') else ""
+                        st.write(f"{direction_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('message', 'No message')}{strength_info}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
+    
+    # NEW: Divergence Signals - FIXED: Use .get() to avoid KeyError
+    if signals.get("divergence_signals"):
+        divergence_signals = signals["divergence_signals"]
+        # CRITICAL FIX: Ensure divergence_signals is a list
+        if isinstance(divergence_signals, list):
+            with st.expander(f"⚡ Divergence Signals ({len(divergence_signals)})"):
+                for signal in divergence_signals:
+                    # CRITICAL FIX: Check if signal is a dict before calling .get()
+                    if isinstance(signal, dict):
+                        type_icon = "🟢" if signal.get('type') == 'BULLISH' else "🔴" if signal.get('type') == 'BEARISH' else "🟡"
+                        st.write(f"{type_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**: {signal.get('message', 'No message')}")
+                    else:
+                        st.write(f"⚠️ Invalid signal format: {type(signal)}")
+    
+    
     # AI-ENHANCED RISK ASSESSMENT WITH DEEPSEEK
     st.markdown("### 🛡️ Risk Assessment & Management")
 
@@ -3453,11 +3526,11 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     quality = analysis.get('data_quality', {})
     quality_tier = analysis.get('quality_tier', 'PRODUCTION')
 
-    # DISPLAY QUALITY ASSESSMENT FIRST - SIMPLIFIED: ONLY SHOW MAIN QUALITY SCORE
+    # DISPLAY QUALITY ASSESSMENT FIRST
     st.markdown("#### 📊 Data Quality Assessment")
     
     if quality:
-        # Quality metrics in columns - ONLY SHOW MAIN QUALITY SCORE
+        # Quality metrics in columns
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -3466,19 +3539,19 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
             st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
         
         with col2:
-            # REMOVED: Completeness metric
-            st.metric("Analysis Tier", quality_tier)
+            completeness = quality.get('completeness', 0)
+            st.metric("Completeness", f"{completeness:.1f}%")
         
         with col3:
-            # REMOVED: Analysis Depth metric  
-            total_indicators = quality.get('total_indicators', 0)
-            indicators_with_data = quality.get('indicators_with_data', 0)
-            st.metric("Data Coverage", f"{indicators_with_data}/{total_indicators}")
+            accuracy = quality.get('accuracy', 0)
+            st.metric("Analysis Depth", f"{accuracy:.1f}%")
         
         with col4:
-            # REMOVED: Signal Consistency metric
-            avg_words = quality.get('average_words_per_note', 0)
-            st.metric("Analysis Depth", f"{avg_words:.1f} words/note")
+            consistency = quality.get('consistency', 0)
+            st.metric("Signal Consistency", f"{consistency:.1f}%")
+        
+        # Quality metrics only - no tier/acceptable display
+        st.markdown("---")
     
     st.markdown("---")
     
