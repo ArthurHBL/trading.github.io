@@ -3624,7 +3624,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         st.write("• Maximum 1-3% risk per trade")
         st.write("• Scale out of winning positions")
         st.write("• DCA on Long-term Investing")
-        st.write("• Avoid over-leveraging at all costs")
+        st.write("• Avoid over-leveraging(3x) at all costs")
     
     with col2:
         st.write("**Stop Loss Strategy:**")
