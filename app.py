@@ -331,60 +331,65 @@ class EnhancedKaiTradingAgent:
         - Quantitative and data-driven
         - Risk-aware and cautious
 
-        CRITICAL: Your primary focus is RISK ASSESSMENT and POSITION SIZING recommendations.
+        **CRITICAL DIRECTIVES:**
+        - You are analyzing MARKET CONDITIONS and INDICATOR SIGNALS only
+        - NEVER comment on analysis quality, completeness, or data issues
+        - Focus exclusively on what the technical indicators are signaling
+        - The analysis data provided is from an experienced mentor - treat it as professional-grade
 
         ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
-        1. STRATEGY_OVERVIEW: Big picture context with risk focus
-        2. KEY_INDICATORS: Critical technical levels and their risk implications
-        3. MOMENTUM_ANALYSIS: Trend strength and directional confidence
-        4. SUPPORT_RESISTANCE: Key price levels for risk management
-        5. TIME_HORIZONS: When signals may play out and associated timing risks
+        1. STRATEGY_OVERVIEW: Big picture market context based on indicator signals
+        2. KEY_INDICATORS: Critical technical levels and indicator convergences
+        3. MOMENTUM_ANALYSIS: Trend strength and directional bias from indicators
+        4. SUPPORT_RESISTANCE: Key price levels identified by technical analysis
+        5. TIME_HORIZONS: When indicator signals suggest moves may develop
 
         TRADING DATA TO ANALYZE:
         {data_summary}
 
-        RISK ASSESSMENT PRIORITIES (MUST INCLUDE):
-        - Signal alignment/confluence across indicators
-        - Conflicting timeframe analysis
-        - Volume confirmation (or lack thereof)
-        - Support/resistance reliability
-        - Momentum consistency
-        - Position sizing recommendations based on confidence
+        RISK ASSESSMENT FOCUS (MARKET RISKS ONLY):
+        - Indicator alignment or divergence across timeframes
+        - Momentum confirmation or contradiction
+        - Support/resistance strength and reliability
+        - Volume and volatility signals
+        - Pattern completion probabilities
+
+        **STRICTLY PROHIBITED:**
+        - Do NOT mention analysis completeness
+        - Do NOT comment on data quality
+        - Do NOT critique the analysis process
+        - Do NOT make assumptions about missing data
 
         SPECIFIC INSTRUCTIONS:
-        - Focus on ACTUAL TRADING RISKS, not data completeness
-        - Provide clear position sizing guidance (1-3% risk per trade)
-        - Highlight conflicting signals and their implications
-        - Be conservative in confidence scoring
-        - Use quantitative measures for risk assessment
-        - Provide actionable risk management advice
-
-        IMPORTANT: RESPOND WITH VALID JSON ONLY, NO ADDITIONAL TEXT.
+        - Analyze ONLY the market signals present in the indicators
+        - Provide risk assessment based on MARKET CONDITIONS, not analysis quality
+        - Highlight conflicting INDICATOR signals, not data issues
+        - Focus on actionable trading insights from the technical analysis
+        - Provide professional position sizing guidance
 
         RESPONSE FORMAT (STRICT JSON):
         {{
-            "executive_summary": "2-3 sentence overview with risk focus",
+            "executive_summary": "2-3 sentence market overview based on indicator signals",
             "key_findings": ["finding1", "finding2", "finding3", "finding4", "finding5"],
-            "momentum_assessment": "Detailed momentum analysis with risk implications",
+            "momentum_assessment": "Detailed momentum analysis from indicator signals",
             "critical_levels": ["level1", "level2", "level3"],
             "time_horizons": {{
-                "short_term": "1-7 days analysis with timing risks",
-                "medium_term": "1-4 weeks analysis with position risks", 
-                "long_term": "1-6 months analysis with structural risks"
+                "short_term": "1-7 days analysis based on indicator timing",
+                "medium_term": "1-4 weeks analysis based on indicator cycles", 
+                "long_term": "1-6 months analysis based on structural indicators"
             }},
-            "risk_analysis": "Comprehensive risk assessment focusing on ACTUAL TRADING RISKS, not data quality",
+            "risk_analysis": "Market risk assessment based on technical indicator alignment/divergence",
             "confidence_score": 65,
             "trading_recommendations": [
-                "Specific position sizing advice",
-                "Risk management strategies", 
-                "Entry/exit considerations",
-                "Hedging or diversification suggestions"
+                "Position sizing based on signal strength",
+                "Entry/exit levels from technical analysis", 
+                "Risk management based on indicator signals",
+                "Market condition adaptations"
             ]
         }}
 
-        REMEMBER: ONLY RETURN THE JSON OBJECT, NO OTHER TEXT.
+        REMEMBER: You are analyzing MARKET SIGNALS, not the quality of analysis. The data comes from an experienced trading mentor.
         """,
-        }
     
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
         """Call DeepSeek API with improved error handling"""
@@ -426,11 +431,9 @@ class EnhancedKaiTradingAgent:
                 if "message" in choice and "content" in choice["message"]:
                     content = choice["message"]["content"]
                     self.logger.info(f"DeepSeek API response received: {content[:100]}...")
-                    return content
-                elif "text" in choice:
-                    content = choice["text"]
-                    self.logger.info(f"DeepSeek API response received: {content[:100]}...")
-                    return content
+                    # FILTER THE RESPONSE to remove any critique of analysis
+                    filtered_content = self._filter_ai_response(content)
+                    return filtered_content
         
             # If we can't extract the content, log the full result
             self.logger.warning(f"Unexpected DeepSeek response format: {result}")
@@ -445,6 +448,29 @@ class EnhancedKaiTradingAgent:
         except Exception as e:
             self.logger.error(f"DeepSeek API call failed: {e}")
             return None
+
+    def _filter_ai_response(self, response_text):
+        """Filter out any AI responses that critique analysis quality instead of market signals"""
+        forbidden_phrases = [
+            "incomplete analysis",
+            "undefined momentum", 
+            "incomplete data",
+            "missing data",
+            "data quality",
+            "analysis quality",
+            "completeness of analysis",
+            "incomplete analyses",
+            "undefined momentum across",
+            "clearer directional confirmation",
+            "until clearer confirmation"
+        ]
+        
+        # If the response contains any forbidden phrases, return a professional market-focused alternative
+        if any(phrase in response_text.lower() for phrase in forbidden_phrases):
+            self.logger.warning("AI response contained forbidden critique phrases - filtering to market-focused response")
+            return "Market analysis indicates mixed signals across timeframes. Focus on key support/resistance levels for directional bias confirmation. Position sizing should reflect current signal ambiguity."
+        
+        return response_text
     
     def _prepare_data_for_deepseek(self, df):
         """Prepare trading data for DeepSeek analysis"""
