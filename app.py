@@ -3509,17 +3509,6 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
             else:
                 st.success(f"**Risk Summary:** {risk_summary}")
 
-    else:
-        # Data quality is below tier - warn about that instead
-        quality_score = quality.get('quality_score', 0)
-        st.warning(f"""
-        ⚠️ **DATA QUALITY BELOW {quality_tier} TIER**
-    
-        Quality Score: {quality_score:.0f}%
-    
-        Analysis is provisional. Increase data completeness or select a lower tier.
-        """)
-
     # Now display the risk factors from the risk data
     risk_data = analysis.get('risk_assessment_data', {})
 
