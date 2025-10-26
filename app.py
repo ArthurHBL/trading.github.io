@@ -1045,6 +1045,147 @@ class EnhancedKaiTradingAgent:
         time_signals = self._balance_time_horizons(time_signals)
     
         return time_signals
+
+    def _classify_time_by_indicator(self, indicator, note):
+        """Intelligent time horizon classification based on indicator type and note content"""
+    
+        # Immediate timeframe indicators (intraday, momentum-based)
+        immediate_indicators = [
+            'VWAP', 'Volume Delta', 'Stoch RSI', 'RSI', 'MACD', 'AO', 'ATR',
+            'MFI', 'Fisher', 'BBWP', 'PSO', 'CMF', 'CVO', 'WWV'
+        ]
+    
+        # Short-term indicators (1-7 days)
+        short_term_indicators = [
+            'Supertrend', 'EMA', 'SMA', 'Bollinger', 'Keltner', 'Ichimoku',
+            'Support', 'Resistance', 'Fibonacci', 'Trend', 'Momentum'
+        ]
+    
+        # Medium-term indicators (1-4 weeks)  
+        medium_term_indicators = [
+            'Rainbow', 'Alligator', 'GR-MMAs', 'Pi Cycle', 'SAR', 'Demand',
+            'Coppock', 'TRIX', 'Williams', 'Chaikin'
+        ]
+    
+        # Long-term indicators (1-6 months)
+        long_term_indicators = [
+            'Log Regression', 'Monte Carlo', 'MVRV', 'NVT', 'RoC', 'Z-Score',
+            'Liquidity', 'Rainbow Wave', 'Cycle', 'Regression'
+        ]
+    
+        indicator_lower = indicator.lower()
+        note_lower = note.lower()
+    
+        # Check for immediate timeframe signals
+        if any(imm_indicator.lower() in indicator_lower for imm_indicator in immediate_indicators):
+            # But check if note suggests longer timeframe
+            if any(keyword in note_lower for keyword in ['long term', 'weeks', 'months', 'quarter']):
+                return "medium_term"
+            return "immediate"
+    
+        # Check for short-term indicators
+        elif any(short_indicator.lower() in indicator_lower for short_indicator in short_term_indicators):
+            # Check for conflicting timeframes in note
+            if any(keyword in note_lower for keyword in ['immediate', 'today', 'now']):
+                return "immediate"
+            elif any(keyword in note_lower for keyword in ['weeks', 'month']):
+                return "medium_term"
+            return "short_term"
+    
+        # Check for medium-term indicators
+        elif any(medium_indicator.lower() in indicator_lower for medium_indicator in medium_term_indicators):
+            # Check for conflicting timeframes in note
+            if any(keyword in note_lower for keyword in ['immediate', 'today']):
+                return "short_term"
+            elif any(keyword in note_lower for keyword in ['months', 'quarter']):
+                return "long_term"
+            return "medium_term"
+    
+        # Check for long-term indicators
+        elif any(long_indicator.lower() in indicator_lower for long_indicator in long_term_indicators):
+            # Check for conflicting timeframes in note
+            if any(keyword in note_lower for keyword in ['immediate', 'this week']):
+                return "short_term"
+            elif any(keyword in note_lower for keyword in ['weeks']):
+                return "medium_term"
+            return "long_term"
+    
+        # Default fallback based on note content
+        else:
+            if any(keyword in note_lower for keyword in ['now', 'today', 'immediate']):
+                return "immediate"
+            elif any(keyword in note_lower for keyword in ['this week', 'few days']):
+                return "short_term"
+            elif any(keyword in note_lower for keyword in ['weeks', 'month']):
+                return "medium_term"
+            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'long term']):
+                return "long_term"
+            else:
+                # Default to medium_term if no clear signal
+                return "medium_term"
+
+def _create_intelligent_time_placeholders(self, df, time_signals):
+    """Create intelligent time horizon placeholders when classification is low"""
+    
+    # Analyze the dataset to create reasonable time distributions
+    total_signals = sum(len(signals) for signals in time_signals.values())
+    
+    if total_signals == 0:
+        # If no signals classified, distribute based on strategy types
+        for strategy in df['Strategy'].unique() if 'Strategy' in df.columns else []:
+            strategy_data = df[df['Strategy'] == strategy]
+            
+            # Determine strategy timeframe bias
+            strategy_name = str(strategy).lower()
+            if any(term in strategy_name for term in ['intraday', 'scalp', 'momentum']):
+                target_horizon = "immediate"
+            elif any(term in strategy_name for term in ['swing', 'short', 'weekly']):
+                target_horizon = "short_term"
+            elif any(term in strategy_name for term in ['position', 'medium', 'monthly']):
+                target_horizon = "medium_term"
+            else:
+                target_horizon = "long_term"
+            
+            # Add placeholder signals for this strategy
+            for _, row in strategy_data.iterrows():
+                if pd.isna(row.get('Note')) or row.get('Note') == '':
+                    continue
+                    
+                time_signals[target_horizon].append({
+                    "indicator": row.get('Indicator', 'Unknown'),
+                    "strategy": strategy,
+                    "message": row.get('Note', ''),
+                    "confidence": 40,  # Lower confidence for placeholders
+                    "classified_by": "intelligent_placeholder"
+                })
+    
+    return time_signals
+
+def _balance_time_horizons(self, time_signals):
+    """Ensure each timeframe has at least some representation"""
+    
+    # Minimum signals per timeframe to ensure display
+    min_signals_per_horizon = 1
+    
+    for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
+        if len(time_signals[horizon]) < min_signals_per_horizon:
+            # Add a generic placeholder for this timeframe
+            placeholder_message = {
+                "immediate": "Monitor for intraday breakout opportunities",
+                "short_term": "Watch for weekly trend confirmation", 
+                "medium_term": "Evaluate monthly position sizing",
+                "long_term": "Consider long-term accumulation zones"
+            }
+            
+            time_signals[horizon].append({
+                "indicator": "System",
+                "strategy": "Time Analysis",
+                "message": placeholder_message[horizon],
+                "confidence": 30,
+                "classified_by": "balance_placeholder"
+            })
+    
+    return time_signals
     
     def _classify_time_horizon(self, note):
         """Enhanced time horizon classification"""
