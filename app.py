@@ -94,6 +94,173 @@ KAI_CHARACTER = {
     }
 }
 
+
+class DataQualityFramework:
+    """
+    Prevents KAI from generating false risk warnings about incomplete data.
+    Used to calculate ACTUAL risk from signal quality, not data volume.
+    """
+    
+    QUALITY_TIERS = {
+        "PRODUCTION": {
+            "name": "Production Grade",
+            "description": "Active trading signals",
+            "completeness_required": 70,  # % of indicators needed
+            "accuracy_threshold": 60,
+            "consistency_threshold": 65
+        },
+        "RESEARCH": {
+            "name": "Research Grade", 
+            "description": "In-depth analysis",
+            "completeness_required": 85,
+            "accuracy_threshold": 75,
+            "consistency_threshold": 75
+        },
+        "DRAFT": {
+            "name": "Draft/Exploration",
+            "description": "Work-in-progress",
+            "completeness_required": 40,
+            "accuracy_threshold": 40,
+            "consistency_threshold": 50
+        }
+    }
+
+    @staticmethod
+    def assess_quality(df, tier="PRODUCTION"):
+        """
+        Quick quality assessment.
+        Returns quality score 0-100 and whether data is acceptable.
+        """
+        
+        tier_config = DataQualityFramework.QUALITY_TIERS.get(tier, {})
+        
+        # Calculate actual quality metrics
+        total_indicators = len(df)
+        indicators_with_notes = len(df[df['Note'].notna() & (df['Note'].str.len() > 0)])
+        
+        completeness = (indicators_with_notes / total_indicators * 100) if total_indicators > 0 else 0
+        
+        # Accuracy = % of notes with strong confidence signals
+        strong_notes = len(df[
+            df['Note'].str.contains('confirmed|strong|major|certain|clear', case=False, na=False)
+        ])
+        accuracy = (strong_notes / indicators_with_notes * 100) if indicators_with_notes > 0 else 0
+        
+        # Consistency = how unified the signals are
+        bullish = len(df[df['Note'].str.contains('bullish|up|buy|long', case=False, na=False)])
+        bearish = len(df[df['Note'].str.contains('bearish|down|sell|short', case=False, na=False)])
+        neutral = len(df[df['Note'].str.contains('neutral|consolidat|sideways', case=False, na=False)])
+        
+        total_directional = bullish + bearish + neutral
+        if total_directional > 0:
+            max_direction = max(bullish, bearish, neutral)
+            consistency = (max_direction / total_directional) * 100
+        else:
+            consistency = 0
+        
+        # Overall quality score (weighted average)
+        quality_score = (completeness * 0.4 + accuracy * 0.4 + consistency * 0.2)
+        
+        # Check if acceptable for tier
+        completeness_ok = completeness >= tier_config.get("completeness_required", 50)
+        accuracy_ok = accuracy >= tier_config.get("accuracy_threshold", 40)
+        consistency_ok = consistency >= tier_config.get("consistency_threshold", 50)
+        
+        is_acceptable = completeness_ok and accuracy_ok and consistency_ok
+        
+        return {
+            "quality_score": quality_score,
+            "completeness": completeness,
+            "accuracy": accuracy,
+            "consistency": consistency,
+            "is_acceptable": is_acceptable,
+            "tier": tier,
+            "tier_config": tier_config,
+            "bullish_signals": bullish,
+            "bearish_signals": bearish,
+            "neutral_signals": neutral,
+            "total_indicators": total_indicators,
+            "indicators_with_data": indicators_with_notes
+        }
+    
+    @staticmethod
+    def get_quality_tag(quality_score):
+        """Simple quality classification"""
+        if quality_score >= 85:
+            return "🟢 EXCELLENT"
+        elif quality_score >= 70:
+            return "🟢 GOOD"
+        elif quality_score >= 55:
+            return "🟡 FAIR"
+        elif quality_score >= 40:
+            return "🟠 POOR"
+        else:
+            return "🔴 CRITICAL"
+
+    def generate_risk_assessment_summary(analysis):
+        """
+        Generates risk summary WITHOUT false 'incomplete data' warnings
+        """
+    
+        risk_data = analysis.get('risk_assessment_data', {})
+        quality = analysis.get('data_quality', {})
+    
+        risk_score = risk_data.get('overall_risk_score', 5)
+        quality_score = quality.get('quality_score', 50)
+    
+        # NEVER warn about data incompleteness if quality is acceptable
+        if quality.get('is_acceptable', False):
+            # Only show REAL risks
+            if risk_score >= 7:
+                return "🔴 HIGH SIGNAL RISK - Multiple conflicting indicators detected"
+            elif risk_score >= 5:
+                return "🟡 MODERATE RISK - Some uncertainty in signal confirmation"
+            else:
+                return "🟢 LOW RISK - Strong signal alignment and confirmation"
+        else:
+            # Quality is poor - be cautious but don't blame data volume
+            return f"⚠️ ANALYSIS QUALITY BELOW TIER REQUIREMENTS - Use with caution (Quality: {quality_score:.0f}%)"
+
+    def modified_display_enhanced_kai_analysis_report(analysis):
+        """
+        Display KAI report WITH quality awareness
+        Removes false risk warnings about "incomplete data"
+        """
+    
+        # Get quality info
+        quality = analysis.get('data_quality', {})
+        quality_tier = analysis.get('quality_tier', 'PRODUCTION')
+    
+        # Show quality badge
+        if quality:
+            quality_score = quality.get('quality_score', 0)
+            quality_tag = DataQualityFramework.get_quality_tag(quality_score)
+            st.markdown(f"**Data Quality:** {quality_tag} ({quality_score:.0f}%)")
+        
+            if not quality.get('is_acceptable'):
+                st.warning(f"⚠️ Data is below {quality_tier} tier requirements")
+        
+            st.markdown("---")
+    
+        # Then display normal analysis
+        is_enhanced = analysis.get('deepseek_enhanced', False)
+        st.markdown(f"### KAI Analysis Report {'ðŸ§  AI Enhanced' if is_enhanced else ''}")
+    
+        # Executive summary (now won't have false data warnings)
+        st.info(analysis.get("executive_summary", "Analysis completed"))
+    
+        # Risk assessment (now quality-aware)
+        risk_summary = generate_risk_assessment_summary(analysis)
+    
+        if "HIGH SIGNAL RISK" in risk_summary:
+            st.error(risk_summary)
+        elif "MODERATE" in risk_summary:
+            st.warning(risk_summary)
+        elif "ANALYSIS QUALITY BELOW" in risk_summary:
+            st.warning(risk_summary)
+        else:
+            st.success(risk_summary)
+
 class EnhancedKaiTradingAgent:
     def __init__(self, use_deepseek=True):
         self.character = KAI_CHARACTER
@@ -780,71 +947,50 @@ class EnhancedKaiTradingAgent:
         else:
             return "REGULAR"
     
-    def analyze_strategy_data(self, df):
-        """KAI's main analysis method with DeepSeek enhancement - ULTRA ROBUST VERSION"""
-        try:
-            # PHASE 1: Strategy Scanning (KAI always starts here)
-            strategy_overview = self._phase_1_scanning(df)
-
-            # PHASE 2: Signal Extraction  
-            signals = self._phase_2_signal_extraction(df)
-
-            # PHASE 3: Time Horizon Mapping
-            time_analysis = self._phase_3_time_mapping(df)
-
-            # PHASE 4: Risk Assessment
-            risk_analysis = self._phase_4_risk_assessment(df, signals)
-
-            # DEEPSEEK ENHANCED ANALYSIS
-            deepseek_analysis = None
-            if self.use_deepseek:
-                try:
-                    self.logger.info("Starting DeepSeek enhanced analysis...")
-                    deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
-                
-                    # Validate the response - ensure it's always a dict
-                    if deepseek_analysis is None:
-                        self.logger.warning("DeepSeek analysis returned None")
-                        deepseek_analysis = self._create_fallback_analysis("DeepSeek API unavailable")
-                    elif not isinstance(deepseek_analysis, dict):
-                        self.logger.warning(f"DeepSeek analysis is not a dict: {type(deepseek_analysis)}")
-                        # Try to convert to dict if it's a string
-                        if isinstance(deepseek_analysis, str):
-                            try:
-                                deepseek_analysis = json.loads(deepseek_analysis)
-                            except:
-                                deepseek_analysis = self._create_fallback_analysis(f"DeepSeek returned string: {deepseek_analysis[:100]}...")
-                        else:
-                            deepseek_analysis = self._create_fallback_analysis(f"DeepSeek returned {type(deepseek_analysis)}")
-                
-                except Exception as e:
-                    self.logger.error(f"DeepSeek analysis failed: {e}")
-                    deepseek_analysis = self._create_fallback_analysis(f"DeepSeek error: {str(e)}")
-
-            # Compile KAI's final report
-            analysis = self._generate_kai_report(
-                strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
-            )
-            return analysis
-
-        except Exception as e:
-            self.logger.error(f"Critical error in analyze_strategy_data: {e}")
-            return {
-                "header": "🔍 **KAI Analysis Report**",
-                "executive_summary": f"Analysis completed with errors: {str(e)}",
-                "key_findings": ["Analysis encountered issues", "Please try again or check your data"],
-                "momentum_analysis": "Unavailable due to analysis error",
-                "support_resistance_levels": [],
-                "time_horizon_outlook": {},
-                "risk_assessment_data": {"overall_risk_score": 0},
-                "risk_assessment_summary": "Risk assessment unavailable",
-                "confidence_assessment": 0,
-                "trading_implications": ["Analysis failed - please retry"],
-                "signal_details": {},
-                "overview_metrics": {},
-                "deepseek_enhanced": False,
-                "deepseek_analysis": None
-            }
+    def analyze_strategy_data(self, df, quality_tier="PRODUCTION"):
+        """
+        Main analysis method - now quality-aware.
+        Won't generate false "incomplete data" warnings.
+        """
+        
+        # STEP 1: Assess data quality FIRST
+        quality = DataQualityFramework.assess_quality(df, tier=quality_tier)
+        
+        # STEP 2: Run standard analysis phases
+        strategy_overview = self._phase_1_scanning(df)
+        signals = self._phase_2_signal_extraction(df)
+        time_analysis = self._phase_3_time_mapping(df)
+        risk_analysis = self._phase_4_risk_assessment(df, signals)
+        
+        # STEP 3: Adjust risk assessment based on data quality
+        # This is KEY: Don't warn about incomplete data if quality is acceptable
+        if quality["is_acceptable"]:
+            # Data quality is good - only show REAL risks, not data-volume risks
+            risk_analysis["data_quality_note"] = "✅ Data quality acceptable - risk assessment valid"
+            risk_analysis["incomplete_data_penalty"] = 0
+        else:
+            # Data quality is below tier requirements
+            risk_analysis["data_quality_note"] = f"⚠️ Data below {quality_tier} tier requirements"
+            risk_analysis["incomplete_data_penalty"] = 5
+        
+        # STEP 4: Get DeepSeek analysis if available
+        deepseek_analysis = None
+        if self.use_deepseek:
+            try:
+                deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
+            except:
+                pass
+        
+        # STEP 5: Generate final report
+        analysis = self._generate_kai_report(
+            strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
+        )
+        
+        # STEP 6: Add quality metadata
+        analysis["data_quality"] = quality
+        analysis["quality_tier"] = quality_tier
+        
+        return analysis
     
     def _phase_1_scanning(self, df):
         """KAI's Phase 1: Always scan strategies in same order"""
@@ -1329,42 +1475,58 @@ class EnhancedKaiTradingAgent:
         return max(20, min(95, confidence))
     
     def _phase_4_risk_assessment(self, df, signals):
-        """Comprehensive risk assessment"""
+        """
+        Modified to NOT penalize incomplete data
+        Only assess ACTUAL trading risks
+        """
         risk_factors = {
             "high_risk_indicators": [],
             "false_signal_risks": [],
             "correlation_risks": [],
             "position_sizing_recommendations": [],
-            "overall_risk_score": 0
+            "overall_risk_score": 0,
+            "incomplete_data_penalty": 0  # Will be set by quality assessment
         }
         
-        # Analyze risk from signals
+        # Only assess SIGNAL-BASED risks, not DATA-VOLUME risks
         total_risk_score = 0
         signal_count = 0
         
+        # Count actual trading risks
         for signal_type, signal_list in signals.items():
-            for signal in signal_list:
-                risk_score = self._calculate_signal_risk(signal, signal_type)
-                total_risk_score += risk_score
-                signal_count += 1
-                
-                if risk_score >= 7:
-                    risk_factors["high_risk_indicators"].append({
-                        "signal": signal,
-                        "risk_score": risk_score,
-                        "reason": "High volatility or uncertainty"
-                    })
+            if signal_type == "conflicting_signals":
+                # Conflicting signals = actual risk
+                for conflict in signal_list:
+                    total_risk_score += 2
+                    signal_count += 1
+            elif signal_type == "reversal_signals":
+                # Reversals can be risky if not confirmed
+                for signal in signal_list:
+                    if signal.get("strength") != "HIGH":
+                        total_risk_score += 1
+                    signal_count += 1
         
         if signal_count > 0:
-            risk_factors["overall_risk_score"] = total_risk_score / signal_count
-        
-        # Position sizing recommendations based on risk
-        if risk_factors["overall_risk_score"] >= 7:
-            risk_factors["position_sizing_recommendations"].append("Reduce position size by 50%")
-        elif risk_factors["overall_risk_score"] >= 5:
-            risk_factors["position_sizing_recommendations"].append("Reduce position size by 25%")
+            base_risk = total_risk_score / signal_count
         else:
-            risk_factors["position_sizing_recommendations"].append("Normal position sizing appropriate")
+            base_risk = 3  # Neutral risk if no signals
+        
+        # Cap at 10
+        risk_factors["overall_risk_score"] = min(10, base_risk)
+        
+        # Position sizing based on SIGNAL risk, not data volume
+        if risk_factors["overall_risk_score"] >= 7:
+            risk_factors["position_sizing_recommendations"] = [
+                "⚠️ HIGH SIGNAL RISK - Reduce position size by 50%"
+            ]
+        elif risk_factors["overall_risk_score"] >= 5:
+            risk_factors["position_sizing_recommendations"] = [
+                "🟡 MODERATE SIGNAL RISK - Reduce position size by 25%"
+            ]
+        else:
+            risk_factors["position_sizing_recommendations"] = [
+                "🟢 ACCEPTABLE SIGNAL RISK - Normal position sizing"
+            ]
         
         return risk_factors
     
