@@ -3526,29 +3526,14 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     quality = analysis.get('data_quality', {})
     quality_tier = analysis.get('quality_tier', 'PRODUCTION')
 
-    # DISPLAY QUALITY ASSESSMENT FIRST
+    # DISPLAY QUALITY ASSESSMENT FIRST - SIMPLIFIED
     st.markdown("#### 📊 Data Quality Assessment")
     
     if quality:
-        # Quality metrics in columns
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            quality_score = quality.get('quality_score', 0)
-            quality_tag = DataQualityFramework.get_quality_tag(quality_score)
-            st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
-        
-        with col2:
-            completeness = quality.get('completeness', 0)
-            st.metric("Completeness", f"{completeness:.1f}%")
-        
-        with col3:
-            accuracy = quality.get('accuracy', 0)
-            st.metric("Analysis Depth", f"{accuracy:.1f}%")
-        
-        with col4:
-            consistency = quality.get('consistency', 0)
-            st.metric("Signal Consistency", f"{consistency:.1f}%")
+        # Quality Score Only
+        quality_score = quality.get('quality_score', 0)
+        quality_tag = DataQualityFramework.get_quality_tag(quality_score)
+        st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
         
         # Quality metrics only - no tier/acceptable display
         st.markdown("---")
