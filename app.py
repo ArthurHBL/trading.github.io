@@ -5829,63 +5829,69 @@ def render_gallery_display():
                 st.rerun()
 
 def render_image_card(img_data, index):
-    """Render individual image card with ALWAYS VISIBLE thumbnail - FIXED VERSION"""
+    """Render individual image card with NORMAL size display - FIXED VERSION"""
     with st.container():
-        # FIXED: Ensure the image bytes are properly displayed as thumbnail
+        # FIXED: Display image at NORMAL size (not stretched to full width, not thumbnail)
         try:
-            # Display thumbnail ALWAYS VISIBLE - FIXED: Use the bytes directly
-            st.image(img_data['bytes'], use_container_width=True, caption=img_data['name'])
+            # Display image at normal size - constrained width
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.image(
+                    img_data['bytes'], 
+                    use_container_width=False,  # Don't stretch to full width
+                    width=300  # Normal size width
+                )
+            with col2:
+                # Image info on the side
+                st.markdown(f"**{img_data['name']}**")
+                
+                # Description preview
+                if img_data.get('description'):
+                    preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
+                    st.caption(preview)
+                
+                # Strategy tags preview
+                if img_data.get('strategies'):
+                    tags_preview = ", ".join(img_data['strategies'][:2])
+                    if len(img_data['strategies']) > 2:
+                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
+                    st.caption(f"**Strategies:** {tags_preview}")
+                
+                # Author and date
+                st.caption(f"By: **{img_data['uploaded_by']}**")
+                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+                st.caption(f"Uploaded: {upload_time}")
+                
+                # Interaction buttons
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("❤️", key=f"like_{index}_{img_data['name']}", help="Like this image"):
+                        img_data['likes'] += 1
+                        save_gallery_images(st.session_state.uploaded_images)
+                        st.rerun()
+                with col_b:
+                    st.write(f" {img_data['likes']}")
+                
+                col_c, col_d = st.columns(2)
+                with col_c:
+                    if st.button("🖼️ Fullscreen", key=f"view_{index}_{img_data['name']}", help="View image in fullscreen mode", use_container_width=True):
+                        original_index = st.session_state.uploaded_images.index(img_data)
+                        st.session_state.current_image_index = original_index
+                        st.session_state.image_viewer_mode = True
+                        st.rerun()
+                with col_d:
+                    try:
+                        b64_img = base64.b64encode(img_data['bytes']).decode()
+                        href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error("Download unavailable")
+        
         except Exception as e:
             st.error(f"❌ Error displaying image: {str(e)}")
             st.info("Image format may not be supported. Try uploading as PNG or JPG.")
         
-        # Image info - always visible
-        st.markdown(f"**{img_data['name']}**")
-        
-        # Description preview
-        if img_data.get('description'):
-            # Show first 50 characters of description
-            preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
-            st.caption(preview)
-        
-        # Strategy tags preview
-        if img_data.get('strategies'):
-            tags_preview = ", ".join(img_data['strategies'][:2])  # Show first 2 strategies
-            if len(img_data['strategies']) > 2:
-                tags_preview += f" +{len(img_data['strategies']) - 2} more"
-            st.caption(f"**Strategies:** {tags_preview}")
-        
-        # Author and date
-        st.caption(f"By: **{img_data['uploaded_by']}**")
-        upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
-        st.caption(f"Uploaded: {upload_time}")
-        
-        # Interaction buttons
-        col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
-        with col_a:
-            if st.button("❤️", key=f"like_{index}_{img_data['name']}", help="Like this image"):
-                img_data['likes'] += 1
-                # Save gallery after like
-                save_gallery_images(st.session_state.uploaded_images)
-                st.rerun()
-        with col_b:
-            st.write(f" {img_data['likes']}")
-        with col_c:
-            # Full view button
-            if st.button("🖼️ Full View", key=f"view_{index}_{img_data['name']}", help="View image in fullscreen mode"):
-                # Find the index of this image in the original list
-                original_index = st.session_state.uploaded_images.index(img_data)
-                st.session_state.current_image_index = original_index
-                st.session_state.image_viewer_mode = True
-                st.rerun()
-        with col_d:
-            # Download button
-            try:
-                b64_img = base64.b64encode(img_data['bytes']).decode()
-                href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
-            except Exception as e:
-                st.error("Download unavailable")
+        st.markdown("---")
 
 def render_image_viewer():
     """Enhanced image viewer with navigation controls and persistence - FIXED DUPLICATE KEY ISSUE"""
@@ -6202,59 +6208,69 @@ def render_user_image_gallery():
                     render_user_image_card(img_data, i + j)
 
 def render_user_image_card(img_data, index):
-    """Render individual image card for users - VIEW ONLY"""
+    """Render individual image card for users - NORMAL size display"""
     with st.container():
-        # Display thumbnail
+        # FIXED: Display image at NORMAL size (not stretched to full width, not thumbnail)
         try:
-            st.image(img_data['bytes'], use_container_width=True, caption=img_data['name'])
+            # Display image at normal size - constrained width
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                st.image(
+                    img_data['bytes'], 
+                    use_container_width=False,  # Don't stretch to full width
+                    width=300  # Normal size width
+                )
+            with col2:
+                # Image info on the side
+                st.markdown(f"**{img_data['name']}**")
+                
+                # Description preview
+                if img_data.get('description'):
+                    preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
+                    st.caption(preview)
+                
+                # Strategy tags preview
+                if img_data.get('strategies'):
+                    tags_preview = ", ".join(img_data['strategies'][:2])
+                    if len(img_data['strategies']) > 2:
+                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
+                    st.caption(f"**Strategies:** {tags_preview}")
+                
+                # Author and date
+                st.caption(f"By: **{img_data['uploaded_by']}**")
+                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
+                st.caption(f"Uploaded: {upload_time}")
+                
+                # Interaction buttons
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    if st.button("❤️", key=f"user_like_{index}_{img_data['name']}", help="Like this image"):
+                        img_data['likes'] += 1
+                        save_gallery_images(st.session_state.uploaded_images)
+                        st.rerun()
+                with col_b:
+                    st.write(f" {img_data['likes']}")
+                
+                col_c, col_d = st.columns(2)
+                with col_c:
+                    if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data['name']}", help="View image in fullscreen mode", use_container_width=True):
+                        original_index = st.session_state.uploaded_images.index(img_data)
+                        st.session_state.current_image_index = original_index
+                        st.session_state.image_viewer_mode = True
+                        st.rerun()
+                with col_d:
+                    try:
+                        b64_img = base64.b64encode(img_data['bytes']).decode()
+                        href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
+                        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error("Download unavailable")
+        
         except Exception as e:
             st.error(f"❌ Error displaying image: {str(e)}")
             st.info("Image format may not be supported.")
         
-        # Image info
-        st.markdown(f"**{img_data['name']}**")
-        
-        # Description preview
-        if img_data.get('description'):
-            preview = img_data['description'][:50] + "..." if len(img_data['description']) > 50 else img_data['description']
-            st.caption(preview)
-        
-        # Strategy tags preview
-        if img_data.get('strategies'):
-            tags_preview = ", ".join(img_data['strategies'][:2])
-            if len(img_data['strategies']) > 2:
-                tags_preview += f" +{len(img_data['strategies']) - 2} more"
-            st.caption(f"**Strategies:** {tags_preview}")
-        
-        # Author and date
-        st.caption(f"By: **{img_data['uploaded_by']}**")
-        upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
-        st.caption(f"Uploaded: {upload_time}")
-        
-        # Interaction buttons - VIEW ONLY (can like and view, but not upload)
-        col_a, col_b, col_c, col_d = st.columns([1, 1, 2, 2])
-        with col_a:
-            if st.button("❤️", key=f"user_like_{index}_{img_data['name']}", help="Like this image"):
-                img_data['likes'] += 1
-                save_gallery_images(st.session_state.uploaded_images)
-                st.rerun()
-        with col_b:
-            st.write(f" {img_data['likes']}")
-        with col_c:
-            # Full view button
-            if st.button("🖼️ Full View", key=f"user_view_{index}_{img_data['name']}", help="View image in fullscreen mode"):
-                original_index = st.session_state.uploaded_images.index(img_data)
-                st.session_state.current_image_index = original_index
-                st.session_state.image_viewer_mode = True
-                st.rerun()
-        with col_d:
-            # Download button
-            try:
-                b64_img = base64.b64encode(img_data['bytes']).decode()
-                href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 4px 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">Download</button></a>', unsafe_allow_html=True)
-            except Exception as e:
-                st.error("Download unavailable")
+        st.markdown("---")
 
 # -------------------------
 # STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS - FIXED VERSION
