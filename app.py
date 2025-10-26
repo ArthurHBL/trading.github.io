@@ -128,50 +128,90 @@ class DataQualityFramework:
     @staticmethod
     def assess_quality(df, tier="PRODUCTION"):
         """
-        Quick quality assessment.
+        Quick quality assessment based primarily on WORD COUNT.
         Returns quality score 0-100 and whether data is acceptable.
+    
+        Accuracy is now based on analysis depth (words per note).
         """
-        
+    
         tier_config = DataQualityFramework.QUALITY_TIERS.get(tier, {})
-        
+    
         # Calculate actual quality metrics
         total_indicators = len(df)
         indicators_with_notes = len(df[df['Note'].notna() & (df['Note'].str.len() > 0)])
-        
+    
+        # COMPLETENESS - % of indicators with notes
         completeness = (indicators_with_notes / total_indicators * 100) if total_indicators > 0 else 0
-        
-        # Accuracy = % of notes with strong confidence signals
+    
+        # ============================================================
+        # ACCURACY - NOW BASED ON WORD COUNT (MAIN FACTOR)
+        # ============================================================
+        # Count total words in all notes
+        total_words = 0
+        word_counts = []
+    
+        for _, row in df.iterrows():
+            note = str(row.get('Note', ''))
+            if note and note.lower() != 'nan' and len(note.strip()) > 0:
+                word_count = len(note.split())
+                total_words += word_count
+                word_counts.append(word_count)
+    
+        # Calculate average words per note
+        avg_words_per_note = total_words / indicators_with_notes if indicators_with_notes > 0 else 0
+    
+        # Map average words to accuracy score using word thresholds
+        if avg_words_per_note >= 90:
+            accuracy = 100  # 90+ words = 100% accuracy
+        elif avg_words_per_note >= 60:
+            accuracy = 90   # 60-90 words = 90% accuracy
+        elif avg_words_per_note >= 30:
+            accuracy = 70   # 30-60 words = 70% accuracy
+        elif avg_words_per_note >= 15:
+            accuracy = 40   # 15-30 words = 40% accuracy
+        else:
+            accuracy = 20   # Below 15 words = 20% accuracy
+    
+        # Bonus: Add confidence keywords boost
         strong_notes = len(df[
-            df['Note'].str.contains('confirmed|strong|major|certain|clear', case=False, na=False)
+            df['Note'].str.contains('confirmed|strong|major|certain|clear|probability|high confidence', case=False, na=False)
         ])
-        accuracy = (strong_notes / indicators_with_notes * 100) if indicators_with_notes > 0 else 0
-        
-        # Consistency = how unified the signals are
-        bullish = len(df[df['Note'].str.contains('bullish|up|buy|long', case=False, na=False)])
-        bearish = len(df[df['Note'].str.contains('bearish|down|sell|short', case=False, na=False)])
-        neutral = len(df[df['Note'].str.contains('neutral|consolidat|sideways', case=False, na=False)])
-        
+        confidence_boost = (strong_notes / indicators_with_notes * 10) if indicators_with_notes > 0 else 0
+        accuracy = min(100, accuracy + confidence_boost)
+    
+        # ============================================================
+        # CONSISTENCY - how unified the signals are
+        # ============================================================
+        bullish = len(df[df['Note'].str.contains('bullish|up|buy|long|breakout|reversal', case=False, na=False)])
+        bearish = len(df[df['Note'].str.contains('bearish|down|sell|short|decline|resistance', case=False, na=False)])
+        neutral = len(df[df['Note'].str.contains('neutral|consolidat|sideways|ranging|indecis', case=False, na=False)])
+    
         total_directional = bullish + bearish + neutral
         if total_directional > 0:
             max_direction = max(bullish, bearish, neutral)
             consistency = (max_direction / total_directional) * 100
         else:
             consistency = 0
-        
-        # Overall quality score (weighted average)
-        quality_score = (completeness * 0.2 + accuracy * 0.5 + consistency * 0.3)
-        
+    
+        # ============================================================
+        # OVERALL QUALITY SCORE (WEIGHTED)
+        # Heavily weighted toward ACCURACY (word count)
+        # ============================================================
+        # Old: completeness * 0.1 + accuracy * 0.5 + consistency * 0.1
+        # New: More weight on accuracy (words) and completeness
+        quality_score = (completeness * 0.2 + accuracy * 0.7 + consistency * 0.1)
+    
         # Check if acceptable for tier
         completeness_ok = completeness >= tier_config.get("completeness_required", 50)
         accuracy_ok = accuracy >= tier_config.get("accuracy_threshold", 40)
         consistency_ok = consistency >= tier_config.get("consistency_threshold", 50)
-        
+    
         is_acceptable = completeness_ok and accuracy_ok and consistency_ok
-        
+    
         return {
             "quality_score": quality_score,
             "completeness": completeness,
-            "accuracy": accuracy,
+            "accuracy": accuracy,  # Now based on WORD COUNT
             "consistency": consistency,
             "is_acceptable": is_acceptable,
             "tier": tier,
@@ -180,8 +220,12 @@ class DataQualityFramework:
             "bearish_signals": bearish,
             "neutral_signals": neutral,
             "total_indicators": total_indicators,
-            "indicators_with_data": indicators_with_notes
+            "indicators_with_data": indicators_with_notes,
+            "total_words": total_words,  # NEW
+            "average_words_per_note": avg_words_per_note,  # NEW
+            "word_distribution": word_counts  # NEW
         }
+   
     
     @staticmethod
     def get_quality_tag(quality_score):
