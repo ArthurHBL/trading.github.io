@@ -91,6 +91,23 @@ KAI_CHARACTER = {
         "reversal_expected": "REVERSAL expected within",
         "confidence_level": "Confidence Level",
         "deepseek_enhanced": "🧠 **DeepSeek AI Enhanced Analysis**"
+    },
+    
+    # Risk management philosophy
+    "risk_management": {
+        "stop_loss_philosophy": {
+            "day_trading": "Use hard stop losses",
+            "swing_trading": "Use hard stop losses", 
+            "position_trading": "Use mental stop losses",
+            "long_term_investing": "Use mental stop losses"
+        },
+        "prohibited_strategies": [
+            "pyramiding",
+            "averaging_down",
+            "over_leveraging"
+        ],
+        "position_sizing": "1-3% risk per trade maximum",
+        "scaling_approach": "Scale out of positions, never pyramid in"
     }
 }
 
