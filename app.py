@@ -932,16 +932,16 @@ class EnhancedKaiTradingAgent:
         Main analysis method - now quality-aware.
         Won't generate false "incomplete data" warnings.
         """
-        
+    
         # STEP 1: Assess data quality FIRST
         quality = DataQualityFramework.assess_quality(df, tier=quality_tier)
-        
+    
         # STEP 2: Run standard analysis phases
         strategy_overview = self._phase_1_scanning(df)
         signals = self._phase_2_signal_extraction(df)
         time_analysis = self._phase_3_time_mapping(df)
         risk_analysis = self._phase_4_risk_assessment(df, signals)
-        
+    
         # STEP 3: Adjust risk assessment based on data quality
         # This is KEY: Don't warn about incomplete data if quality is acceptable
         if quality["is_acceptable"]:
@@ -952,7 +952,7 @@ class EnhancedKaiTradingAgent:
             # Data quality is below tier requirements
             risk_analysis["data_quality_note"] = f"⚠️ Data below {quality_tier} tier requirements"
             risk_analysis["incomplete_data_penalty"] = 5
-        
+    
         # STEP 4: Get DeepSeek analysis if available
         deepseek_analysis = None
         if self.use_deepseek:
@@ -960,16 +960,29 @@ class EnhancedKaiTradingAgent:
                 deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
             except:
                 pass
-        
+    
         # STEP 5: Generate final report
         analysis = self._generate_kai_report(
             strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
         )
-        
-        # STEP 6: Add quality metadata
+    
+        # STEP 6: Add quality metadata - CRITICAL: ENSURE IT'S INCLUDED
         analysis["data_quality"] = quality
         analysis["quality_tier"] = quality_tier
-        
+    
+        # STEP 7: ENSURE all required keys exist before returning
+        required_keys = [
+            'header', 'executive_summary', 'key_findings', 'momentum_analysis',
+            'support_resistance_levels', 'time_horizon_outlook', 'risk_assessment_data',
+            'risk_assessment_summary', 'confidence_assessment', 'trading_implications',
+            'signal_details', 'overview_metrics', 'deepseek_enhanced', 'deepseek_analysis',
+            'data_quality', 'quality_tier'  # ADD THESE TWO
+        ]
+    
+        for key in required_keys:
+            if key not in analysis:
+                analysis[key] = {} if key in ['data_quality', 'risk_assessment_data'] else None
+    
         return analysis
     
     def _phase_1_scanning(self, df):
@@ -3481,6 +3494,69 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     # Enhanced Risk Assessment - FIXED VERSION
     st.markdown("### 🛡️ Risk Assessment & Management")
 
+    # CRITICAL: Extract quality data from analysis
+    quality = analysis.get('data_quality', {})
+    quality_tier = analysis.get('quality_tier', 'PRODUCTION')
+
+    # DISPLAY QUALITY ASSESSMENT FIRST
+    st.markdown("#### 📊 Data Quality Assessment")
+    
+    if quality:
+        # Quality metrics in columns
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            quality_score = quality.get('quality_score', 0)
+            quality_tag = DataQualityFramework.get_quality_tag(quality_score)
+            st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
+        
+        with col2:
+            completeness = quality.get('completeness', 0)
+            st.metric("Completeness", f"{completeness:.1f}%")
+        
+        with col3:
+            accuracy = quality.get('accuracy', 0)
+            st.metric("Analysis Depth", f"{accuracy:.1f}%")
+        
+        with col4:
+            consistency = quality.get('consistency', 0)
+            st.metric("Signal Consistency", f"{consistency:.1f}%")
+        
+        # Detailed quality information
+        st.markdown("---")
+        st.write(f"**Tier:** {quality_tier}")
+        st.write(f"**Is Acceptable:** {'✅ YES' if quality.get('is_acceptable') else '❌ NO'}")
+        
+        # Signal distribution
+        bullish_count = quality.get('bullish_signals', 0)
+        bearish_count = quality.get('bearish_signals', 0)
+        neutral_count = quality.get('neutral_signals', 0)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write(f"**Bullish Signals:** 📈 {bullish_count}")
+        with col2:
+            st.write(f"**Bearish Signals:** 📉 {bearish_count}")
+        with col3:
+            st.write(f"**Neutral Signals:** ⚪ {neutral_count}")
+        
+        # Word count analysis
+        st.markdown("---")
+        st.write("**Analysis Depth Metrics:**")
+        total_words = quality.get('total_words', 0)
+        avg_words = quality.get('average_words_per_note', 0)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"• **Total Words:** {total_words}")
+        with col2:
+            st.write(f"• **Average Words per Note:** {avg_words:.1f}")
+    
+    st.markdown("---")
+    
+    # NOW DISPLAY RISK ASSESSMENT (after quality)
+    st.markdown("#### ⚠️ Trading Risk Assessment")
+    
     quality = analysis.get('data_quality', {})
     quality_tier = analysis.get('quality_tier', 'PRODUCTION')
 
@@ -3508,23 +3584,30 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
                 st.warning(f"**Risk Summary:** {risk_summary}")
             else:
                 st.success(f"**Risk Summary:** {risk_summary}")
-
-    # Now display the risk factors from the risk data
+    else:
+        # Data quality is below tier requirements
+        st.warning(f"⚠️ Data below {quality_tier} tier requirements")
+        st.info("Consider adding more detailed analysis notes to improve data quality score.")
+    
+    # Display risk factors from the risk data
     risk_data = analysis.get('risk_assessment_data', {})
 
     if risk_data:
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**High Volatility Indicators:**")
+            st.write("**High Risk Indicators:**")
             if risk_data.get('high_risk_indicators'):
                 high_risk_indicators = risk_data['high_risk_indicators']
                 if isinstance(high_risk_indicators, list):
-                    for risk in high_risk_indicators[:3]:
-                        if isinstance(risk, dict):
-                            st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
-                        else:
-                            st.write(f"• Invalid risk format: {type(risk)}")
+                    if len(high_risk_indicators) > 0:
+                        for risk in high_risk_indicators[:3]:
+                            if isinstance(risk, dict):
+                                st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
+                            else:
+                                st.write(f"• {str(risk)}")
+                    else:
+                        st.write("• No high risk indicators detected")
                 else:
                     st.write("• No high risk indicators detected")
             else:
@@ -3542,85 +3625,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
             else:
                 st.write("• Standard position sizing appropriate")
     
-    st.markdown("### ⏰ Enhanced Time Horizon Outlook")
-    time_analysis = analysis.get('time_horizon_outlook', {})
-    
-    # CRITICAL FIX: Ensure time_analysis is a dict
-    if not isinstance(time_analysis, dict):
-        time_analysis = {
-            "immediate": [],
-            "short_term": [],
-            "medium_term": [],
-            "long_term": []
-        }
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    timeframes = [
-        ("immediate", "🚀 Immediate", "Now - Today"),
-        ("short_term", "📅 Short Term", "1-7 days"),
-        ("medium_term", "📊 Medium Term", "1-4 weeks"),
-        ("long_term", "🎯 Long Term", "1-6 months")
-    ]
-    
-    for i, (time_key, time_label, time_desc) in enumerate(timeframes):
-        with [col1, col2, col3, col4][i]:
-            time_signals = time_analysis.get(time_key, [])
-            
-            # FIXED: Handle both list and dict formats
-            if isinstance(time_signals, list):
-                signals_count = len(time_signals)
-            elif isinstance(time_signals, str):
-                # If it's a string description, count as 1 signal
-                signals_count = 1 if time_signals else 0
-            else:
-                signals_count = 0
-            
-            st.metric(time_label, signals_count)
-            st.caption(time_desc)
-            
-            if signals_count > 0:
-                with st.expander(f"View {time_label} Signals"):
-                    if isinstance(time_signals, list):
-                        for idx, signal in enumerate(time_signals[:3]):
-                            if isinstance(signal, dict):
-                                confidence = signal.get('confidence', 'N/A')
-                                confidence_display = f" ({confidence}%)" if isinstance(confidence, (int, float)) else ""
-                                st.write(f"• {signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}{confidence_display}")
-                    elif isinstance(time_signals, str):
-                        st.write(time_signals)
-    
-    # DeepSeek AI Insights Section (if available)
-    if is_enhanced and analysis.get('deepseek_analysis'):
-        st.markdown("### 🧠 DeepSeek AI Additional Insights")
-        
-        deepseek_data = analysis['deepseek_analysis']
-        
-        if isinstance(deepseek_data, dict) and deepseek_data.get('momentum_assessment'):
-            st.info(f"**Momentum Analysis:** {deepseek_data['momentum_assessment']}")
-        
-        if isinstance(deepseek_data, dict) and deepseek_data.get('critical_levels'):
-            critical_levels = deepseek_data['critical_levels']
-            if isinstance(critical_levels, list):
-                st.write("**Critical Price Levels:**")
-                for level in critical_levels[:5]:
-                    st.write(f"• {level}")
-    
-    # Enhanced Trading Implications (KAI always ends with actionable insights)
-    st.markdown("### 💡 Enhanced Trading Implications & Recommendations")
-    
-    if is_enhanced and analysis.get('deepseek_analysis', {}).get('trading_recommendations'):
-        # Use AI-enhanced recommendations
-        trading_recommendations = analysis['deepseek_analysis']['trading_recommendations']
-        if isinstance(trading_recommendations, list):
-            for implication in trading_recommendations:
-                st.write(implication)
-    else:
-        # Use standard implications
-        trading_implications = analysis.get("trading_implications", [])
-        if isinstance(trading_implications, list):
-            for implication in trading_implications:
-                st.write(implication)
+    st.markdown("---")
     
     # Quantitative Analysis Summary
     st.markdown("### 📊 Quantitative Analysis Summary")
