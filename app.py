@@ -107,7 +107,7 @@ KAI_CHARACTER = {
         ],
         "position_sizing": "1-3% risk per trade maximum",
         "scaling_approach": "Scale out of positions, never pyramid in",
-        "DCA on Long-term Investing"
+        "dca_approach": "Dollar-cost averaging for long-term accumulation"
     }
 }
 
