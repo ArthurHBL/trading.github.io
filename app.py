@@ -91,23 +91,6 @@ KAI_CHARACTER = {
         "reversal_expected": "REVERSAL expected within",
         "confidence_level": "Confidence Level",
         "deepseek_enhanced": "🧠 **DeepSeek AI Enhanced Analysis**"
-    },
-    
-    # Risk management philosophy
-    "risk_management": {
-        "stop_loss_philosophy": {
-            "day_trading": "Use hard stop losses",
-            "swing_trading": "Use hard stop losses", 
-            "position_trading": "Use mental stop losses",
-            "long_term_investing": "Use mental stop losses"
-        },
-        "prohibited_strategies": [
-            "pyramiding",
-            "over_leveraging(3X)"
-        ],
-        "position_sizing": "1-3% risk per trade maximum",
-        "scaling_approach": "Scale out of positions, never pyramid in",
-        "dca_approach": "Dollar-cost averaging for long-term accumulation"
     }
 }
 
@@ -3622,16 +3605,16 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     with col1:
         st.write("**Position Sizing Framework:**")
         st.write("• Maximum 1-3% risk per trade")
-        st.write("• Scale out of winning positions")
-        st.write("• DCA on Long-term Investing")
-        st.write("• Avoid over-leveraging(3x) at all costs")
+        st.write("• Scale in/out based on confidence")
+        st.write("• Use pyramiding for high conviction")
+        st.write("• Always use stop losses")
     
     with col2:
-        st.write("**Stop Loss Strategy:**")
-        st.write("• **Day Trading:** Use hard stop losses")
-        st.write("• **Swing Trading:** Use hard stop losses")
-        st.write("• **Position Trading:** Use mental stop losses")
-        st.write("• **Long-term Investing:** Use mental stop losses")
+        st.write("**Risk Control Measures:**")
+        st.write("• Monitor correlation between signals")
+        st.write("• Watch for conflicting timeframes")
+        st.write("• Validate with volume confirmation")
+        st.write("• Consider market context")
 
     # Quantitative risk factors
     st.markdown("---")
