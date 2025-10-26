@@ -461,12 +461,12 @@ class EnhancedKaiTradingAgent:
         """Auto-Explainer - Convert CSV data to structured analysis with explanations"""
         try:
             analysis_summary = {
-                "dataset_overview": self._get_dataset_overview(df),
-                "strategy_breakdown": self._analyze_strategies(df),
-                "signal_analysis": self._extract_trading_signals(df),
-                "momentum_analysis": self._analyze_momentum_patterns(df),
-                "risk_assessment": self._assess_dataset_risk(df),
-                "quality_metrics": self._calculate_quality_metrics(df)
+                "Data Quality Assessment": self._get_dataset_overview(df),
+                "Strategy Analysis": self._analyze_strategies(df),
+                "Trading Signals": self._extract_trading_signals(df),
+                "Momentum Analysis": self._analyze_momentum_patterns(df),
+                "Risk Assessment": self._assess_dataset_risk(df),
+                "Quality Metrics": self._calculate_quality_metrics(df)
             }
             return analysis_summary
         except Exception as e:
@@ -538,8 +538,7 @@ class EnhancedKaiTradingAgent:
         # Calculate signal strength and confidence
         signal_metrics = {
             "total_signals": sum(len(signal_list) for signal_list in signals.values()),
-            "strong_signals": len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH']),
-            "signal_quality_score": self._calculate_signal_quality(signals)
+            "strong_signals": len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
         }
         
         return {"signals": signals, "metrics": signal_metrics}
@@ -3227,23 +3226,22 @@ def render_kai_csv_uploader():
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if 'dataset_overview' in auto_analysis:
-                        st.subheader("📊 Dataset Overview")
-                        overview = auto_analysis['dataset_overview']
+                    if 'Data Quality Assessment' in auto_analysis:
+                        st.subheader("📊 Data Quality Assessment")
+                        overview = auto_analysis['Data Quality Assessment']
                         st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
                         st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
                         st.write(f"**Completion Rate:** {overview.get('completion_rate', 'N/A')}")
-                        if 'quality_metrics' in auto_analysis:
-                            st.write(f"**Data Quality:** {auto_analysis['quality_metrics'].get('overall_quality', 'N/A'):.1f}%")
+                        if 'Quality Metrics' in auto_analysis:
+                            st.write(f"**Data Quality Score:** {auto_analysis['Quality Metrics'].get('overall_quality', 'N/A'):.1f}%")
                 
                 with col2:
-                    if 'signal_analysis' in auto_analysis:
+                    if 'Trading Signals' in auto_analysis:
                         st.subheader("📈 Signal Summary")
-                        signals = auto_analysis['signal_analysis']
+                        signals = auto_analysis['Trading Signals']
                         st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
                         st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
-                        if 'metrics' in signals:
-                            st.write(f"**Signal Quality:** {signals['metrics'].get('signal_quality_score', 'N/A'):.1f}%")
+                        # Signal Quality line removed completely
             
             # Show data preview
             with st.expander("📋 Data Preview", expanded=False):
@@ -3528,10 +3526,8 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
             consistency = quality.get('consistency', 0)
             st.metric("Signal Consistency", f"{consistency:.1f}%")
         
-        # Detailed quality information
+        # Quality metrics only - no tier/acceptable display
         st.markdown("---")
-        st.write(f"**Tier:** {quality_tier}")
-        st.write(f"**Is Acceptable:** {'✅ YES' if quality.get('is_acceptable') else '❌ NO'}")
     
     st.markdown("---")
     
@@ -3593,11 +3589,6 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         else:
             st.success("🟢 **LOW RISK** - Favorable conditions for trading")
             st.write("**KAI Assessment:** Strong signal alignment across indicators. Directional bias confirmed.")
-        
-        # Show data quality note separately if needed
-        if quality and not quality.get('is_acceptable', False):
-            st.markdown("---")
-            st.warning(f"📊 **Data Quality Note:** Analysis based on {quality_tier.lower()} tier data. Consider adding more detailed notes for higher confidence.")
 
     # Always show actionable risk management guidelines
     st.markdown("---")
