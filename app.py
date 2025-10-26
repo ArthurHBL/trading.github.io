@@ -197,70 +197,6 @@ class DataQualityFramework:
         else:
             return "🔴 CRITICAL"
 
-    def generate_risk_assessment_summary(analysis):
-        """
-        Generates risk summary WITHOUT false 'incomplete data' warnings
-        """
-    
-        risk_data = analysis.get('risk_assessment_data', {})
-        quality = analysis.get('data_quality', {})
-    
-        risk_score = risk_data.get('overall_risk_score', 5)
-        quality_score = quality.get('quality_score', 50)
-    
-        # NEVER warn about data incompleteness if quality is acceptable
-        if quality.get('is_acceptable', False):
-            # Only show REAL risks
-            if risk_score >= 7:
-                return "🔴 HIGH SIGNAL RISK - Multiple conflicting indicators detected"
-            elif risk_score >= 5:
-                return "🟡 MODERATE RISK - Some uncertainty in signal confirmation"
-            else:
-                return "🟢 LOW RISK - Strong signal alignment and confirmation"
-        else:
-            # Quality is poor - be cautious but don't blame data volume
-            return f"⚠️ ANALYSIS QUALITY BELOW TIER REQUIREMENTS - Use with caution (Quality: {quality_score:.0f}%)"
-
-    def modified_display_enhanced_kai_analysis_report(analysis):
-        """
-        Display KAI report WITH quality awareness
-        Removes false risk warnings about "incomplete data"
-        """
-    
-        # Get quality info
-        quality = analysis.get('data_quality', {})
-        quality_tier = analysis.get('quality_tier', 'PRODUCTION')
-    
-        # Show quality badge
-        if quality:
-            quality_score = quality.get('quality_score', 0)
-            quality_tag = DataQualityFramework.get_quality_tag(quality_score)
-            st.markdown(f"**Data Quality:** {quality_tag} ({quality_score:.0f}%)")
-        
-            if not quality.get('is_acceptable'):
-                st.warning(f"⚠️ Data is below {quality_tier} tier requirements")
-        
-            st.markdown("---")
-    
-        # Then display normal analysis
-        is_enhanced = analysis.get('deepseek_enhanced', False)
-        st.markdown(f"### KAI Analysis Report {'ðŸ§  AI Enhanced' if is_enhanced else ''}")
-    
-        # Executive summary (now won't have false data warnings)
-        st.info(analysis.get("executive_summary", "Analysis completed"))
-    
-        # Risk assessment (now quality-aware)
-        risk_summary = generate_risk_assessment_summary(analysis)
-    
-        if "HIGH SIGNAL RISK" in risk_summary:
-            st.error(risk_summary)
-        elif "MODERATE" in risk_summary:
-            st.warning(risk_summary)
-        elif "ANALYSIS QUALITY BELOW" in risk_summary:
-            st.warning(risk_summary)
-        else:
-            st.success(risk_summary)
-
 class EnhancedKaiTradingAgent:
     def __init__(self, use_deepseek=True):
         self.character = KAI_CHARACTER
@@ -3501,15 +3437,44 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     # Enhanced Risk Assessment - FIXED VERSION
     st.markdown("### 🛡️ Risk Assessment & Management")
 
-    # Display the risk summary string (which is now in 'risk_assessment_summary')
-    risk_summary = analysis.get('risk_assessment_summary', '')
-    if risk_summary:
-        if "HIGH RISK" in risk_summary:
-            st.error(f"**Risk Summary:** {risk_summary}")
-        elif "MODERATE RISK" in risk_summary:
-            st.warning(f"**Risk Summary:** {risk_summary}")
+    quality = analysis.get('data_quality', {})
+    quality_tier = analysis.get('quality_tier', 'PRODUCTION')
+
+    # CRITICAL FIX: Only warn about data quality, NOT incomplete data volume
+    if quality.get('is_acceptable', False):
+        # Data quality is good - show REAL risks only
+        risk_summary = analysis.get('risk_assessment_summary', '')
+    
+        # Filter out false "incomplete data" warnings
+        if "incomplete" in risk_summary.lower() or "48%" in risk_summary.lower() or "undefined momentum" in risk_summary.lower():
+            # This is a false warning - replace with real assessment
+            risk_score = analysis.get('risk_assessment_data', {}).get('overall_risk_score', 5)
+        
+            if risk_score >= 7:
+                st.error("🔴 **HIGH SIGNAL RISK** - Multiple conflicting indicators detected. Strong directional disagreement across confirmations.")
+            elif risk_score >= 5:
+                st.warning("🟡 **MODERATE SIGNAL RISK** - Some uncertainty in indicator alignment. Consider additional confirmation before trading.")
+            else:
+                st.success("🟢 **LOW RISK** - Strong signal alignment across indicators. Directional bias confirmed.")
         else:
-            st.info(f"**Risk Summary:** {risk_summary}")
+            # Use the real risk summary
+            if "HIGH RISK" in risk_summary:
+                st.error(f"**Risk Summary:** {risk_summary}")
+            elif "MODERATE RISK" in risk_summary:
+                st.warning(f"**Risk Summary:** {risk_summary}")
+            else:
+                st.success(f"**Risk Summary:** {risk_summary}")
+
+    else:
+        # Data quality is below tier - warn about that instead
+        quality_score = quality.get('quality_score', 0)
+        st.warning(f"""
+        ⚠️ **DATA QUALITY BELOW {quality_tier} TIER**
+    
+        Quality Score: {quality_score:.0f}%
+    
+        Analysis is provisional. Increase data completeness or select a lower tier.
+        """)
 
     # Now display the risk factors from the risk data
     risk_data = analysis.get('risk_assessment_data', {})
