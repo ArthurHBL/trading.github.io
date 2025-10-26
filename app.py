@@ -319,57 +319,71 @@ class EnhancedKaiTradingAgent:
         }
     
     def _initialize_deepseek_prompts(self):
-        """Initialize specialized prompts for DeepSeek API - FIXED VERSION"""
+        """Initialize specialized prompts for DeepSeek API with enhanced risk focus"""
         return {
             "enhanced_analysis": """
             You are KAI, a Senior Technical Analysis Specialist with 10+ years of multi-timeframe market analysis experience.
-        
-            CORE PERSONALITY TRAITS:
-            - Methodical and structured in analysis
-            - Conservative in risk assessment  
-            - Clear and concise communicator
-            - Quantitative and data-driven
-            - Risk-aware and cautious
-        
-            ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
-            1. STRATEGY_OVERVIEW: Big picture context
-            2. KEY_INDICATORS: Critical technical levels
-            3. MOMENTUM_ANALYSIS: Trend strength and direction
-            4. SUPPORT_RESISTANCE: Key price levels
-            5. TIME_HORIZONS: When signals may play out
-        
-            TRADING DATA TO ANALYZE:
-            {data_summary}
-        
-            SPECIFIC INSTRUCTIONS:
-            - Focus on reversal patterns and confluence
-            - Identify high-probability setups only
-            - Be conservative in confidence scoring
-            - Highlight conflicting signals
-            - Provide clear risk management advice
-            - Use quantitative measures where possible
-        
-            IMPORTANT: RESPOND WITH VALID JSON ONLY, NO ADDITIONAL TEXT.
-        
-            RESPONSE FORMAT (STRICT JSON):
-            {{
-                "executive_summary": "2-3 sentence overview",
-                "key_findings": ["finding1", "finding2", "finding3", "finding4", "finding5"],
-                "momentum_assessment": "Detailed momentum analysis",
-                "critical_levels": ["level1", "level2", "level3"],
-                "time_horizons": {{
-                    "short_term": "1-7 days analysis",
-                    "medium_term": "1-4 weeks analysis", 
-                    "long_term": "1-6 months analysis"
-                }},
-                "risk_analysis": "Risk assessment and management",
-                "confidence_score": 65,
-                "trading_recommendations": ["rec1", "rec2", "rec3"]
-            }}
-        
-            REMEMBER: ONLY RETURN THE JSON OBJECT, NO OTHER TEXT.
-            """,
-            # ... rest of prompts remain the same
+    
+        CORE PERSONALITY TRAITS:
+        - Methodical and structured in analysis
+        - Conservative in risk assessment  
+        - Clear and concise communicator
+        - Quantitative and data-driven
+        - Risk-aware and cautious
+
+        CRITICAL: Your primary focus is RISK ASSESSMENT and POSITION SIZING recommendations.
+
+        ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
+        1. STRATEGY_OVERVIEW: Big picture context with risk focus
+        2. KEY_INDICATORS: Critical technical levels and their risk implications
+        3. MOMENTUM_ANALYSIS: Trend strength and directional confidence
+        4. SUPPORT_RESISTANCE: Key price levels for risk management
+        5. TIME_HORIZONS: When signals may play out and associated timing risks
+
+        TRADING DATA TO ANALYZE:
+        {data_summary}
+
+        RISK ASSESSMENT PRIORITIES (MUST INCLUDE):
+        - Signal alignment/confluence across indicators
+        - Conflicting timeframe analysis
+        - Volume confirmation (or lack thereof)
+        - Support/resistance reliability
+        - Momentum consistency
+        - Position sizing recommendations based on confidence
+
+        SPECIFIC INSTRUCTIONS:
+        - Focus on ACTUAL TRADING RISKS, not data completeness
+        - Provide clear position sizing guidance (1-3% risk per trade)
+        - Highlight conflicting signals and their implications
+        - Be conservative in confidence scoring
+        - Use quantitative measures for risk assessment
+        - Provide actionable risk management advice
+
+        IMPORTANT: RESPOND WITH VALID JSON ONLY, NO ADDITIONAL TEXT.
+
+        RESPONSE FORMAT (STRICT JSON):
+        {{
+            "executive_summary": "2-3 sentence overview with risk focus",
+            "key_findings": ["finding1", "finding2", "finding3", "finding4", "finding5"],
+            "momentum_assessment": "Detailed momentum analysis with risk implications",
+            "critical_levels": ["level1", "level2", "level3"],
+            "time_horizons": {{
+                "short_term": "1-7 days analysis with timing risks",
+                "medium_term": "1-4 weeks analysis with position risks", 
+                "long_term": "1-6 months analysis with structural risks"
+            }},
+            "risk_analysis": "Comprehensive risk assessment focusing on ACTUAL TRADING RISKS, not data quality",
+            "confidence_score": 65,
+            "trading_recommendations": [
+                "Specific position sizing advice",
+                "Risk management strategies", 
+                "Entry/exit considerations",
+                "Hedging or diversification suggestions"
+            ]
+        }}
+
+        REMEMBER: ONLY RETURN THE JSON OBJECT, NO OTHER TEXT.
+        """,
         }
     
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
@@ -3482,10 +3496,11 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
                     else:
                         st.write(f"⚠️ Invalid signal format: {type(signal)}")
     
-    # Enhanced Risk Assessment - FIXED VERSION
+    
+    # AI-ENHANCED RISK ASSESSMENT WITH DEEPSEEK
     st.markdown("### 🛡️ Risk Assessment & Management")
 
-    # CRITICAL: Extract quality data from analysis
+    # Extract quality data from analysis
     quality = analysis.get('data_quality', {})
     quality_tier = analysis.get('quality_tier', 'PRODUCTION')
 
@@ -3517,106 +3532,124 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         st.markdown("---")
         st.write(f"**Tier:** {quality_tier}")
         st.write(f"**Is Acceptable:** {'✅ YES' if quality.get('is_acceptable') else '❌ NO'}")
-        
-        # Signal distribution
-        bullish_count = quality.get('bullish_signals', 0)
-        bearish_count = quality.get('bearish_signals', 0)
-        neutral_count = quality.get('neutral_signals', 0)
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.write(f"**Bullish Signals:** 📈 {bullish_count}")
-        with col2:
-            st.write(f"**Bearish Signals:** 📉 {bearish_count}")
-        with col3:
-            st.write(f"**Neutral Signals:** ⚪ {neutral_count}")
-        
-        # Word count analysis
-        st.markdown("---")
-        st.write("**Analysis Depth Metrics:**")
-        total_words = quality.get('total_words', 0)
-        avg_words = quality.get('average_words_per_note', 0)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"• **Total Words:** {total_words}")
-        with col2:
-            st.write(f"• **Average Words per Note:** {avg_words:.1f}")
     
     st.markdown("---")
     
-    # NOW DISPLAY RISK ASSESSMENT (after quality)
+    # NOW DISPLAY AI-ENHANCED RISK ASSESSMENT
     st.markdown("#### ⚠️ Trading Risk Assessment")
     
-    quality = analysis.get('data_quality', {})
-    quality_tier = analysis.get('quality_tier', 'PRODUCTION')
-
-    # CRITICAL FIX: Only warn about data quality, NOT incomplete data volume
-    if quality.get('is_acceptable', False):
-        # Data quality is good - show REAL risks only
-        risk_summary = analysis.get('risk_assessment_summary', '')
-    
-        # Filter out false "incomplete data" warnings
-        if "incomplete" in risk_summary.lower() or "48%" in risk_summary.lower() or "undefined momentum" in risk_summary.lower():
-            # This is a false warning - replace with real assessment
-            risk_score = analysis.get('risk_assessment_data', {}).get('overall_risk_score', 5)
+    # Use DeepSeek AI for risk assessment if available, otherwise fall back to standard
+    if analysis.get('deepseek_enhanced') and analysis.get('deepseek_analysis'):
+        deepseek_data = analysis['deepseek_analysis']
         
-            if risk_score >= 7:
-                st.error("🔴 **HIGH SIGNAL RISK** - Multiple conflicting indicators detected. Strong directional disagreement across confirmations.")
-            elif risk_score >= 5:
-                st.warning("🟡 **MODERATE SIGNAL RISK** - Some uncertainty in indicator alignment. Consider additional confirmation before trading.")
-            else:
-                st.success("🟢 **LOW RISK** - Strong signal alignment across indicators. Directional bias confirmed.")
-        else:
-            # Use the real risk summary
-            if "HIGH RISK" in risk_summary:
-                st.error(f"**Risk Summary:** {risk_summary}")
-            elif "MODERATE RISK" in risk_summary:
-                st.warning(f"**Risk Summary:** {risk_summary}")
-            else:
-                st.success(f"**Risk Summary:** {risk_summary}")
-    else:
-        # Data quality is below tier requirements
-        st.warning(f"⚠️ Data below {quality_tier} tier requirements")
-        st.info("Consider adding more detailed analysis notes to improve data quality score.")
-    
-    # Display risk factors from the risk data
-    risk_data = analysis.get('risk_assessment_data', {})
-
-    if risk_data:
+        # Display AI-generated risk analysis
+        if deepseek_data.get('risk_analysis'):
+            st.markdown("🧠 **DeepSeek AI Risk Assessment:**")
+            st.info(deepseek_data['risk_analysis'])
+        
+        # Display confidence score from AI
+        confidence = deepseek_data.get('confidence_score', 50)
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**High Risk Indicators:**")
-            if risk_data.get('high_risk_indicators'):
-                high_risk_indicators = risk_data['high_risk_indicators']
-                if isinstance(high_risk_indicators, list):
-                    if len(high_risk_indicators) > 0:
-                        for risk in high_risk_indicators[:3]:
-                            if isinstance(risk, dict):
-                                st.write(f"• {risk.get('signal', {}).get('indicator', 'Unknown')} (Score: {risk.get('risk_score', 'N/A')})")
-                            else:
-                                st.write(f"• {str(risk)}")
-                    else:
-                        st.write("• No high risk indicators detected")
-                else:
-                    st.write("• No high risk indicators detected")
-            else:
-                st.write("• No high risk indicators detected")
+            delta_value = "High" if confidence >= 70 else "Medium" if confidence >= 50 else "Low"
+            delta_color = "normal" if confidence >= 50 else "inverse"
+            st.metric(
+                "AI Confidence Level", 
+                f"{confidence}%",
+                delta=delta_value,
+                delta_color=delta_color
+            )
         
         with col2:
-            st.write("**Position Sizing Recommendations:**")
-            if risk_data.get('position_sizing_recommendations'):
-                position_recommendations = risk_data['position_sizing_recommendations']
-                if isinstance(position_recommendations, list):
-                    for rec in position_recommendations:
-                        st.write(f"• {rec}")
-                else:
-                    st.write("• Standard position sizing appropriate")
+            # Map confidence to risk level for quick visual
+            if confidence >= 70:
+                st.success("🟢 **LOW RISK** - High confidence in signal alignment")
+            elif confidence >= 50:
+                st.warning("🟡 **MODERATE RISK** - Moderate confidence, some uncertainty")
             else:
-                st.write("• Standard position sizing appropriate")
-    
+                st.error("🔴 **HIGH RISK** - Low confidence, significant uncertainty")
+        
+        # Display AI trading recommendations
+        if deepseek_data.get('trading_recommendations'):
+            st.markdown("---")
+            st.markdown("🎯 **AI Trading Recommendations:**")
+            for recommendation in deepseek_data['trading_recommendations'][:3]:
+                st.write(f"• {recommendation}")
+                
+    else:
+        # Fallback to standard risk assessment when AI is not available
+        risk_data = analysis.get('risk_assessment_data', {})
+        risk_summary = analysis.get('risk_assessment_summary', '')
+        risk_score = risk_data.get('overall_risk_score', 5)
+        
+        # Show KAI's standard risk assessment
+        if risk_score >= 7:
+            st.error("🔴 **HIGH RISK ENVIRONMENT** - Exercise extreme caution with position sizing")
+            st.write("**KAI Assessment:** Multiple conflicting indicators detected. Strong directional disagreement across confirmations.")
+        elif risk_score >= 5:
+            st.warning("🟡 **MODERATE RISK** - Standard risk management appropriate")
+            st.write("**KAI Assessment:** Some uncertainty in indicator alignment. Consider additional confirmation before trading.")
+        else:
+            st.success("🟢 **LOW RISK** - Favorable conditions for trading")
+            st.write("**KAI Assessment:** Strong signal alignment across indicators. Directional bias confirmed.")
+        
+        # Show data quality note separately if needed
+        if quality and not quality.get('is_acceptable', False):
+            st.markdown("---")
+            st.warning(f"📊 **Data Quality Note:** Analysis based on {quality_tier.lower()} tier data. Consider adding more detailed notes for higher confidence.")
+
+    # Always show actionable risk management guidelines
     st.markdown("---")
+    st.markdown("🛡️ **KAI's Risk Management Protocol:**")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Position Sizing Framework:**")
+        st.write("• Maximum 1-3% risk per trade")
+        st.write("• Scale in/out based on confidence")
+        st.write("• Use pyramiding for high conviction")
+        st.write("• Always use stop losses")
+    
+    with col2:
+        st.write("**Risk Control Measures:**")
+        st.write("• Monitor correlation between signals")
+        st.write("• Watch for conflicting timeframes")
+        st.write("• Validate with volume confirmation")
+        st.write("• Consider market context")
+
+    # Quantitative risk factors
+    st.markdown("---")
+    st.markdown("📊 **Quantitative Risk Factors:**")
+    
+    signal_details = analysis.get('signal_details', {})
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        # Conflicting signals count
+        conflicting_count = len(signal_details.get('conflicting_signals', []))
+        st.metric("Conflicting Signals", conflicting_count, delta_color="inverse")
+    
+    with col2:
+        # Strong reversal signals
+        reversal_signals = signal_details.get('reversal_signals', [])
+        strong_reversals = len([s for s in reversal_signals if s.get('strength') == 'HIGH'])
+        st.metric("Strong Reversals", strong_reversals)
+    
+    with col3:
+        # Signal consistency score
+        bullish = quality.get('bullish_signals', 0)
+        bearish = quality.get('bearish_signals', 0)
+        neutral = quality.get('neutral_signals', 0)
+        total_directional = bullish + bearish + neutral
+        if total_directional > 0:
+            max_direction = max(bullish, bearish, neutral)
+            consistency = (max_direction / total_directional) * 100
+            st.metric("Signal Consistency", f"{consistency:.1f}%")
+        else:
+            st.metric("Signal Consistency", "N/A")
     
     # Quantitative Analysis Summary
     st.markdown("### 📊 Quantitative Analysis Summary")
