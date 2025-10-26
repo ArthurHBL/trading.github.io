@@ -103,11 +103,11 @@ KAI_CHARACTER = {
         },
         "prohibited_strategies": [
             "pyramiding",
-            "averaging_down",
-            "over_leveraging"
+            "over_leveraging(3X)"
         ],
         "position_sizing": "1-3% risk per trade maximum",
-        "scaling_approach": "Scale out of positions, never pyramid in"
+        "scaling_approach": "Scale out of positions, never pyramid in",
+        "DCA on Long-term Investing"
     }
 }
 
@@ -3622,16 +3622,16 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     with col1:
         st.write("**Position Sizing Framework:**")
         st.write("• Maximum 1-3% risk per trade")
-        st.write("• Scale in/out based on confidence")
-        st.write("• Use pyramiding for high conviction")
-        st.write("• Always use stop losses")
+        st.write("• Scale out of winning positions")
+        st.write("• DCA on Long-term Investing")
+        st.write("• Avoid over-leveraging at all costs")
     
     with col2:
-        st.write("**Risk Control Measures:**")
-        st.write("• Monitor correlation between signals")
-        st.write("• Watch for conflicting timeframes")
-        st.write("• Validate with volume confirmation")
-        st.write("• Consider market context")
+        st.write("**Stop Loss Strategy:**")
+        st.write("• **Day Trading:** Use hard stop losses")
+        st.write("• **Swing Trading:** Use hard stop losses")
+        st.write("• **Position Trading:** Use mental stop losses")
+        st.write("• **Long-term Investing:** Use mental stop losses")
 
     # Quantitative risk factors
     st.markdown("---")
