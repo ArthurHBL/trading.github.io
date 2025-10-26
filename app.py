@@ -3599,15 +3599,17 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
     # Always show actionable risk management guidelines
     st.markdown("---")
     st.markdown("🛡️ **KAI's Risk Management Protocol:**")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.write("**Position Sizing Framework:**")
         st.write("• Maximum 1-3% risk per trade")
-        st.write("• Scale in/out based on confidence")
-        st.write("• Use pyramiding for high conviction")
-        st.write("• Always use stop losses")
+        st.write("• Scale in/out (DCA) based on confidence")
+        st.write("• **NEVER over-leverage (max 3x)**")
+        st.write("• **Stop Loss Strategy:**")
+        st.write("  - Hard stops: Day trading & swing trading")
+        st.write("  - Mental stops: Long-term investments")
     
     with col2:
         st.write("**Risk Control Measures:**")
