@@ -390,7 +390,8 @@ class EnhancedKaiTradingAgent:
 
         REMEMBER: You are analyzing MARKET SIGNALS, not the quality of analysis. The data comes from an experienced trading mentor.
         """,
-    
+        }
+        
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
         """Call DeepSeek API with improved error handling"""
         if not self.use_deepseek or not DEEPSEEK_API_KEY:
