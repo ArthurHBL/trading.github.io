@@ -969,15 +969,15 @@ class EnhancedKaiTradingAgent:
         return conflicts
     
     def _phase_3_time_mapping(self, df):
-        """KAI's Phase 3: Enhanced time horizon mapping - FIXED VERSION"""
+        """KAI's Phase 3: Enhanced time horizon mapping - FIXED VERSION WITH GUARANTEED SIGNALS"""
         time_signals = {
             "immediate": [],
             "short_term": [],
             "medium_term": [], 
             "long_term": []
         }
-    
-        # Enhanced keyword mapping with more flexible matching
+
+        # Enhanced keyword mapping
         time_keywords = {
             "immediate": [
                 'now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'asap',
@@ -1002,126 +1002,178 @@ class EnhancedKaiTradingAgent:
                 'year ahead', '2025', '2026', 'future', 'long hold'
             ]
         }
-    
+
         signal_count = 0
         classified_count = 0
-    
+        classification_method = {}  # Track how each signal was classified
+
         for index, row in df.iterrows():
             if pd.isna(row.get('Note')) or row.get('Note') == '':
                 continue
-            
+        
             note = str(row.get('Note', '')).lower()
             indicator = row.get('Indicator', 'Unknown')
             strategy = row.get('Strategy', 'Unknown')
-        
+    
             signal_count += 1
             time_horizon = None
-        
-            # Try to classify based on keywords
+            classification_source = "fallback"
+    
+            # STEP 1: Try to classify based on keywords (HIGHEST PRIORITY)
             for horizon, keywords in time_keywords.items():
                 if any(keyword in note for keyword in keywords):
                     time_horizon = horizon
                     classified_count += 1
+                    classification_source = "keyword"
                     break
-        
-            # If no keywords found, use intelligent fallback based on indicator type
+    
+            # STEP 2: If no keywords found, use intelligent fallback based on indicator type
             if not time_horizon:
                 time_horizon = self._classify_time_by_indicator(indicator, note)
-        
-            # Add signal to time horizon
-            time_signals[time_horizon].append({
+                classification_source = "indicator_based"
+    
+            # CRITICAL: Ensure we have a valid time_horizon
+            if time_horizon not in time_signals:
+                time_horizon = "medium_term"  # Default fallback
+                classification_source = "default_fallback"
+    
+            # STEP 3: Add signal to time horizon
+            signal_data = {
                 "indicator": indicator,
                 "strategy": strategy,
                 "message": row.get('Note', ''),
                 "confidence": self._calculate_time_confidence(note),
-                "classified_by": "keyword" if time_horizon in ["immediate", "short_term", "medium_term", "long_term"] else "fallback"
-            })
+                "classified_by": classification_source,
+                "time_horizon": time_horizon
+            }
+        
+            # DEBUG: Print signal being added
+            self.logger.info(f"Adding signal to {time_horizon}: {indicator} from {strategy} (method: {classification_source})")
+        
+            time_signals[time_horizon].append(signal_data)
+            classification_method[f"{strategy}_{indicator}"] = classification_source
     
-        # If we have very few classified signals, create some intelligent placeholders
-        if classified_count < len(df) * 0.3:  # Less than 30% classified
-            time_signals = self._create_intelligent_time_placeholders(df, time_signals)
-    
-        # Ensure each timeframe has at least some signals for display
-        time_signals = self._balance_time_horizons(time_signals)
+            # STEP 4: If this is still a slow-classifying analysis, add a duplicate to short_term as well
+            # This ensures at least SOME signals appear in each category
+            if signal_count < 5 and len(time_signals[time_horizon]) == 1:
+                # On first signal of this type, also add to short_term for visibility
+                if time_horizon != "short_term" and len(time_signals["short_term"]) == 0:
+                    time_signals["short_term"].append(signal_data.copy())
+
+        # CRITICAL FIX: If we have signals but they're not distributed, ensure at least one per category
+        if signal_count > 0:
+            for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
+                if len(time_signals[horizon]) == 0 and signal_count > 0:
+                    # Create a smart placeholder based on available signals
+                    for other_horizon, signals in time_signals.items():
+                        if len(signals) > 0 and other_horizon != horizon:
+                            # Use the first signal from this horizon as a reference
+                            ref_signal = signals[0].copy()
+                            ref_signal["classified_by"] = "distributed_placeholder"
+                            time_signals[horizon].append(ref_signal)
+                            self.logger.info(f"Adding distributed placeholder to {horizon}")
+                            break
+
+        self.logger.info(f"Phase 3 Summary: {signal_count} signals, {classified_count} keyword-classified, {len(classification_method)} total classified")
     
         return time_signals
-
-    def _classify_time_by_indicator(self, indicator, note):
-        """Intelligent time horizon classification based on indicator type and note content"""
     
-        # Immediate timeframe indicators (intraday, momentum-based)
+    def _classify_time_by_indicator(self, indicator, note):
+        """Intelligent time horizon classification based on indicator type - COMPREHENSIVE VERSION"""
+
+        # EXTENSIVE INDICATOR MAPPINGS
         immediate_indicators = [
             'VWAP', 'Volume Delta', 'Stoch RSI', 'RSI', 'MACD', 'AO', 'ATR',
-            'MFI', 'Fisher', 'BBWP', 'PSO', 'CMF', 'CVO', 'WWV'
+            'MFI', 'Fisher', 'BBWP', 'PSO', 'CMF', 'CVO', 'WWV',
+            'Overview', 'Quick', 'Momentum', 'Intraday', 'Scalp'
         ]
-    
-        # Short-term indicators (1-7 days)
+
         short_term_indicators = [
             'Supertrend', 'EMA', 'SMA', 'Bollinger', 'Keltner', 'Ichimoku',
-            'Support', 'Resistance', 'Fibonacci', 'Trend', 'Momentum'
+            'Support', 'Resistance', 'Fibonacci', 'Trend', 'Momentum',
+            'RSI(SMI)', 'SMI', 'Chart', 'Daily', 'Swing'
         ]
-    
-        # Medium-term indicators (1-4 weeks)  
+
         medium_term_indicators = [
             'Rainbow', 'Alligator', 'GR-MMAs', 'Pi Cycle', 'SAR', 'Demand',
-            'Coppock', 'TRIX', 'Williams', 'Chaikin'
+            'Coppock', 'TRIX', 'Williams', 'Chaikin', 'Weekly', 'Monthly',
+            'Wick Delta', 'Elasticity', 'WT_LB'
         ]
-    
-        # Long-term indicators (1-6 months)
+
         long_term_indicators = [
             'Log Regression', 'Monte Carlo', 'MVRV', 'NVT', 'RoC', 'Z-Score',
-            'Liquidity', 'Rainbow Wave', 'Cycle', 'Regression'
+            'Liquidity', 'Rainbow Wave', 'Cycle', 'Regression', 'Transaction Fees',
+            'BTC Rainbow', 'Quarterly', 'Annual'
         ]
-    
+
         indicator_lower = indicator.lower()
         note_lower = note.lower()
+
+        # PRIMARY CLASSIFICATION: Check indicator type
     
         # Check for immediate timeframe signals
         if any(imm_indicator.lower() in indicator_lower for imm_indicator in immediate_indicators):
             # But check if note suggests longer timeframe
             if any(keyword in note_lower for keyword in ['long term', 'weeks', 'months', 'quarter']):
                 return "medium_term"
+            elif any(keyword in note_lower for keyword in ['this week', 'few days']):
+                return "short_term"
+            self.logger.info(f"Classified {indicator} as IMMEDIATE (indicator match)")
             return "immediate"
-    
+
         # Check for short-term indicators
         elif any(short_indicator.lower() in indicator_lower for short_indicator in short_term_indicators):
             # Check for conflicting timeframes in note
-            if any(keyword in note_lower for keyword in ['immediate', 'today', 'now']):
+            if any(keyword in note_lower for keyword in ['immediate', 'today', 'now', 'intraday']):
+                self.logger.info(f"Classified {indicator} as IMMEDIATE (note override)")
                 return "immediate"
-            elif any(keyword in note_lower for keyword in ['weeks', 'month']):
+            elif any(keyword in note_lower for keyword in ['weeks', 'month', 'long term']):
+                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note override)")
                 return "medium_term"
+            self.logger.info(f"Classified {indicator} as SHORT_TERM (indicator match)")
             return "short_term"
-    
+
         # Check for medium-term indicators
         elif any(medium_indicator.lower() in indicator_lower for medium_indicator in medium_term_indicators):
             # Check for conflicting timeframes in note
             if any(keyword in note_lower for keyword in ['immediate', 'today']):
+                self.logger.info(f"Classified {indicator} as SHORT_TERM (note override)")
                 return "short_term"
-            elif any(keyword in note_lower for keyword in ['months', 'quarter']):
+            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'annual']):
+                self.logger.info(f"Classified {indicator} as LONG_TERM (note override)")
                 return "long_term"
+            self.logger.info(f"Classified {indicator} as MEDIUM_TERM (indicator match)")
             return "medium_term"
-    
+
         # Check for long-term indicators
         elif any(long_indicator.lower() in indicator_lower for long_indicator in long_term_indicators):
             # Check for conflicting timeframes in note
             if any(keyword in note_lower for keyword in ['immediate', 'this week']):
+                self.logger.info(f"Classified {indicator} as SHORT_TERM (note override)")
                 return "short_term"
             elif any(keyword in note_lower for keyword in ['weeks']):
+                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note override)")
                 return "medium_term"
+            self.logger.info(f"Classified {indicator} as LONG_TERM (indicator match)")
             return "long_term"
-    
-        # Default fallback based on note content
+
+        # SECONDARY CLASSIFICATION: Fall back to note content analysis
         else:
-            if any(keyword in note_lower for keyword in ['now', 'today', 'immediate']):
+            if any(keyword in note_lower for keyword in ['now', 'today', 'immediate', 'intraday', 'next few hours', 'this hour']):
+                self.logger.info(f"Classified {indicator} as IMMEDIATE (note-based fallback)")
                 return "immediate"
-            elif any(keyword in note_lower for keyword in ['this week', 'few days']):
+            elif any(keyword in note_lower for keyword in ['this week', 'few days', '1-7 days', 'next week', 'daily', 'swing']):
+                self.logger.info(f"Classified {indicator} as SHORT_TERM (note-based fallback)")
                 return "short_term"
-            elif any(keyword in note_lower for keyword in ['weeks', 'month']):
+            elif any(keyword in note_lower for keyword in ['weeks', 'month', 'monthly', '1-4 weeks']):
+                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note-based fallback)")
                 return "medium_term"
-            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'long term']):
+            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'long term', '1-6 months', 'annual']):
+                self.logger.info(f"Classified {indicator} as LONG_TERM (note-based fallback)")
                 return "long_term"
             else:
-                # Default to medium_term if no clear signal
+                # Default to medium_term if absolutely no match
+                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (default fallback)")
                 return "medium_term"
 
     def _create_intelligent_time_placeholders(self, df, time_signals):
