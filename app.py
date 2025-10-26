@@ -3231,9 +3231,7 @@ def render_kai_csv_uploader():
                         overview = auto_analysis['Data Quality Assessment']
                         st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
                         st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
-                        st.write(f"**Completion Rate:** {overview.get('completion_rate', 'N/A')}")
-                        if 'Quality Metrics' in auto_analysis:
-                            st.write(f"**Data Quality Score:** {auto_analysis['Quality Metrics'].get('overall_quality', 'N/A'):.1f}%")
+                        # Completion Rate and Data Quality Score removed
                 
                 with col2:
                     if 'Trading Signals' in auto_analysis:
@@ -3241,7 +3239,6 @@ def render_kai_csv_uploader():
                         signals = auto_analysis['Trading Signals']
                         st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
                         st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
-                        # Signal Quality line removed completely
             
             # Show data preview
             with st.expander("📋 Data Preview", expanded=False):
