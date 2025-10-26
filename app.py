@@ -6289,7 +6289,7 @@ def render_strategy_indicator_image_upload(strategy_name, indicator_name):
         st.markdown(f"**Current {indicator_name} Chart:**")
         
         # Use columns to control size - left empty space, middle for image (50% width)
-        col_empty, col_image, col_empty2 = st.columns([0.25, 0.5, 0.25])
+        col_empty, col_image, col_empty2 = st.columns([0.125, 0.75, 0.125])
         
         with col_image:
             st.image(
@@ -6433,8 +6433,8 @@ def display_strategy_indicator_images_user(strategy_name):
         with st.container():
             st.markdown(f"#### **{indicator_name}**")
             
-            # Use columns to control size - left empty space, middle for image (50% width)
-            col_empty, col_image, col_empty2 = st.columns([0.25, 0.5, 0.25])
+            # Use columns to control size - left empty space, middle for image (75% width)
+            col_empty, col_image, col_empty2 = ([0.125, 0.75, 0.125])
             
             with col_image:
                 st.image(
