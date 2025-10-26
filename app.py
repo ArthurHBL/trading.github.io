@@ -161,22 +161,13 @@ class DataQualityFramework:
         avg_words_per_note = total_words / indicators_with_notes if indicators_with_notes > 0 else 0
     
         # Map average words to accuracy score using word thresholds
-        if avg_words_per_note >= 90:
-            accuracy = 100  # 90+ words = 100% accuracy
-        elif avg_words_per_note >= 60:
-            accuracy = 90   # 60-90 words = 90% accuracy
-        elif avg_words_per_note >= 30:
-            accuracy = 70   # 30-60 words = 70% accuracy
-        elif avg_words_per_note >= 15:
-            accuracy = 40   # 15-30 words = 40% accuracy
-        else:
-            accuracy = 20   # Below 15 words = 20% accuracy
+        accuracy = min(100, avg_words_per_note * 8.9)
     
         # Bonus: Add confidence keywords boost
         strong_notes = len(df[
             df['Note'].str.contains('confirmed|strong|major|certain|clear|probability|high confidence', case=False, na=False)
         ])
-        confidence_boost = (strong_notes / indicators_with_notes * 10) if indicators_with_notes > 0 else 0
+        confidence_boost = (strong_notes / indicators_with_notes * 5) if indicators_with_notes > 0 else 0
         accuracy = min(100, accuracy + confidence_boost)
     
         # ============================================================
@@ -199,7 +190,7 @@ class DataQualityFramework:
         # ============================================================
         # Old: completeness * 0.1 + accuracy * 0.5 + consistency * 0.1
         # New: More weight on accuracy (words) and completeness
-        quality_score = (completeness * 0.2 + accuracy * 0.7 + consistency * 0.1)
+        quality_score = (completeness * 0.3 + accuracy * 0.5 + consistency * 0.2)
     
         # Check if acceptable for tier
         completeness_ok = completeness >= tier_config.get("completeness_required", 50)
