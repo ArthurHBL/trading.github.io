@@ -2906,9 +2906,23 @@ def render_latest_kai_analysis(is_admin):
         """)
         return
     
-    # Display the latest analysis
+    # Display the latest analysis with IMPROVED metadata display
     analysis_data = latest_analysis['analysis_data']
-    display_enhanced_kai_analysis_report(analysis_data, latest_analysis)
+    
+    # FIXED: Better metadata formatting
+    created_at = latest_analysis['created_at']
+    try:
+        # Parse ISO format datetime and format it nicely
+        dt_obj = datetime.fromisoformat(created_at)
+        formatted_date = dt_obj.strftime("%B %d, %Y")  # e.g., "October 26, 2025"
+        formatted_time = dt_obj.strftime("%I:%M %p UTC")  # e.g., "10:41 PM UTC"
+        meta_info = f" | {formatted_date} at {formatted_time}"
+    except:
+        # Fallback if parsing fails
+        meta_info = f" | {created_at[:16]}"
+    
+    # Display with proper metadata
+    display_enhanced_kai_analysis_report(analysis_data, latest_analysis, meta_info=meta_info)
     
     # Additional actions for the latest analysis - DIFFERENT FOR ADMINS VS USERS
     st.markdown("---")
@@ -3357,7 +3371,7 @@ def render_kai_csv_uploader():
 # -------------------------
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
 # -------------------------
-def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
+def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info=""):
     """Display KAI's enhanced analysis report with DeepSeek integration - ULTIMATE FIXED VERSION"""
     
     # CRITICAL FIX: Validate that analysis is a dictionary
@@ -3371,18 +3385,23 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None):
         st.error("❌ No analysis data available. Please try running the analysis again.")
         return
     
-    # Header with enhancement indicator
+    # Header with enhancement indicator and IMPROVED metadata
     is_enhanced = analysis.get('deepseek_enhanced', False)
     enhancement_badge = " 🧠 **DEEPSEEK AI ENHANCED**" if is_enhanced else " 📊 **STANDARD ANALYSIS**"
     
-    # Add metadata if available
-    meta_info = ""
-    if analysis_meta:
+    # Use the passed meta_info parameter or construct it
+    if not meta_info and analysis_meta:
         created_by = analysis_meta.get('uploaded_by', 'Unknown')
         created_at = analysis_meta.get('created_at', 'Unknown date')
-        meta_info = f" | By: {created_by} | {created_at[:16]}"
+        try:
+            dt_obj = datetime.fromisoformat(created_at)
+            formatted_date = dt_obj.strftime("%B %d, %Y")
+            formatted_time = dt_obj.strftime("%I:%M %p UTC")
+            meta_info = f" | {formatted_date} at {formatted_time}"
+        except:
+            meta_info = f" | {created_at[:16]}"
     
-    st.markdown(f"### {analysis.get('header', '🔍 KAI Analysis Report')}{enhancement_badge}{meta_info}")
+    st.markdown(f"### 🔍 KAI Analysis Report{enhancement_badge}{meta_info}")
     
     # Executive Summary (KAI always starts with this)
     if is_enhanced and analysis.get('deepseek_analysis'):
