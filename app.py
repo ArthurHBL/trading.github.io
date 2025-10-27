@@ -2839,7 +2839,7 @@ def render_kai_agent():
             
             **📊 QUANTITATIVE SIGNAL SCORING** - See confidence scores and risk assessments for trading signals.
             
-            As a user, you have view-only access to KAI's analysis archive and latest reports.
+            Premium user has access to KAI's analysis archive and latest reports.
             """)
     
     with col2:
