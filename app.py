@@ -8389,3 +8389,236 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# =====================================================================
+# EXTREME RELIABILITY SUPABASE PATCH (idempotent, safe to append)
+# - Adds robust retry/backoff around Supabase calls
+# - Handles transient OSError: [Errno 11] Resource temporarily unavailable (EAGAIN)
+# - Suppresses noisy startup errors; returns last-known-good values on failure
+# - Does NOT require GitHub or repo connections
+# =====================================================================
+import errno
+import functools
+
+# Global in-memory "last good" caches (kept per-session)
+if '___last_good___' not in st.session_state:
+    st.session_state.___last_good___ = {}
+
+def _cache_set(key, value):
+    st.session_state.___last_good___[key] = value
+
+def _cache_get(key, default=None):
+    return st.session_state.___last_good___.get(key, default)
+
+def _is_transient_error(err: Exception) -> bool:
+    # Treat common transient/network-ish errors as retryable
+    try:
+        if isinstance(err, OSError) and getattr(err, "errno", None) in {errno.EAGAIN, 11}:
+            return True
+    except Exception:
+        pass
+    # Requests timeouts / connection issues
+    try:
+        import requests
+        if isinstance(err, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
+            return True
+    except Exception:
+        pass
+    # Generic: some Supabase/postgrest errors bubble up as Exception with message patterns
+    msg = str(err).lower()
+    transient_fragments = ["temporarily unavailable", "timeout", "eagain", "rate limit", "connection reset"]
+    return any(frag in msg for frag in transient_fragments)
+
+def retry_with_backoff(max_retries=4, base_delay=0.4):
+    """
+    Decorator: retries on transient errors with exponential backoff.
+    Shows gentle UI hints; surfaces a single error only after final failure.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_err = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_err = e
+                    if not _is_transient_error(e) or attempt == max_retries - 1:
+                        # Non-transient or out of retries → raise to caller
+                        st.error(f"⚠️ {func.__name__} failed after {max_retries} attempts: {e}")
+                        break
+                    wait = base_delay * (2 ** attempt)
+                    st.info(f"⏳ {func.__name__}: transient issue, retrying in {wait:.1f}s (attempt {attempt+1}/{max_retries})...")
+                    time.sleep(wait)
+            # Fallback to last-known-good cache if available
+            cache_key = f"lk_{func.__name__}"
+            cached = _cache_get(cache_key)
+            if cached is not None:
+                st.warning(f"Using last-known-good {func.__name__} due to temporary backend issue.")
+                return cached
+            # Nothing cached; return sensible empty type
+            if func.__name__.startswith("supabase_get_"):
+                return {} if "analytics" in func.__name__ or "strategy" in func.__name__ or "users" in func.__name__ else []
+            return None
+        return wrapper
+    return decorator
+
+# Harden the client initialization with retries too (without duplicating the client).
+def _init_supabase_hardened():
+    if '___supabase_ok___' in st.session_state:
+        return supabase_client  # already initialized by the main code
+    tries = 0
+    while tries < 5:
+        try:
+            # If the original code already created supabase_client successfully, just use it.
+            if supabase_client:
+                st.session_state.___supabase_ok___ = True
+                return supabase_client
+        except Exception as e:
+            # If this fails in weird ways, keep retrying briefly.
+            pass
+        time.sleep(0.25 * (2 ** tries))
+        tries += 1
+    return supabase_client  # may be None; downstream code is guarded
+
+# ===== Re-define critical Supabase functions with retries =====
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_get_analytics():
+    """Get analytics with retry + cache last good value."""
+    client = _init_supabase_hardened()
+    if not client:
+        return _cache_get("lk_supabase_get_analytics", {})
+    resp = client.table('analytics').select('*').execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    data = (resp.data or [])
+    result = data[0] if data else {}
+    _cache_set("lk_supabase_get_analytics", result)
+    return result
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_get_users():
+    """Get users with retry + cache last good value."""
+    client = _init_supabase_hardened()
+    if not client:
+        return _cache_get("lk_supabase_get_users", {})
+    resp = client.table('users').select('*').execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    users = {u['username']: u for u in (resp.data or [])}
+    _cache_set("lk_supabase_get_users", users)
+    return users
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_save_users(users: dict):
+    """Save users with retry. Returns True on success."""
+    client = _init_supabase_hardened()
+    if not client:
+        return False
+    payload = []
+    for username, user_data in users.items():
+        row = dict(user_data)
+        row['username'] = username
+        payload.append(row)
+    resp = client.table('users').upsert(payload).execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    return True
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_delete_user(username: str):
+    """Delete a user with retry."""
+    client = _init_supabase_hardened()
+    if not client:
+        return False
+    resp = client.table('users').delete().eq('username', username).execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    return True
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_get_strategy_analyses():
+    """Get strategy analyses with retry + cache last good value."""
+    client = _init_supabase_hardened()
+    if not client:
+        return _cache_get("lk_supabase_get_strategy_analyses", {})
+    resp = client.table('strategy_analyses').select('*').execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    strategies = {}
+    for item in (resp.data or []):
+        s = item.get('strategy_name')
+        i = item.get('indicator_name')
+        strategies.setdefault(s, {})[i] = {
+            "note": item.get('note', ''),
+            "status": item.get('status', 'Open'),
+            "momentum": item.get('momentum', 'Not Defined'),
+            "strategy_tag": item.get('strategy_tag', 'Neutral'),
+            "analysis_date": item.get('analysis_date', ''),
+            "last_modified": item.get('last_modified', ''),
+            "modified_by": item.get('modified_by', 'system')
+        }
+    _cache_set("lk_supabase_get_strategy_analyses", strategies)
+    return strategies
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_save_strategy_analyses(strategy_data: dict):
+    """Save strategy analyses with retry."""
+    client = _init_supabase_hardened()
+    if not client:
+        return False
+    rows = []
+    for strategy_name, indicators in strategy_data.items():
+        for indicator_name, meta in indicators.items():
+            rows.append({
+                "strategy_name": strategy_name,
+                "indicator_name": indicator_name,
+                "note": meta.get("note", ""),
+                "status": meta.get("status", "Open"),
+                "momentum": meta.get("momentum", "Not Defined"),
+                "strategy_tag": meta.get("strategy_tag", "Neutral"),
+                "analysis_date": meta.get("analysis_date", ""),
+                "last_modified": meta.get("last_modified", ""),
+                "modified_by": meta.get("modified_by", "system"),
+            })
+    if rows:
+        resp = client.table('strategy_analyses').upsert(rows).execute()
+        if hasattr(resp, 'error') and resp.error:
+            raise RuntimeError(resp.error)
+    return True
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_get_gallery_images():
+    """Get gallery images with retry + cache last good value."""
+    client = _init_supabase_hardened()
+    if not client:
+        return _cache_get("lk_supabase_get_gallery_images", [])
+    resp = client.table('gallery_images').select('*').execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    images = []
+    for img in (resp.data or []):
+        if 'bytes_b64' in img:
+            try:
+                img['bytes'] = base64.b64decode(img['bytes_b64'])
+            except Exception:
+                pass
+        images.append(img)
+    _cache_set("lk_supabase_get_gallery_images", images)
+    return images
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def supabase_save_gallery_images(images: list):
+    """Save gallery images with retry."""
+    client = _init_supabase_hardened()
+    if not client:
+        return False
+    resp = client.table('gallery_images').upsert(images).execute()
+    if hasattr(resp, 'error') and resp.error:
+        raise RuntimeError(resp.error)
+    return True
+
+# =====================================================================
+# END OF EXTREME RELIABILITY SUPABASE PATCH
+# =====================================================================
