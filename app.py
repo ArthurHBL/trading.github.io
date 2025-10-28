@@ -2808,7 +2808,7 @@ def render_kai_agent():
     # Check if user is admin or regular user
     is_admin = st.session_state.user['plan'] == 'admin'
     
-    st.title("🧠 KAI AI Agent - Enhanced Technical Analysis")
+    st.title("🧠 KAI - Technical Analysis")
     
     # Enhanced KAI Introduction with DeepSeek
     col1, col2 = st.columns([3, 1])
