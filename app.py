@@ -6885,48 +6885,37 @@ def render_become_member_section():
     gallery uploads, and advanced KAI AI analysis.
     """)
     
-    # Payment options
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 💳 Credit Card")
-        with st.form("credit_card_upgrade"):
+    # Payment options - REMOVED INVOICE REQUEST
+    st.markdown("### 💳 Credit Card Payment")
+    with st.form("credit_card_upgrade"):
+        col1, col2 = st.columns(2)
+        with col1:
             st.text_input("Card Number", placeholder="1234 5678 9012 3456", key="card_number")
-            col1a, col1b = st.columns(2)
-            with col1a:
-                st.text_input("Expiry Date", placeholder="MM/YY", key="expiry_date")
-            with col1b:
-                st.text_input("CVV", placeholder="123", key="cvv_code")
             st.text_input("Cardholder Name", placeholder="John Doe", key="card_name")
-            
-            if st.form_submit_button("💳 Upgrade to Premium - $79/month", use_container_width=True):
-                # Simulate payment processing
-                with st.spinner("Processing payment..."):
+        with col2:
+            col2a, col2b = st.columns(2)
+            with col2a:
+                st.text_input("Expiry Date", placeholder="MM/YY", key="expiry_date")
+            with col2b:
+                st.text_input("CVV", placeholder="123", key="cvv_code")
+        
+        if st.form_submit_button("💳 Upgrade to Premium - $79/month", use_container_width=True):
+            # Simulate payment processing
+            with st.spinner("Processing payment..."):
+                time.sleep(2)
+                # Upgrade user to premium
+                success, message = user_manager.change_user_plan(
+                    st.session_state.user['username'], 
+                    "premium"
+                )
+                if success:
+                    st.session_state.user['plan'] = "premium"
+                    st.success("🎉 Welcome to Premium! Your account has been upgraded.")
+                    st.balloons()
                     time.sleep(2)
-                    # Upgrade user to premium
-                    success, message = user_manager.change_user_plan(
-                        st.session_state.user['username'], 
-                        "premium"
-                    )
-                    if success:
-                        st.session_state.user['plan'] = "premium"
-                        st.success("🎉 Welcome to Premium! Your account has been upgraded.")
-                        st.balloons()
-                        time.sleep(2)
-                        st.rerun()
-                    else:
-                        st.error(f"❌ Upgrade failed: {message}")
-    
-    with col2:
-        st.markdown("### 📧 Request Invoice")
-        with st.form("invoice_request"):
-            st.text_input("Company Name (Optional)", key="company_name")
-            st.text_input("Billing Address", key="billing_address")
-            st.text_input("Tax ID (Optional)", key="tax_id")
-            st.text_area("Special Requirements", key="requirements", height=100)
-            
-            if st.form_submit_button("📧 Send Invoice Request", use_container_width=True):
-                st.success("✅ Invoice request sent! Our team will contact you within 24 hours.")
+                    st.rerun()
+                else:
+                    st.error(f"❌ Upgrade failed: {message}")
     
     # Alternative payment methods
     st.markdown("---")
@@ -6937,6 +6926,7 @@ def render_become_member_section():
     with col3:
         if st.button("💰 PayPal", use_container_width=True):
             st.info("🔗 Redirecting to PayPal... (simulated)")
+            # In real implementation: redirect to PayPal
     
     with col4:
         if st.button("₿ Crypto Payment", use_container_width=True):
