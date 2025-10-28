@@ -8653,7 +8653,7 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             # Premium mode uses its own sidebar built in render_premium_signal_dashboard
             pass
-    elif current_mode == "signals_room":
+        elif current_mode == "signals_room":
             # Signals Room mode - show signal-specific options
             st.subheader("Signal Actions")
             if st.button("🚀 Launch Signal", use_container_width=True, key="sidebar_launch_signal"):
