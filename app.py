@@ -6891,7 +6891,7 @@ def render_become_member_section():
     gallery uploads, and advanced KAI AI analysis.
     """)
     
-    # Updated payment options with plain pricing
+    # Updated payment options with all blue buttons
     st.markdown("### 💳 Choose Your Plan")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -6903,7 +6903,7 @@ def render_become_member_section():
         st.write("• Cancel anytime")
         
         monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
-        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>', 
+        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>', 
                    unsafe_allow_html=True)
     
     with col2:
@@ -6923,7 +6923,7 @@ def render_become_member_section():
         st.write("• Extended access")
         
         semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
-        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #9C27B0; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>', 
+        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>', 
                    unsafe_allow_html=True)
     
     with col4:
@@ -6933,7 +6933,7 @@ def render_become_member_section():
         st.write("• Long-term value")
         
         annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
-        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #FF9800; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>', 
+        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>', 
                    unsafe_allow_html=True)
     
     # Important information
@@ -6958,7 +6958,7 @@ def render_become_member_section():
                 st.rerun()
 
 def render_renew_subscription_section():
-    """Updated renewal section with plain pricing"""
+    """Updated renewal section with all blue buttons"""
     st.subheader("🔄 Renew Your Subscription")
     
     user = st.session_state.user
@@ -6971,35 +6971,35 @@ def render_renew_subscription_section():
     else:
         st.error("❌ Your subscription has expired. Renew to restore premium access.")
     
-    # Updated renewal options with plain pricing
+    # Updated renewal options with all blue buttons
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.markdown("#### 1 Month")
         st.write("**$19**")
         monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
-        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
+        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
                    unsafe_allow_html=True)
     
     with col2:
         st.markdown("#### 3 Months")
         st.write("**$49**")
         quarterly_link = Config.STRIPE_PREMIUM_QUARTERLY_LINK
-        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Renew</button></a>', 
+        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
                    unsafe_allow_html=True)
     
     with col3:
         st.markdown("#### 6 Months")
         st.write("**$97**")
         semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
-        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #9C27B0; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Renew</button></a>', 
+        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
                    unsafe_allow_html=True)
     
     with col4:
         st.markdown("#### 12 Months")
         st.write("**$179**")
         annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
-        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #FF9800; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Renew</button></a>', 
+        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
                    unsafe_allow_html=True)
     
     # Auto-renewal settings
