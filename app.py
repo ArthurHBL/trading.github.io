@@ -5999,7 +5999,7 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 # USER IMAGE GALLERY - VIEW ONLY VERSION
 # -------------------------
 def render_user_image_gallery():
-    """Image gallery for regular users - LARGE 50% WIDTH display"""
+    """Image gallery for regular users - UPDATED WITH PAGINATION"""
 
     # If in image viewer mode, show the image viewer
     if st.session_state.image_viewer_mode:
@@ -6013,7 +6013,21 @@ def render_user_image_gallery():
     # User-specific info
     st.info(f"👤 **Viewing as:** {st.session_state.user['name']} | 📊 **Access:** View Only")
 
-    if not st.session_state.uploaded_images:
+    # Get paginated images instead of all images from session state
+    current_page = st.session_state.gallery_page
+    per_page = st.session_state.gallery_per_page
+    
+    # Get total count and images for current page
+    total_images = get_gallery_images_count()
+    images = get_gallery_images_paginated(
+        page=current_page, 
+        per_page=per_page,
+        sort_by=st.session_state.gallery_sort_by,
+        filter_author=st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None,
+        filter_strategy=st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
+    )
+
+    if not images and current_page == 0:
         st.info("""
         🖼️ **No images in the gallery yet!**
 
@@ -6022,26 +6036,29 @@ def render_user_image_gallery():
         return
 
     # Gallery stats
-    total_images = len(st.session_state.uploaded_images)
+    filtered_count = get_gallery_images_count_filtered(
+        filter_author=st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None,
+        filter_strategy=st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
+    )
 
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Images", total_images)
     with col2:
-        your_images = len([img for img in st.session_state.uploaded_images if img['uploaded_by'] == st.session_state.user['username']])
+        your_images = len([img for img in images if img['uploaded_by'] == st.session_state.user['username']])
         st.metric("Your Images", your_images)
     with col3:
-        total_likes = sum(img['likes'] for img in st.session_state.uploaded_images)
-        st.metric("Total Likes", total_likes)
+        total_likes = sum(img.get('likes', 0) for img in images)
+        st.metric("Page Likes", total_likes)
 
     st.markdown("---")
 
-    # Filter options
+    # Filter options - SAME AS ADMIN
     col1, col2, col3 = st.columns(3)
     with col1:
         filter_author = st.selectbox(
             "Filter by Author:",
-            ["All Authors"] + list(set(img['uploaded_by'] for img in st.session_state.uploaded_images)),
+            ["All Authors"] + list(set(img['uploaded_by'] for img in images)),
             key="user_gallery_filter_author"
         )
     with col2:
@@ -6057,79 +6074,147 @@ def render_user_image_gallery():
             key="user_gallery_sort_by"
         )
 
-    # Apply filters
-    filtered_images = st.session_state.uploaded_images.copy()
+    # Update session state when filters change
+    if filter_author != st.session_state.gallery_filter_author:
+        st.session_state.gallery_filter_author = filter_author
+        st.session_state.gallery_page = 0  # Reset to first page
+        st.rerun()
 
-    if filter_author != "All Authors":
-        filtered_images = [img for img in filtered_images if img['uploaded_by'] == filter_author]
+    if filter_strategy != st.session_state.gallery_filter_strategy:
+        st.session_state.gallery_filter_strategy = filter_strategy
+        st.session_state.gallery_page = 0  # Reset to first page
+        st.rerun()
 
-    if filter_strategy != "All Strategies":
-        filtered_images = [img for img in filtered_images if filter_strategy in img.get('strategies', [])]
+    if sort_by != st.session_state.gallery_sort_by:
+        st.session_state.gallery_sort_by = sort_by
+        st.session_state.gallery_page = 0  # Reset to first page
+        st.rerun()
 
-    # Apply sorting
-    if sort_by == "Newest First":
-        filtered_images.sort(key=lambda x: x['timestamp'], reverse=True)
-    elif sort_by == "Oldest First":
-        filtered_images.sort(key=lambda x: x['timestamp'])
-    elif sort_by == "Most Liked":
-        filtered_images.sort(key=lambda x: x['likes'], reverse=True)
-
-    # Display gallery - CHANGED: 1 column per row for 50% width + metadata
-    if not filtered_images:
+    # Display gallery - 1 column per row for 50% width + metadata
+    if not images:
         st.warning("No images match your current filters.")
+        # Reset to first page if no results
+        if current_page > 0:
+            st.session_state.gallery_page = 0
+            st.rerun()
         return
 
-    st.markdown(f"**Displaying {len(filtered_images)} images**")
+    # Display current page info
+    start_idx = current_page * per_page + 1
+    end_idx = min((current_page + 1) * per_page, filtered_count)
+    
+    st.markdown(f"**Displaying images {start_idx}-{end_idx} of {filtered_count}**")
     st.markdown("---")
 
     # Use 1 column per row for 50% width + metadata
-    for i, img_data in enumerate(filtered_images):
+    for i, img_data in enumerate(images):
         render_user_image_card(img_data, i)
 
+    # PAGINATION CONTROLS - SAME AS ADMIN
+    st.markdown("---")
+    
+    # Calculate pagination
+    total_pages = max(1, (filtered_count + per_page - 1) // per_page)
+    
+    if total_pages > 1:
+        st.write(f"**Page {current_page + 1} of {total_pages}**")
+        
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
+        
+        with col1:
+            if st.button("⏮️ First", use_container_width=True, disabled=current_page == 0):
+                st.session_state.gallery_page = 0
+                st.rerun()
+                
+        with col2:
+            if st.button("◀️ Previous", use_container_width=True, disabled=current_page == 0):
+                st.session_state.gallery_page = max(0, current_page - 1)
+                st.rerun()
+                
+        with col3:
+            # Page selector
+            page_options = list(range(1, total_pages + 1))
+            new_page = st.selectbox(
+                "Go to page:",
+                page_options,
+                index=current_page,
+                key="user_page_select",
+                label_visibility="collapsed"
+            )
+            if new_page - 1 != current_page:
+                st.session_state.gallery_page = new_page - 1
+                st.rerun()
+                
+        with col4:
+            if st.button("Next ▶️", use_container_width=True, disabled=current_page >= total_pages - 1):
+                st.session_state.gallery_page = min(total_pages - 1, current_page + 1)
+                st.rerun()
+                
+        with col5:
+            if st.button("Last ⏭️", use_container_width=True, disabled=current_page >= total_pages - 1):
+                st.session_state.gallery_page = total_pages - 1
+                st.rerun()
+
 def render_user_image_card(img_data, index):
-    """Render individual image card for users - LARGE 50% WIDTH display"""
+    """Render individual image card for users - UPDATED FOR PAGINATION"""
     with st.container():
-        # FIXED: Display image at 50% width for better visibility
+        # Display image at 50% width for better visibility
         col_image, col_info = st.columns([1.5, 1])  # 60% image, 40% info
 
         with col_image:
             try:
-                # Display image at 50% width - LARGE and VISIBLE
-                st.image(
-                    img_data['bytes'],
-                    use_container_width=True,  # Use full column width
-                    caption=img_data['name']
-                )
+                # Check if we have bytes data in the expected format
+                image_bytes = None
+                if 'bytes' in img_data:
+                    image_bytes = img_data['bytes']
+                elif 'bytes_b64' in img_data:
+                    image_bytes = base64.b64decode(img_data['bytes_b64'])
+                
+                if image_bytes:
+                    st.image(
+                        image_bytes,
+                        use_container_width=True,
+                        caption=img_data.get('name', 'Unnamed Image')
+                    )
+                else:
+                    st.warning("📷 Image data not available")
             except Exception as e:
                 st.error(f"❌ Error displaying image: {str(e)}")
                 st.info("Image format may not be supported.")
 
         with col_info:
             # Image info on the right side
-            st.markdown(f"**{img_data['name']}**")
+            st.markdown(f"**{img_data.get('name', 'Unnamed Image')}**")
             st.divider()
 
             # Description
-            if img_data.get('description'):
-                preview = img_data['description'][:100] + "..." if len(img_data['description']) > 100 else img_data['description']
+            description = img_data.get('description', '')
+            if description:
+                preview = description[:100] + "..." if len(description) > 100 else description
                 st.caption(f"📝 {preview}")
             else:
                 st.caption("No description")
 
             # Strategy tags
-            if img_data.get('strategies'):
+            strategies = img_data.get('strategies', [])
+            if strategies:
                 st.caption(f"🏷️ **Strategies:**")
-                for strategy in img_data['strategies'][:3]:
+                for strategy in strategies[:3]:
                     st.caption(f"  • {strategy}")
-                if len(img_data['strategies']) > 3:
-                    st.caption(f"  +{len(img_data['strategies']) - 3} more")
+                if len(strategies) > 3:
+                    st.caption(f"  +{len(strategies) - 3} more")
 
             st.divider()
 
             # Metadata
-            st.caption(f"👤 By: **{img_data['uploaded_by']}**")
-            upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%m/%d/%Y %H:%M")
-            st.caption(f"📅 {upload_time}")
+            st.caption(f"👤 By: **{img_data.get('uploaded_by', 'Unknown')}**")
+            timestamp = img_data.get('timestamp', '')
+            if timestamp:
+                try:
+                    upload_time = datetime.fromisoformat(timestamp).strftime("%m/%d/%Y %H:%M")
+                    st.caption(f"📅 {upload_time}")
+                except:
+                    st.caption(f"📅 {timestamp}")
 
             st.divider()
 
@@ -6137,32 +6222,162 @@ def render_user_image_card(img_data, index):
             col_like, col_view = st.columns(2)
 
             with col_like:
-                if st.button("❤️ Like", key=f"user_like_{index}_{img_data['name']}", use_container_width=True):
-                    img_data['likes'] += 1
-                    save_gallery_images(st.session_state.uploaded_images)
-                    st.rerun()
+                if st.button("❤️ Like", key=f"user_like_{index}_{img_data.get('id', index)}", use_container_width=True):
+                    # Note: Like functionality would need to be implemented in the database
+                    st.info("Like functionality requires database update implementation")
+                    # img_data['likes'] = img_data.get('likes', 0) + 1
+                    # save_gallery_images(st.session_state.uploaded_images)
+                    # st.rerun()
 
             with col_view:
-                if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data['name']}", use_container_width=True):
-                    original_index = st.session_state.uploaded_images.index(img_data)
-                    st.session_state.current_image_index = original_index
+                if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data.get('id', index)}", use_container_width=True):
+                    st.session_state.current_image_index = index
+                    st.session_state.current_page_images = images  # Store current page images
                     st.session_state.image_viewer_mode = True
                     st.rerun()
 
             # Like count and download
             col_count, col_download = st.columns(2)
             with col_count:
-                st.metric("Likes", img_data['likes'], label_visibility="collapsed")
+                likes = img_data.get('likes', 0)
+                st.metric("Likes", likes, label_visibility="collapsed")
 
             with col_download:
                 try:
-                    b64_img = base64.b64encode(img_data['bytes']).decode()
-                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                    # Get image bytes for download
+                    image_bytes = None
+                    if 'bytes' in img_data:
+                        image_bytes = img_data['bytes']
+                    elif 'bytes_b64' in img_data:
+                        image_bytes = base64.b64decode(img_data['bytes_b64'])
+                    
+                    if image_bytes:
+                        b64_img = base64.b64encode(image_bytes).decode()
+                        file_format = img_data.get('format', 'png').lower()
+                        file_name = img_data.get('name', f'image_{index}')
+                        href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
+                        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                    else:
+                        st.caption("Download unavailable")
                 except Exception as e:
                     st.caption("Download unavailable")
 
         st.markdown("---")
+
+def render_image_viewer():
+    """Image viewer for both admin and user galleries - UPDATED FOR PAGINATION"""
+    if not hasattr(st.session_state, 'current_page_images') or not st.session_state.current_page_images:
+        st.warning("No images to display")
+        st.session_state.image_viewer_mode = False
+        st.rerun()
+        return
+
+    current_images = st.session_state.current_page_images
+    current_index = st.session_state.current_image_index
+    
+    if current_index >= len(current_images):
+        st.session_state.current_image_index = 0
+        current_index = 0
+
+    img_data = current_images[current_index]
+
+    # Header with navigation
+    col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
+    
+    with col1:
+        if st.button("⬅️ Back", use_container_width=True):
+            st.session_state.image_viewer_mode = False
+            st.rerun()
+            
+    with col2:
+        if st.button("◀️ Previous", use_container_width=True, disabled=current_index == 0):
+            st.session_state.current_image_index = max(0, current_index - 1)
+            st.rerun()
+            
+    with col3:
+        st.markdown(f"### {img_data.get('name', 'Image Viewer')}")
+        st.caption(f"Image {current_index + 1} of {len(current_images)}")
+        
+    with col4:
+        if st.button("Next ▶️", use_container_width=True, disabled=current_index >= len(current_images) - 1):
+            st.session_state.current_image_index = min(len(current_images) - 1, current_index + 1)
+            st.rerun()
+            
+    with col5:
+        if st.button("📋 Close", use_container_width=True):
+            st.session_state.image_viewer_mode = False
+            st.rerun()
+
+    st.markdown("---")
+
+    # Display the image at full width
+    try:
+        # Get image bytes
+        image_bytes = None
+        if 'bytes' in img_data:
+            image_bytes = img_data['bytes']
+        elif 'bytes_b64' in img_data:
+            image_bytes = base64.b64decode(img_data['bytes_b64'])
+        
+        if image_bytes:
+            st.image(image_bytes, use_container_width=True, caption=img_data.get('name', ''))
+        else:
+            st.error("❌ Unable to load image data")
+    except Exception as e:
+        st.error(f"❌ Error displaying image: {str(e)}")
+
+    # Image details
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Image Details")
+        st.write(f"**Name:** {img_data.get('name', 'N/A')}")
+        st.write(f"**Uploaded by:** {img_data.get('uploaded_by', 'N/A')}")
+        st.write(f"**Format:** {img_data.get('format', 'N/A')}")
+        
+        timestamp = img_data.get('timestamp', '')
+        if timestamp:
+            try:
+                upload_time = datetime.fromisoformat(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+                st.write(f"**Uploaded:** {upload_time}")
+            except:
+                st.write(f"**Uploaded:** {timestamp}")
+                
+        st.write(f"**Likes:** {img_data.get('likes', 0)}")
+
+    with col2:
+        st.subheader("Description & Strategies")
+        description = img_data.get('description', '')
+        if description:
+            st.write(description)
+        else:
+            st.info("No description provided")
+            
+        strategies = img_data.get('strategies', [])
+        if strategies:
+            st.write("**Related Strategies:**")
+            for strategy in strategies:
+                st.write(f"• {strategy}")
+        else:
+            st.info("No strategies tagged")
+
+    # Download button
+    st.markdown("---")
+    try:
+        image_bytes = None
+        if 'bytes' in img_data:
+            image_bytes = img_data['bytes']
+        elif 'bytes_b64' in img_data:
+            image_bytes = base64.b64decode(img_data['bytes_b64'])
+            
+        if image_bytes:
+            b64_img = base64.b64encode(image_bytes).decode()
+            file_format = img_data.get('format', 'png').lower()
+            file_name = img_data.get('name', f'image_{current_index}')
+            href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
+            st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Full Resolution Image</button></a>', unsafe_allow_html=True)
+    except Exception as e:
+        st.error("Download unavailable")
 
 # -------------------------
 # STRATEGY INDICATOR IMAGE UPLOAD AND DISPLAY COMPONENTS - FIXED VERSION
