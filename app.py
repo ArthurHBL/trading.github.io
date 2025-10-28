@@ -7310,8 +7310,8 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             st.success("📊 Premium Signal Mode")
         elif current_mode == "gallery":
-            st.success("🖼️ Image Gallery Mode")
-            render_admin_image_gallery_paginated()
+    st.success("🖼️ Image Gallery Mode")
+    render_admin_image_gallery_paginated()
 
         elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
