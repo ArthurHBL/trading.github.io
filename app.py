@@ -7284,6 +7284,1282 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
 # -------------------------
 # COMPLETE ADMIN DASHBOARD WITH DUAL MODE - FIXED VERSION
 # -------------------------
+# === KAI PAGINATION CORE (placed before dashboard & main) ===
+def get_gallery_images_count():
+    """Get total count of gallery images"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count", 0)
+    try:
+        resp = supabase_client.table('gallery_images').select('id', count='exact').execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Count error: {resp.error}")
+            return _cache_get("lk_gallery_count", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count", count)
+        return count
+    except Exception as e:
+        logging.error(f"Database count error: {e}")
+        return _cache_get("lk_gallery_count", 0)
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def get_gallery_images_paginated(
+    page: int = 0,
+    per_page: int = 15,
+    sort_by: str = "newest",
+    filter_author: str = None,
+    filter_strategy: str = None
+):
+    """Query gallery images with pagination, filtering, and sorting"""
+    cached = _cache_get("lk_gallery_paginated", [])
+    if 'supabase_client' not in globals() or not supabase_client:
+        return cached
+    try:
+        offset = page * per_page
+        query = supabase_client.table('gallery_images').select('*')
+
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            # Optional: requires strategies array or denormalized column
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+
+        if sort_by == "most_liked":
+            query = query.order('likes', desc=True)
+        elif sort_by == "oldest":
+            query = query.order('timestamp', asc=True)
+        else:
+            query = query.order('timestamp', desc=True)
+
+        query = query.range(offset, offset + per_page - 1)
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            raise RuntimeError(f"Supabase error: {resp.error}")
+
+        images = []
+        decode_errors = 0
+        for item in (getattr(resp, 'data', None) or []):
+            try:
+                if isinstance(item.get('encoded_data'), dict):
+                    decoded = decode_image_from_storage(item['encoded_data'])
+                    if decoded:
+                        item['bytes'] = decoded
+                        images.append(item)
+                    else:
+                        decode_errors += 1
+                elif 'bytes_b64' in item:
+                    try:
+                        item['bytes'] = base64.b64decode(item['bytes_b64'])
+                        images.append(item)
+                    except Exception as e:
+                        logging.error(f"Legacy decode failed: {e}")
+                        decode_errors += 1
+                else:
+                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
+                    decode_errors += 1
+            except Exception as e:
+                decode_errors += 1
+                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
+
+        if decode_errors:
+            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
+
+        _cache_set("lk_gallery_paginated", images)
+        return images
+    except Exception as e:
+        logging.error(f"Pagination query failed: {e}")
+        return cached
+
+def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
+    """Get total count with filters applied"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count_filtered", 0)
+    try:
+        query = supabase_client.table('gallery_images').select('id', count='exact')
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Filtered count error: {resp.error}")
+            return _cache_get("lk_gallery_count_filtered", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count_filtered", count)
+        return count
+    except Exception as e:
+        logging.error(f"Filtered count error: {e}")
+        return _cache_get("lk_gallery_count_filtered", 0)
+
+
+# -------------------------
+# Gallery Pagination - UI Layer
+# -------------------------
+import streamlit as st
+
+def render_image_uploader():
+    """Placeholder uploader (kept for compatibility)"""
+    st.info("📤 Use your existing uploader here. (This is a placeholder to keep references working.)")
+
+def render_image_card_paginated(img_data, page_num, index):
+    """Compact image card optimized for grid display"""
+    with st.container():
+        st.image(img_data.get('bytes', None), use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
+        st.divider()
+        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
+        desc = img_data.get('description', '')
+        if desc:
+            preview = desc[:60] + "..." if len(desc) > 60 else desc
+            st.caption(f"📝 {preview}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
+        with col2:
+            try:
+                dt = datetime.fromisoformat(img_data.get('timestamp',''))
+                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
+            except Exception:
+                st.caption("📅 Unknown date")
+        st.divider()
+        action_col1, action_col2, action_col3 = st.columns(3)
+        unique_key = f"like_p{page_num}_{index}"
+        with action_col1:
+            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
+                img_data['likes'] = img_data.get('likes', 0) + 1
+                try:
+                    if 'supabase_client' in globals() and supabase_client:
+                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
+                except Exception as e:
+                    logging.error(f"Failed to save like: {e}")
+                st.rerun()
+        with action_col2:
+            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
+                st.session_state.current_strategy_indicator_image = img_data
+                st.session_state.strategy_indicator_viewer_mode = True
+                st.rerun()
+        with action_col3:
+            try:
+                b64 = base64.b64encode(img_data.get('bytes', b'')).decode()
+                href = f'<a href="data:image/{img_data.get("format","png").lower()};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+            except Exception as e:
+                st.button("⬇️ DL", disabled=True, use_container_width=True)
+
+def render_image_gallery_paginated():
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
+    col1, col2, col3 = st.columns([2,1,1])
+    with col1:
+        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
+    st.markdown("---")
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+        return
+
+    st.subheader("🔍 Gallery Controls")
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    with filter_col1:
+        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
+    with filter_col2:
+        # Best-effort author set (fallbacks if session-based list exists)
+        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
+        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
+    with filter_col3:
+        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
+        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
+    with filter_col4:
+        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
+    with filter_col5:
+        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
+    st.session_state.gallery_per_page = per_page
+    st.markdown("---")
+
+    with st.spinner("📊 Counting images..."):
+        total_count = get_gallery_images_count_filtered(
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
+            min_likes=min_likes
+        )
+    if total_count == 0:
+        st.warning("❌ No images found matching your filters.")
+        return
+    st.session_state.gallery_total_count = total_count
+    total_pages = (total_count + per_page - 1) // per_page
+
+    st.subheader("📊 Gallery Statistics")
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1: st.metric("Total Images", total_count)
+    with stat_col2: st.metric("Total Pages", total_pages)
+    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
+    with stat_col4:
+        start_num = st.session_state.gallery_page * per_page + 1
+        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+        st.metric("Showing", f"{start_num}-{end_num}")
+    st.markdown("---")
+
+    st.subheader("📄 Page Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with nav_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
+    with nav_col3:
+        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
+        if jump_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
+    with nav_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
+    with nav_col5:
+        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+
+    with st.spinner("📥 Loading images..."):
+        page_images = get_gallery_images_paginated(
+            page=st.session_state.gallery_page,
+            per_page=per_page,
+            sort_by=sort_by,
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
+        )
+    if not page_images:
+        st.warning("⚠️ Failed to load images for this page.")
+        return
+
+    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
+    cols = st.columns(3)
+    for idx, img_data in enumerate(page_images):
+        col = cols[idx % 3]
+        with col:
+            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
+    st.markdown("---")
+
+    st.subheader("📄 Bottom Navigation")
+    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
+    with bot_col1:
+        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with bot_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
+    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
+    with bot_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
+    with bot_col5:
+        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+    start_num = st.session_state.gallery_page * per_page + 1
+    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+def get_gallery_images_paginated(
+    page: int = 0,
+    per_page: int = 15,
+    sort_by: str = "newest",
+    filter_author: str = None,
+    filter_strategy: str = None
+):
+    """Query gallery images with pagination, filtering, and sorting"""
+    cached = _cache_get("lk_gallery_paginated", [])
+    if 'supabase_client' not in globals() or not supabase_client:
+        return cached
+    try:
+        offset = page * per_page
+        query = supabase_client.table('gallery_images').select('*')
+
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            # Optional: requires strategies array or denormalized column
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+
+        if sort_by == "most_liked":
+            query = query.order('likes', desc=True)
+        elif sort_by == "oldest":
+            query = query.order('timestamp', asc=True)
+        else:
+            query = query.order('timestamp', desc=True)
+
+        query = query.range(offset, offset + per_page - 1)
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            raise RuntimeError(f"Supabase error: {resp.error}")
+
+        images = []
+        decode_errors = 0
+        for item in (getattr(resp, 'data', None) or []):
+            try:
+                if isinstance(item.get('encoded_data'), dict):
+                    decoded = decode_image_from_storage(item['encoded_data'])
+                    if decoded:
+                        item['bytes'] = decoded
+                        images.append(item)
+                    else:
+                        decode_errors += 1
+                elif 'bytes_b64' in item:
+                    try:
+                        item['bytes'] = base64.b64decode(item['bytes_b64'])
+                        images.append(item)
+                    except Exception as e:
+                        logging.error(f"Legacy decode failed: {e}")
+                        decode_errors += 1
+                else:
+                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
+                    decode_errors += 1
+            except Exception as e:
+                decode_errors += 1
+                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
+
+        if decode_errors:
+            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
+
+        _cache_set("lk_gallery_paginated", images)
+        return images
+    except Exception as e:
+        logging.error(f"Pagination query failed: {e}")
+        return cached
+
+def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
+    """Get total count with filters applied"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count_filtered", 0)
+    try:
+        query = supabase_client.table('gallery_images').select('id', count='exact')
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Filtered count error: {resp.error}")
+            return _cache_get("lk_gallery_count_filtered", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count_filtered", count)
+        return count
+    except Exception as e:
+        logging.error(f"Filtered count error: {e}")
+        return _cache_get("lk_gallery_count_filtered", 0)
+
+
+# -------------------------
+# Gallery Pagination - UI Layer
+# -------------------------
+import streamlit as st
+
+def render_image_uploader():
+    """Placeholder uploader (kept for compatibility)"""
+    st.info("📤 Use your existing uploader here. (This is a placeholder to keep references working.)")
+
+def render_image_card_paginated(img_data, page_num, index):
+    """Compact image card optimized for grid display"""
+    with st.container():
+        st.image(img_data.get('bytes', None), use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
+        st.divider()
+        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
+        desc = img_data.get('description', '')
+        if desc:
+            preview = desc[:60] + "..." if len(desc) > 60 else desc
+            st.caption(f"📝 {preview}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
+        with col2:
+            try:
+                dt = datetime.fromisoformat(img_data.get('timestamp',''))
+                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
+            except Exception:
+                st.caption("📅 Unknown date")
+        st.divider()
+        action_col1, action_col2, action_col3 = st.columns(3)
+        unique_key = f"like_p{page_num}_{index}"
+        with action_col1:
+            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
+                img_data['likes'] = img_data.get('likes', 0) + 1
+                try:
+                    if 'supabase_client' in globals() and supabase_client:
+                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
+                except Exception as e:
+                    logging.error(f"Failed to save like: {e}")
+                st.rerun()
+        with action_col2:
+            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
+                st.session_state.current_strategy_indicator_image = img_data
+                st.session_state.strategy_indicator_viewer_mode = True
+                st.rerun()
+        with action_col3:
+            try:
+                b64 = base64.b64encode(img_data.get('bytes', b'')).decode()
+                href = f'<a href="data:image/{img_data.get("format","png").lower()};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+            except Exception as e:
+                st.button("⬇️ DL", disabled=True, use_container_width=True)
+
+def render_image_gallery_paginated():
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
+    col1, col2, col3 = st.columns([2,1,1])
+    with col1:
+        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
+    st.markdown("---")
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+        return
+
+    st.subheader("🔍 Gallery Controls")
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    with filter_col1:
+        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
+    with filter_col2:
+        # Best-effort author set (fallbacks if session-based list exists)
+        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
+        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
+    with filter_col3:
+        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
+        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
+    with filter_col4:
+        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
+    with filter_col5:
+        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
+    st.session_state.gallery_per_page = per_page
+    st.markdown("---")
+
+    with st.spinner("📊 Counting images..."):
+        total_count = get_gallery_images_count_filtered(
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
+            min_likes=min_likes
+        )
+    if total_count == 0:
+        st.warning("❌ No images found matching your filters.")
+        return
+    st.session_state.gallery_total_count = total_count
+    total_pages = (total_count + per_page - 1) // per_page
+
+    st.subheader("📊 Gallery Statistics")
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1: st.metric("Total Images", total_count)
+    with stat_col2: st.metric("Total Pages", total_pages)
+    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
+    with stat_col4:
+        start_num = st.session_state.gallery_page * per_page + 1
+        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+        st.metric("Showing", f"{start_num}-{end_num}")
+    st.markdown("---")
+
+    st.subheader("📄 Page Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with nav_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
+    with nav_col3:
+        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
+        if jump_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
+    with nav_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
+    with nav_col5:
+        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+
+    with st.spinner("📥 Loading images..."):
+        page_images = get_gallery_images_paginated(
+            page=st.session_state.gallery_page,
+            per_page=per_page,
+            sort_by=sort_by,
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
+        )
+    if not page_images:
+        st.warning("⚠️ Failed to load images for this page.")
+        return
+
+    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
+    cols = st.columns(3)
+    for idx, img_data in enumerate(page_images):
+        col = cols[idx % 3]
+        with col:
+            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
+    st.markdown("---")
+
+    st.subheader("📄 Bottom Navigation")
+    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
+    with bot_col1:
+        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with bot_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
+    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
+    with bot_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
+    with bot_col5:
+        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+    start_num = st.session_state.gallery_page * per_page + 1
+    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
+    """Get total count with filters applied"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count_filtered", 0)
+    try:
+        query = supabase_client.table('gallery_images').select('id', count='exact')
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Filtered count error: {resp.error}")
+            return _cache_get("lk_gallery_count_filtered", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count_filtered", count)
+        return count
+    except Exception as e:
+        logging.error(f"Filtered count error: {e}")
+        return _cache_get("lk_gallery_count_filtered", 0)
+
+
+# -------------------------
+# Gallery Pagination - UI Layer
+# -------------------------
+import streamlit as st
+
+def render_image_uploader():
+    """Placeholder uploader (kept for compatibility)"""
+    st.info("📤 Use your existing uploader here. (This is a placeholder to keep references working.)")
+
+def render_image_card_paginated(img_data, page_num, index):
+    """Compact image card optimized for grid display"""
+    with st.container():
+        st.image(img_data.get('bytes', None), use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
+        st.divider()
+        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
+        desc = img_data.get('description', '')
+        if desc:
+            preview = desc[:60] + "..." if len(desc) > 60 else desc
+            st.caption(f"📝 {preview}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
+        with col2:
+            try:
+                dt = datetime.fromisoformat(img_data.get('timestamp',''))
+                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
+            except Exception:
+                st.caption("📅 Unknown date")
+        st.divider()
+        action_col1, action_col2, action_col3 = st.columns(3)
+        unique_key = f"like_p{page_num}_{index}"
+        with action_col1:
+            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
+                img_data['likes'] = img_data.get('likes', 0) + 1
+                try:
+                    if 'supabase_client' in globals() and supabase_client:
+                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
+                except Exception as e:
+                    logging.error(f"Failed to save like: {e}")
+                st.rerun()
+        with action_col2:
+            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
+                st.session_state.current_strategy_indicator_image = img_data
+                st.session_state.strategy_indicator_viewer_mode = True
+                st.rerun()
+        with action_col3:
+            try:
+                b64 = base64.b64encode(img_data.get('bytes', b'')).decode()
+                href = f'<a href="data:image/{img_data.get("format","png").lower()};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+            except Exception as e:
+                st.button("⬇️ DL", disabled=True, use_container_width=True)
+
+def render_image_gallery_paginated():
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
+    col1, col2, col3 = st.columns([2,1,1])
+    with col1:
+        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
+    st.markdown("---")
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+        return
+
+    st.subheader("🔍 Gallery Controls")
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    with filter_col1:
+        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
+    with filter_col2:
+        # Best-effort author set (fallbacks if session-based list exists)
+        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
+        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
+    with filter_col3:
+        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
+        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
+    with filter_col4:
+        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
+    with filter_col5:
+        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
+    st.session_state.gallery_per_page = per_page
+    st.markdown("---")
+
+    with st.spinner("📊 Counting images..."):
+        total_count = get_gallery_images_count_filtered(
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
+            min_likes=min_likes
+        )
+    if total_count == 0:
+        st.warning("❌ No images found matching your filters.")
+        return
+    st.session_state.gallery_total_count = total_count
+    total_pages = (total_count + per_page - 1) // per_page
+
+    st.subheader("📊 Gallery Statistics")
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1: st.metric("Total Images", total_count)
+    with stat_col2: st.metric("Total Pages", total_pages)
+    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
+    with stat_col4:
+        start_num = st.session_state.gallery_page * per_page + 1
+        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+        st.metric("Showing", f"{start_num}-{end_num}")
+    st.markdown("---")
+
+    st.subheader("📄 Page Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with nav_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
+    with nav_col3:
+        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
+        if jump_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
+    with nav_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
+    with nav_col5:
+        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+
+    with st.spinner("📥 Loading images..."):
+        page_images = get_gallery_images_paginated(
+            page=st.session_state.gallery_page,
+            per_page=per_page,
+            sort_by=sort_by,
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
+        )
+    if not page_images:
+        st.warning("⚠️ Failed to load images for this page.")
+        return
+
+    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
+    cols = st.columns(3)
+    for idx, img_data in enumerate(page_images):
+        col = cols[idx % 3]
+        with col:
+            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
+    st.markdown("---")
+
+    st.subheader("📄 Bottom Navigation")
+    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
+    with bot_col1:
+        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with bot_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
+    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
+    with bot_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
+    with bot_col5:
+        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+    start_num = st.session_state.gallery_page * per_page + 1
+    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+def render_image_card_paginated(img_data, page_num, index):
+    """Compact image card optimized for grid display"""
+    with st.container():
+        st.image(img_data.get('bytes', None), use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
+        st.divider()
+        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
+        desc = img_data.get('description', '')
+        if desc:
+            preview = desc[:60] + "..." if len(desc) > 60 else desc
+            st.caption(f"📝 {preview}")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
+        with col2:
+            try:
+                dt = datetime.fromisoformat(img_data.get('timestamp',''))
+                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
+            except Exception:
+                st.caption("📅 Unknown date")
+        st.divider()
+        action_col1, action_col2, action_col3 = st.columns(3)
+        unique_key = f"like_p{page_num}_{index}"
+        with action_col1:
+            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
+                img_data['likes'] = img_data.get('likes', 0) + 1
+                try:
+                    if 'supabase_client' in globals() and supabase_client:
+                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
+                except Exception as e:
+                    logging.error(f"Failed to save like: {e}")
+                st.rerun()
+        with action_col2:
+            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
+                st.session_state.current_strategy_indicator_image = img_data
+                st.session_state.strategy_indicator_viewer_mode = True
+                st.rerun()
+        with action_col3:
+            try:
+                b64 = base64.b64encode(img_data.get('bytes', b'')).decode()
+                href = f'<a href="data:image/{img_data.get("format","png").lower()};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+            except Exception as e:
+                st.button("⬇️ DL", disabled=True, use_container_width=True)
+
+def render_image_gallery_paginated():
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
+    col1, col2, col3 = st.columns([2,1,1])
+    with col1:
+        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
+    st.markdown("---")
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+        return
+
+    st.subheader("🔍 Gallery Controls")
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    with filter_col1:
+        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
+    with filter_col2:
+        # Best-effort author set (fallbacks if session-based list exists)
+        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
+        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
+    with filter_col3:
+        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
+        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
+    with filter_col4:
+        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
+    with filter_col5:
+        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
+    st.session_state.gallery_per_page = per_page
+    st.markdown("---")
+
+    with st.spinner("📊 Counting images..."):
+        total_count = get_gallery_images_count_filtered(
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
+            min_likes=min_likes
+        )
+    if total_count == 0:
+        st.warning("❌ No images found matching your filters.")
+        return
+    st.session_state.gallery_total_count = total_count
+    total_pages = (total_count + per_page - 1) // per_page
+
+    st.subheader("📊 Gallery Statistics")
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1: st.metric("Total Images", total_count)
+    with stat_col2: st.metric("Total Pages", total_pages)
+    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
+    with stat_col4:
+        start_num = st.session_state.gallery_page * per_page + 1
+        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+        st.metric("Showing", f"{start_num}-{end_num}")
+    st.markdown("---")
+
+    st.subheader("📄 Page Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with nav_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
+    with nav_col3:
+        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
+        if jump_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
+    with nav_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
+    with nav_col5:
+        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+
+    with st.spinner("📥 Loading images..."):
+        page_images = get_gallery_images_paginated(
+            page=st.session_state.gallery_page,
+            per_page=per_page,
+            sort_by=sort_by,
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
+        )
+    if not page_images:
+        st.warning("⚠️ Failed to load images for this page.")
+        return
+
+    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
+    cols = st.columns(3)
+    for idx, img_data in enumerate(page_images):
+        col = cols[idx % 3]
+        with col:
+            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
+    st.markdown("---")
+
+    st.subheader("📄 Bottom Navigation")
+    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
+    with bot_col1:
+        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with bot_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
+    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
+    with bot_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
+    with bot_col5:
+        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+    start_num = st.session_state.gallery_page * per_page + 1
+    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+def render_image_gallery_paginated():
+    st.title("🖼️ Trading Analysis Image Gallery")
+    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
+    col1, col2, col3 = st.columns([2,1,1])
+    with col1:
+        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
+    st.markdown("---")
+    if gallery_view == "⬆️ Upload Images":
+        render_image_uploader()
+        return
+
+    st.subheader("🔍 Gallery Controls")
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    with filter_col1:
+        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
+    with filter_col2:
+        # Best-effort author set (fallbacks if session-based list exists)
+        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
+        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
+    with filter_col3:
+        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
+        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
+    with filter_col4:
+        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
+    with filter_col5:
+        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
+    st.session_state.gallery_per_page = per_page
+    st.markdown("---")
+
+    with st.spinner("📊 Counting images..."):
+        total_count = get_gallery_images_count_filtered(
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
+            min_likes=min_likes
+        )
+    if total_count == 0:
+        st.warning("❌ No images found matching your filters.")
+        return
+    st.session_state.gallery_total_count = total_count
+    total_pages = (total_count + per_page - 1) // per_page
+
+    st.subheader("📊 Gallery Statistics")
+    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+    with stat_col1: st.metric("Total Images", total_count)
+    with stat_col2: st.metric("Total Pages", total_pages)
+    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
+    with stat_col4:
+        start_num = st.session_state.gallery_page * per_page + 1
+        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+        st.metric("Showing", f"{start_num}-{end_num}")
+    st.markdown("---")
+
+    st.subheader("📄 Page Navigation")
+    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
+    with nav_col1:
+        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with nav_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
+    with nav_col3:
+        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
+        if jump_page != st.session_state.gallery_page:
+            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
+    with nav_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
+    with nav_col5:
+        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+
+    with st.spinner("📥 Loading images..."):
+        page_images = get_gallery_images_paginated(
+            page=st.session_state.gallery_page,
+            per_page=per_page,
+            sort_by=sort_by,
+            filter_author=None if filter_author == "All Authors" else filter_author,
+            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
+        )
+    if not page_images:
+        st.warning("⚠️ Failed to load images for this page.")
+        return
+
+    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
+    cols = st.columns(3)
+    for idx, img_data in enumerate(page_images):
+        col = cols[idx % 3]
+        with col:
+            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
+    st.markdown("---")
+
+    st.subheader("📄 Bottom Navigation")
+    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
+    with bot_col1:
+        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
+            st.session_state.gallery_page = 0; st.rerun()
+    with bot_col2:
+        if st.session_state.gallery_page > 0:
+            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
+                st.session_state.gallery_page -= 1; st.rerun()
+        else:
+            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
+    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
+    with bot_col4:
+        if st.session_state.gallery_page < total_pages - 1:
+            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
+                st.session_state.gallery_page += 1; st.rerun()
+        else:
+            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
+    with bot_col5:
+        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
+            st.session_state.gallery_page = total_pages - 1; st.rerun()
+    st.markdown("---")
+    start_num = st.session_state.gallery_page * per_page + 1
+    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
+    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+def render_admin_image_gallery_paginated():
+    st.title("🖼️ Admin: Image Gallery Management")
+    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
+    with admin_tab1:
+        render_image_gallery_paginated()
+        st.markdown("---")
+        st.subheader("🛠️ Admin Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
+                st.session_state.gallery_page = 0; st.rerun()
+        with col2:
+            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
+                st.session_state.show_gallery_stats = True
+        with col3:
+            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
+                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
+        if st.session_state.get('show_gallery_stats'):
+            render_gallery_statistics_paginated()
+    with admin_tab2:
+        render_image_uploader()
+    with admin_tab3:
+        st.subheader("⚙️ Gallery Settings")
+        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
+        if st.button("🗑️ Purge Old Images", use_container_width=True):
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            try:
+                if 'supabase_client' in globals() and supabase_client:
+                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
+                st.success(f"✅ Deleted images older than {days_old} days")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+
+
+def render_gallery_statistics_paginated():
+    st.subheader("📊 Gallery Statistics")
+    try:
+        total = get_gallery_images_count()
+        st.metric("Total Images", total)
+    except Exception as e:
+        st.error(f"⚠️ Stats Error: {e}")
+
+
 def render_admin_dashboard():
     """Professional admin dashboard with dual mode selection"""
     
@@ -7310,7 +8586,8 @@ def render_admin_dashboard():
         elif current_mode == "premium":
             st.success("📊 Premium Signal Mode")
         elif current_mode == "gallery":
-    st.success("🖼️ Image Gallery Mode")
+            st.success("🖼️ Image Gallery Mode")
+            render_admin_image_gallery_paginated()st.success("🖼️ Image Gallery Mode")
     render_admin_image_gallery_paginated()
 
         elif current_mode == "signals_room":
@@ -7988,6 +9265,8 @@ st.set_page_config(
 # MAIN APPLICATION - FIXED USER ACCESS
 # -------------------------
 def main():
+    # Initialize session state variables
+    init_session()
     init_session()
     
     # Setup data persistence
@@ -8701,329 +9980,6 @@ if 'uploaded_images' not in st.session_state:
 # -------------------------
 # Gallery Pagination - Database Layer
 # -------------------------
-def get_gallery_images_count():
-    """Get total count of gallery images"""
-    if 'supabase_client' not in globals() or not supabase_client:
-        return _cache_get("lk_gallery_count", 0)
-    try:
-        resp = supabase_client.table('gallery_images').select('id', count='exact').execute()
-        if hasattr(resp, 'error') and resp.error:
-            logging.error(f"Count error: {resp.error}")
-            return _cache_get("lk_gallery_count", 0)
-        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
-        _cache_set("lk_gallery_count", count)
-        return count
-    except Exception as e:
-        logging.error(f"Database count error: {e}")
-        return _cache_get("lk_gallery_count", 0)
-
-@retry_with_backoff(max_retries=4, base_delay=0.5)
-def get_gallery_images_paginated(
-    page: int = 0,
-    per_page: int = 15,
-    sort_by: str = "newest",
-    filter_author: str = None,
-    filter_strategy: str = None
-):
-    """Query gallery images with pagination, filtering, and sorting"""
-    cached = _cache_get("lk_gallery_paginated", [])
-    if 'supabase_client' not in globals() or not supabase_client:
-        return cached
-    try:
-        offset = page * per_page
-        query = supabase_client.table('gallery_images').select('*')
-
-        if filter_author:
-            query = query.eq('uploaded_by', filter_author)
-        if filter_strategy:
-            # Optional: requires strategies array or denormalized column
-            try:
-                query = query.contains('strategies', [filter_strategy])
-            except Exception:
-                pass
-
-        if sort_by == "most_liked":
-            query = query.order('likes', desc=True)
-        elif sort_by == "oldest":
-            query = query.order('timestamp', asc=True)
-        else:
-            query = query.order('timestamp', desc=True)
-
-        query = query.range(offset, offset + per_page - 1)
-        resp = query.execute()
-        if hasattr(resp, 'error') and resp.error:
-            raise RuntimeError(f"Supabase error: {resp.error}")
-
-        images = []
-        decode_errors = 0
-        for item in (getattr(resp, 'data', None) or []):
-            try:
-                if isinstance(item.get('encoded_data'), dict):
-                    decoded = decode_image_from_storage(item['encoded_data'])
-                    if decoded:
-                        item['bytes'] = decoded
-                        images.append(item)
-                    else:
-                        decode_errors += 1
-                elif 'bytes_b64' in item:
-                    try:
-                        item['bytes'] = base64.b64decode(item['bytes_b64'])
-                        images.append(item)
-                    except Exception as e:
-                        logging.error(f"Legacy decode failed: {e}")
-                        decode_errors += 1
-                else:
-                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
-                    decode_errors += 1
-            except Exception as e:
-                decode_errors += 1
-                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
-
-        if decode_errors:
-            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
-
-        _cache_set("lk_gallery_paginated", images)
-        return images
-    except Exception as e:
-        logging.error(f"Pagination query failed: {e}")
-        return cached
-
-def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
-    """Get total count with filters applied"""
-    if 'supabase_client' not in globals() or not supabase_client:
-        return _cache_get("lk_gallery_count_filtered", 0)
-    try:
-        query = supabase_client.table('gallery_images').select('id', count='exact')
-        if filter_author:
-            query = query.eq('uploaded_by', filter_author)
-        if filter_strategy:
-            try:
-                query = query.contains('strategies', [filter_strategy])
-            except Exception:
-                pass
-        resp = query.execute()
-        if hasattr(resp, 'error') and resp.error:
-            logging.error(f"Filtered count error: {resp.error}")
-            return _cache_get("lk_gallery_count_filtered", 0)
-        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
-        _cache_set("lk_gallery_count_filtered", count)
-        return count
-    except Exception as e:
-        logging.error(f"Filtered count error: {e}")
-        return _cache_get("lk_gallery_count_filtered", 0)
-
-
-# -------------------------
-# Gallery Pagination - UI Layer
-# -------------------------
-import streamlit as st
-
-def render_image_uploader():
-    """Placeholder uploader (kept for compatibility)"""
-    st.info("📤 Use your existing uploader here. (This is a placeholder to keep references working.)")
-
-def render_image_card_paginated(img_data, page_num, index):
-    """Compact image card optimized for grid display"""
-    with st.container():
-        st.image(img_data.get('bytes', None), use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
-        st.divider()
-        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
-        desc = img_data.get('description', '')
-        if desc:
-            preview = desc[:60] + "..." if len(desc) > 60 else desc
-            st.caption(f"📝 {preview}")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
-        with col2:
-            try:
-                dt = datetime.fromisoformat(img_data.get('timestamp',''))
-                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
-            except Exception:
-                st.caption("📅 Unknown date")
-        st.divider()
-        action_col1, action_col2, action_col3 = st.columns(3)
-        unique_key = f"like_p{page_num}_{index}"
-        with action_col1:
-            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
-                img_data['likes'] = img_data.get('likes', 0) + 1
-                try:
-                    if 'supabase_client' in globals() and supabase_client:
-                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
-                except Exception as e:
-                    logging.error(f"Failed to save like: {e}")
-                st.rerun()
-        with action_col2:
-            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
-                st.session_state.current_strategy_indicator_image = img_data
-                st.session_state.strategy_indicator_viewer_mode = True
-                st.rerun()
-        with action_col3:
-            try:
-                b64 = base64.b64encode(img_data.get('bytes', b'')).decode()
-                href = f'<a href="data:image/{img_data.get("format","png").lower()};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
-                st.markdown(href, unsafe_allow_html=True)
-            except Exception as e:
-                st.button("⬇️ DL", disabled=True, use_container_width=True)
-
-def render_image_gallery_paginated():
-    st.title("🖼️ Trading Analysis Image Gallery")
-    st.markdown("Share and discuss trading charts, analysis screenshots, and market insights.")
-    col1, col2, col3 = st.columns([2,1,1])
-    with col1:
-        gallery_view = st.radio("Gallery View:", ["🖼️ Image Gallery", "⬆️ Upload Images"], horizontal=True, key="gallery_nav_paginated")
-    st.markdown("---")
-    if gallery_view == "⬆️ Upload Images":
-        render_image_uploader()
-        return
-
-    st.subheader("🔍 Gallery Controls")
-    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
-    with filter_col1:
-        sort_by = st.selectbox("Sort by:", ["newest","oldest","most_liked"], key="gallery_sort_paginated")
-    with filter_col2:
-        # Best-effort author set (fallbacks if session-based list exists)
-        authors_set = set(img.get('uploaded_by','Unknown') for img in (st.session_state.get('uploaded_images', [])))
-        filter_author = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="gallery_filter_author_paginated")
-    with filter_col3:
-        STRATEGIES = st.session_state.get('STRATEGIES', {}) if isinstance(st.session_state.get('STRATEGIES', {}), dict) else {}
-        filter_strategy = st.selectbox("Filter by Strategy:", ["All Strategies"] + list(STRATEGIES.keys()), key="gallery_filter_strategy_paginated")
-    with filter_col4:
-        min_likes = st.slider("Minimum Likes:", 0, 100, 0, key="gallery_min_likes")
-    with filter_col5:
-        per_page = st.selectbox("Per Page:", [10,15,20,30], index=1, key="gallery_per_page_paginated")
-    st.session_state.gallery_per_page = per_page
-    st.markdown("---")
-
-    with st.spinner("📊 Counting images..."):
-        total_count = get_gallery_images_count_filtered(
-            filter_author=None if filter_author == "All Authors" else filter_author,
-            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy,
-            min_likes=min_likes
-        )
-    if total_count == 0:
-        st.warning("❌ No images found matching your filters.")
-        return
-    st.session_state.gallery_total_count = total_count
-    total_pages = (total_count + per_page - 1) // per_page
-
-    st.subheader("📊 Gallery Statistics")
-    stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-    with stat_col1: st.metric("Total Images", total_count)
-    with stat_col2: st.metric("Total Pages", total_pages)
-    with stat_col3: st.metric("Current Page", st.session_state.gallery_page + 1)
-    with stat_col4:
-        start_num = st.session_state.gallery_page * per_page + 1
-        end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
-        st.metric("Showing", f"{start_num}-{end_num}")
-    st.markdown("---")
-
-    st.subheader("📄 Page Navigation")
-    nav_col1, nav_col2, nav_col3, nav_col4, nav_col5 = st.columns(5)
-    with nav_col1:
-        if st.button("⏮️ First Page", use_container_width=True, key="gallery_first_top"):
-            st.session_state.gallery_page = 0; st.rerun()
-    with nav_col2:
-        if st.session_state.gallery_page > 0:
-            if st.button("◀️ Previous", use_container_width=True, key="gallery_prev_top"):
-                st.session_state.gallery_page -= 1; st.rerun()
-        else:
-            st.button("◀️ Previous", use_container_width=True, disabled=True, key="gallery_prev_top_disabled")
-    with nav_col3:
-        jump_page = st.number_input("Go to Page:", min_value=1, max_value=max(1,total_pages), value=st.session_state.gallery_page+1, key="gallery_jump_page") - 1
-        if jump_page != st.session_state.gallery_page:
-            st.session_state.gallery_page = max(0, min(jump_page, total_pages-1)); st.rerun()
-    with nav_col4:
-        if st.session_state.gallery_page < total_pages - 1:
-            if st.button("Next ▶️", use_container_width=True, key="gallery_next_top"):
-                st.session_state.gallery_page += 1; st.rerun()
-        else:
-            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_top_disabled")
-    with nav_col5:
-        if st.button("⏭️ Last Page", use_container_width=True, key="gallery_last_top"):
-            st.session_state.gallery_page = total_pages - 1; st.rerun()
-    st.markdown("---")
-
-    with st.spinner("📥 Loading images..."):
-        page_images = get_gallery_images_paginated(
-            page=st.session_state.gallery_page,
-            per_page=per_page,
-            sort_by=sort_by,
-            filter_author=None if filter_author == "All Authors" else filter_author,
-            filter_strategy=None if filter_strategy == "All Strategies" else filter_strategy
-        )
-    if not page_images:
-        st.warning("⚠️ Failed to load images for this page.")
-        return
-
-    st.subheader(f"📸 Page {st.session_state.gallery_page + 1} Images")
-    cols = st.columns(3)
-    for idx, img_data in enumerate(page_images):
-        col = cols[idx % 3]
-        with col:
-            render_image_card_paginated(img_data, st.session_state.gallery_page, idx)
-    st.markdown("---")
-
-    st.subheader("📄 Bottom Navigation")
-    bot_col1, bot_col2, bot_col3, bot_col4, bot_col5 = st.columns(5)
-    with bot_col1:
-        if st.button("⏮️ First", use_container_width=True, key="gallery_first_bottom"):
-            st.session_state.gallery_page = 0; st.rerun()
-    with bot_col2:
-        if st.session_state.gallery_page > 0:
-            if st.button("◀️ Prev", use_container_width=True, key="gallery_prev_bottom"):
-                st.session_state.gallery_page -= 1; st.rerun()
-        else:
-            st.button("◀️ Prev", use_container_width=True, disabled=True, key="gallery_prev_bottom_disabled")
-    with bot_col3: st.write(f"**Page {st.session_state.gallery_page + 1}/{total_pages}**")
-    with bot_col4:
-        if st.session_state.gallery_page < total_pages - 1:
-            if st.button("Next ▶️", use_container_width=True, key="gallery_next_bottom"):
-                st.session_state.gallery_page += 1; st.rerun()
-        else:
-            st.button("Next ▶️", use_container_width=True, disabled=True, key="gallery_next_bottom_disabled")
-    with bot_col5:
-        if st.button("⏭️ Last", use_container_width=True, key="gallery_last_bottom"):
-            st.session_state.gallery_page = total_pages - 1; st.rerun()
-    st.markdown("---")
-    start_num = st.session_state.gallery_page * per_page + 1
-    end_num = min((st.session_state.gallery_page + 1) * per_page, total_count)
-    st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_count} total")
-
-def render_admin_image_gallery_paginated():
-    st.title("🖼️ Admin: Image Gallery Management")
-    admin_tab1, admin_tab2, admin_tab3 = st.tabs(["📊 View & Manage", "⬆️ Upload", "⚙️ Settings"])
-    with admin_tab1:
-        render_image_gallery_paginated()
-        st.markdown("---")
-        st.subheader("🛠️ Admin Actions")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("🔄 Refresh Gallery", use_container_width=True, key="admin_refresh_gallery"):
-                st.session_state.gallery_page = 0; st.rerun()
-        with col2:
-            if st.button("📊 Gallery Stats", use_container_width=True, key="admin_gallery_stats"):
-                st.session_state.show_gallery_stats = True
-        with col3:
-            if st.button("🗑️ Clear Gallery", use_container_width=True, key="admin_clear_gallery"):
-                st.session_state.show_clear_gallery_confirmation = True; st.rerun()
-        if st.session_state.get('show_gallery_stats'):
-            render_gallery_statistics_paginated()
-    with admin_tab2:
-        render_image_uploader()
-    with admin_tab3:
-        st.subheader("⚙️ Gallery Settings")
-        days_old = st.slider("Delete images older than (days):", 1, 365, 90)
-        if st.button("🗑️ Purge Old Images", use_container_width=True):
-            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
-            try:
-                if 'supabase_client' in globals() and supabase_client:
-                    supabase_client.table('gallery_images').delete().lt('timestamp', cutoff_date).execute()
-                st.success(f"✅ Deleted images older than {days_old} days")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
-
 def render_gallery_statistics_paginated():
     st.markdown("---")
     st.subheader("📊 Gallery Statistics")
