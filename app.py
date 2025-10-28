@@ -5943,7 +5943,7 @@ def render_image_uploader():
             st.warning("⚠️ Please select at least one image to upload.")
 
 def render_gallery_display():
-    """Display the image gallery with LARGER 50% SIZE thumbnails"""
+    """Display the image gallery with ALWAYS VISIBLE thumbnails and persistence"""
     st.subheader("📸 Community Image Gallery")
     
     if not st.session_state.uploaded_images:
@@ -5970,7 +5970,7 @@ def render_gallery_display():
     
     st.markdown("---")
     
-    # Filter options
+    # Filter options - using session state to persist filter values
     col1, col2, col3 = st.columns(3)
     with col1:
         filter_author = st.selectbox(
@@ -6008,28 +6008,26 @@ def render_gallery_display():
     elif sort_by == "Most Liked":
         filtered_images.sort(key=lambda x: x['likes'], reverse=True)
     
-    # Display gallery in a grid - LARGER 50% SIZE THUMBNAILS
+    # Display gallery in a grid - ALWAYS SHOW THUMBNAILS WITHOUT EXPANDER
     if not filtered_images:
         st.warning("No images match your current filters.")
         return
     
-    # Create responsive grid with LARGER IMAGES
+    # Create responsive grid - ALWAYS SHOW THUMBNAILS WITHOUT EXPANDER
     st.markdown(f"**Displaying {len(filtered_images)} images**")
     st.markdown("---")
     
-    # Use columns for grid layout - NOW 2 COLUMNS FOR LARGER IMAGES
-    cols_per_row = 2  # CHANGED: From 3 to 2 for larger images
+    # Use columns for grid layout - FIXED: Ensure proper image display
+    cols_per_row = 3
     for i in range(0, len(filtered_images), cols_per_row):
         cols = st.columns(cols_per_row)
         for j in range(cols_per_row):
             if i + j < len(filtered_images):
                 img_data = filtered_images[i + j]
                 with cols[j]:
-                    render_image_card_large(img_data, i + j)  # CHANGED: Use large card renderer
-
-    # =====================================================================
-    # CLEAR GALLERY BUTTON SECTION - DO NOT REPLACE OR MODIFY THIS PART!
-    # =====================================================================
+                    render_image_card(img_data, i + j)
+    
+    # Clear gallery button (admin only)
     if st.session_state.user['plan'] == 'admin':
         st.markdown("---")
         
@@ -6041,9 +6039,6 @@ def render_gallery_display():
                 st.session_state.clear_gallery_password = ""
                 st.session_state.clear_gallery_error = ""
                 st.rerun()
-    # =====================================================================
-    # END OF CLEAR GALLERY BUTTON SECTION - LEAVE THIS UNTOUCHED!
-    # =====================================================================
 
 def render_image_card(img_data, index):
     """Render individual image card with NORMAL size display - FIXED VERSION"""
@@ -6107,136 +6102,6 @@ def render_image_card(img_data, index):
         except Exception as e:
             st.error(f"❌ Error displaying image: {str(e)}")
             st.info("Image format may not be supported. Try uploading as PNG or JPG.")
-        
-        st.markdown("---")
-
-def render_image_card_large(img_data, index):
-    """Render individual image card with LARGE 50% SIZE display"""
-    with st.container():
-        # Display image at LARGE SIZE (50% width of screen)
-        try:
-            # Display image at 50% size - using container width
-            st.image(
-                img_data['bytes'], 
-                use_container_width=True,  # This will make it take full column width (50% of screen)
-                caption=f"{img_data['name']}"
-            )
-            
-            # Image info below the image
-            col_info1, col_info2 = st.columns(2)
-            
-            with col_info1:
-                # Description preview
-                if img_data.get('description'):
-                    preview = img_data['description'][:80] + "..." if len(img_data['description']) > 80 else img_data['description']
-                    st.caption(f"📝 {preview}")
-                
-                # Strategy tags preview
-                if img_data.get('strategies'):
-                    tags_preview = ", ".join(img_data['strategies'][:2])
-                    if len(img_data['strategies']) > 2:
-                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
-                    st.caption(f"🎯 **Strategies:** {tags_preview}")
-            
-            with col_info2:
-                # Author and date
-                st.caption(f"👤 **By:** {img_data['uploaded_by']}")
-                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
-                st.caption(f"📅 **Uploaded:** {upload_time}")
-            
-            # Interaction buttons
-            col_actions1, col_actions2, col_actions3 = st.columns(3)
-            
-            with col_actions1:
-                if st.button("❤️ Like", key=f"like_{index}_{img_data['name']}", help="Like this image", use_container_width=True):
-                    img_data['likes'] += 1
-                    save_gallery_images(st.session_state.uploaded_images)
-                    st.rerun()
-                st.caption(f"**{img_data['likes']}** likes")
-            
-            with col_actions2:
-                if st.button("🖼️ Fullscreen", key=f"view_{index}_{img_data['name']}", help="View image in fullscreen mode", use_container_width=True):
-                    original_index = st.session_state.uploaded_images.index(img_data)
-                    st.session_state.current_image_index = original_index
-                    st.session_state.image_viewer_mode = True
-                    st.rerun()
-            
-            with col_actions3:
-                try:
-                    b64_img = base64.b64encode(img_data['bytes']).decode()
-                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error("Download unavailable")
-        
-        except Exception as e:
-            st.error(f"❌ Error displaying image: {str(e)}")
-            st.info("Image format may not be supported. Try uploading as PNG or JPG.")
-        
-        st.markdown("---")
-
-def render_user_image_card_large(img_data, index):
-    """Render individual image card for users - LARGE 50% SIZE display"""
-    with st.container():
-        # Display image at LARGE SIZE (50% width of screen)
-        try:
-            # Display image at 50% size - using container width
-            st.image(
-                img_data['bytes'], 
-                use_container_width=True,  # This will make it take full column width (50% of screen)
-                caption=f"{img_data['name']}"
-            )
-            
-            # Image info below the image
-            col_info1, col_info2 = st.columns(2)
-            
-            with col_info1:
-                # Description preview
-                if img_data.get('description'):
-                    preview = img_data['description'][:80] + "..." if len(img_data['description']) > 80 else img_data['description']
-                    st.caption(f"📝 {preview}")
-                
-                # Strategy tags preview
-                if img_data.get('strategies'):
-                    tags_preview = ", ".join(img_data['strategies'][:2])
-                    if len(img_data['strategies']) > 2:
-                        tags_preview += f" +{len(img_data['strategies']) - 2} more"
-                    st.caption(f"🎯 **Strategies:** {tags_preview}")
-            
-            with col_info2:
-                # Author and date
-                st.caption(f"👤 **By:** {img_data['uploaded_by']}")
-                upload_time = datetime.fromisoformat(img_data['timestamp']).strftime("%Y-%m-%d %H:%M")
-                st.caption(f"📅 **Uploaded:** {upload_time}")
-            
-            # Interaction buttons
-            col_actions1, col_actions2, col_actions3 = st.columns(3)
-            
-            with col_actions1:
-                if st.button("❤️ Like", key=f"user_like_{index}_{img_data['name']}", help="Like this image", use_container_width=True):
-                    img_data['likes'] += 1
-                    save_gallery_images(st.session_state.uploaded_images)
-                    st.rerun()
-                st.caption(f"**{img_data['likes']}** likes")
-            
-            with col_actions2:
-                if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data['name']}", help="View image in fullscreen mode", use_container_width=True):
-                    original_index = st.session_state.uploaded_images.index(img_data)
-                    st.session_state.current_image_index = original_index
-                    st.session_state.image_viewer_mode = True
-                    st.rerun()
-            
-            with col_actions3:
-                try:
-                    b64_img = base64.b64encode(img_data['bytes']).decode()
-                    href = f'<a href="data:image/{img_data["format"].lower()};base64,{b64_img}" download="{img_data["name"]}" style="text-decoration: none;">'
-                    st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error("Download unavailable")
-        
-        except Exception as e:
-            st.error(f"❌ Error displaying image: {str(e)}")
-            st.info("Image format may not be supported.")
         
         st.markdown("---")
 
