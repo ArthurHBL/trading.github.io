@@ -8586,25 +8586,24 @@ def render_admin_dashboard():
         st.markdown("---")
         st.write(f"Welcome, **{st.session_state.user['name']}**")
 
-        # Show current mode
+
+        # Show current mode (CLEAN IF/ELIF CHAIN)
         current_mode = st.session_state.admin_dashboard_mode
         if current_mode == "admin":
             st.success("🛠️ Admin Management Mode")
         elif current_mode == "premium":
             st.success("📊 Premium Signal Mode")
-            elif current_mode == "gallery":
+        elif current_mode == "gallery":
             st.success("🖼️ Image Gallery Mode")
-            render_admin_image_gallery_paginated()
-    st.success("🖼️ Image Gallery Mode")
-    render_admin_image_gallery_paginated()
-    elif current_mode == "signals_room":
+        elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
-        elif current_mode == "kai_agent":  # ADDED: KAI Agent mode
+        elif current_mode == "kai_agent":
             st.success("🧠 KAI AI Agent Mode")
         else:
             st.success("🛠️ Admin Management Mode")
 
-        # Dashboard mode switcher
+    st.markdown("---")
+    st.subheader("Dashboard Mode")
         st.markdown("---")
         st.subheader("Dashboard Mode")
         col1, col2, col3, col4, col5 = st.columns(5)  # CHANGED: 5 columns now
