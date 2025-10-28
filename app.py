@@ -3626,8 +3626,8 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         st.write("• Scale in/out (DCA) based on confidence")
         st.write("• **NEVER over-leverage (max 3x)**")
         st.write("• **Stop Loss Strategy:**")
-        st.write("  - Hard stops: Day trading & swing trading")
-        st.write("  - Mental stops: Long-term investments")
+        st.write("  - Hard stops: day trading & swing trading")
+        st.write("  - Mental stops: long-term investments")
     
     with col2:
         st.write("**Risk Control Measures:**")
