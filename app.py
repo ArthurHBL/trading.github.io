@@ -8602,8 +8602,8 @@ def render_admin_dashboard():
         else:
             st.success("🛠️ Admin Management Mode")
 
-    st.markdown("---")
-    st.subheader("Dashboard Mode")
+        st.markdown("---")
+        st.subheader("Dashboard Mode")
         st.markdown("---")
         st.subheader("Dashboard Mode")
         col1, col2, col3, col4, col5 = st.columns(5)  # CHANGED: 5 columns now
