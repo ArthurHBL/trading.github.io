@@ -2502,6 +2502,14 @@ def supabase_clear_all_kai_analyses():
 def init_session():
     # --- Gallery pagination state (KAIO patch) ---
     import streamlit as st
+    # NEW: Image viewer state
+    if 'current_image_index' not in st.session_state:
+        st.session_state.current_image_index = 0
+    if 'image_viewer_mode' not in st.session_state:
+        st.session_state.image_viewer_mode = False
+    # ADD THIS LINE for pagination support:
+    if 'current_page_images' not in st.session_state:
+        st.session_state.current_page_images = []
     if 'gallery_page' not in st.session_state:
         st.session_state.gallery_page = 0
     if 'gallery_per_page' not in st.session_state:
@@ -6013,9 +6021,13 @@ def render_user_image_gallery():
     # User-specific info
     st.info(f"👤 **Viewing as:** {st.session_state.user['name']} | 📊 **Access:** View Only")
 
-    # Get paginated images instead of all images from session state
+    # Get paginated images
     current_page = st.session_state.gallery_page
     per_page = st.session_state.gallery_per_page
+    
+    # Apply filters for query
+    filter_author = st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None
+    filter_strategy = st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
     
     # Get total count and images for current page
     total_images = get_gallery_images_count()
@@ -6023,8 +6035,8 @@ def render_user_image_gallery():
         page=current_page, 
         per_page=per_page,
         sort_by=st.session_state.gallery_sort_by,
-        filter_author=st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None,
-        filter_strategy=st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
+        filter_author=filter_author,
+        filter_strategy=filter_strategy
     )
 
     if not images and current_page == 0:
@@ -6037,15 +6049,15 @@ def render_user_image_gallery():
 
     # Gallery stats
     filtered_count = get_gallery_images_count_filtered(
-        filter_author=st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None,
-        filter_strategy=st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
+        filter_author=filter_author,
+        filter_strategy=filter_strategy
     )
 
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Images", total_images)
     with col2:
-        your_images = len([img for img in images if img['uploaded_by'] == st.session_state.user['username']])
+        your_images = len([img for img in images if img.get('uploaded_by') == st.session_state.user['username']])
         st.metric("Your Images", your_images)
     with col3:
         total_likes = sum(img.get('likes', 0) for img in images)
@@ -6053,12 +6065,14 @@ def render_user_image_gallery():
 
     st.markdown("---")
 
-    # Filter options - SAME AS ADMIN
+    # Filter options
     col1, col2, col3 = st.columns(3)
     with col1:
+        # Get unique authors from current page
+        authors = list(set(img.get('uploaded_by', 'Unknown') for img in images))
         filter_author = st.selectbox(
             "Filter by Author:",
-            ["All Authors"] + list(set(img['uploaded_by'] for img in images)),
+            ["All Authors"] + authors,
             key="user_gallery_filter_author"
         )
     with col2:
@@ -6077,23 +6091,22 @@ def render_user_image_gallery():
     # Update session state when filters change
     if filter_author != st.session_state.gallery_filter_author:
         st.session_state.gallery_filter_author = filter_author
-        st.session_state.gallery_page = 0  # Reset to first page
+        st.session_state.gallery_page = 0
         st.rerun()
 
     if filter_strategy != st.session_state.gallery_filter_strategy:
         st.session_state.gallery_filter_strategy = filter_strategy
-        st.session_state.gallery_page = 0  # Reset to first page
+        st.session_state.gallery_page = 0
         st.rerun()
 
     if sort_by != st.session_state.gallery_sort_by:
         st.session_state.gallery_sort_by = sort_by
-        st.session_state.gallery_page = 0  # Reset to first page
+        st.session_state.gallery_page = 0
         st.rerun()
 
-    # Display gallery - 1 column per row for 50% width + metadata
+    # Display gallery
     if not images:
         st.warning("No images match your current filters.")
-        # Reset to first page if no results
         if current_page > 0:
             st.session_state.gallery_page = 0
             st.rerun()
@@ -6106,11 +6119,14 @@ def render_user_image_gallery():
     st.markdown(f"**Displaying images {start_idx}-{end_idx} of {filtered_count}**")
     st.markdown("---")
 
-    # Use 1 column per row for 50% width + metadata
-    for i, img_data in enumerate(images):
-        render_user_image_card(img_data, i)
+    # Store current page images for viewer
+    st.session_state.current_page_images = images
 
-    # PAGINATION CONTROLS - SAME AS ADMIN
+    # Display images
+    for i, img_data in enumerate(images):
+        render_user_image_card_paginated(img_data, i)
+
+    # PAGINATION CONTROLS
     st.markdown("---")
     
     # Calculate pagination
@@ -6122,12 +6138,12 @@ def render_user_image_gallery():
         col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
         
         with col1:
-            if st.button("⏮️ First", use_container_width=True, disabled=current_page == 0):
+            if st.button("⏮️ First", use_container_width=True, disabled=current_page == 0, key="user_first"):
                 st.session_state.gallery_page = 0
                 st.rerun()
                 
         with col2:
-            if st.button("◀️ Previous", use_container_width=True, disabled=current_page == 0):
+            if st.button("◀️ Previous", use_container_width=True, disabled=current_page == 0, key="user_prev"):
                 st.session_state.gallery_page = max(0, current_page - 1)
                 st.rerun()
                 
@@ -6146,14 +6162,117 @@ def render_user_image_gallery():
                 st.rerun()
                 
         with col4:
-            if st.button("Next ▶️", use_container_width=True, disabled=current_page >= total_pages - 1):
+            if st.button("Next ▶️", use_container_width=True, disabled=current_page >= total_pages - 1, key="user_next"):
                 st.session_state.gallery_page = min(total_pages - 1, current_page + 1)
                 st.rerun()
                 
         with col5:
-            if st.button("Last ⏭️", use_container_width=True, disabled=current_page >= total_pages - 1):
+            if st.button("Last ⏭️", use_container_width=True, disabled=current_page >= total_pages - 1, key="user_last"):
                 st.session_state.gallery_page = total_pages - 1
                 st.rerun()
+
+def render_user_image_card_paginated(img_data, index):
+    """Render individual image card for users with pagination support"""
+    with st.container():
+        # Display image at 50% width for better visibility
+        col_image, col_info = st.columns([1.5, 1])
+
+        with col_image:
+            try:
+                # Get image bytes
+                image_bytes = None
+                if 'bytes' in img_data:
+                    image_bytes = img_data['bytes']
+                elif 'bytes_b64' in img_data:
+                    image_bytes = base64.b64decode(img_data['bytes_b64'])
+                
+                if image_bytes:
+                    st.image(
+                        image_bytes,
+                        use_container_width=True,
+                        caption=img_data.get('name', 'Unnamed Image')
+                    )
+                else:
+                    st.warning("📷 Image data not available")
+            except Exception as e:
+                st.error(f"❌ Error displaying image: {str(e)}")
+
+        with col_info:
+            # Image info on the right side
+            st.markdown(f"**{img_data.get('name', 'Unnamed Image')}**")
+            st.divider()
+
+            # Description
+            description = img_data.get('description', '')
+            if description:
+                preview = description[:100] + "..." if len(description) > 100 else description
+                st.caption(f"📝 {preview}")
+            else:
+                st.caption("No description")
+
+            # Strategy tags
+            strategies = img_data.get('strategies', [])
+            if strategies:
+                st.caption(f"🏷️ **Strategies:**")
+                for strategy in strategies[:3]:
+                    st.caption(f"  • {strategy}")
+                if len(strategies) > 3:
+                    st.caption(f"  +{len(strategies) - 3} more")
+
+            st.divider()
+
+            # Metadata
+            st.caption(f"👤 By: **{img_data.get('uploaded_by', 'Unknown')}**")
+            timestamp = img_data.get('timestamp', '')
+            if timestamp:
+                try:
+                    upload_time = datetime.fromisoformat(timestamp).strftime("%m/%d/%Y %H:%M")
+                    st.caption(f"📅 {upload_time}")
+                except:
+                    st.caption(f"📅 {timestamp}")
+
+            st.divider()
+
+            # Interaction buttons
+            col_like, col_view = st.columns(2)
+
+            with col_like:
+                if st.button("❤️ Like", key=f"user_like_{index}_{img_data.get('id', index)}", use_container_width=True):
+                    st.info("Like functionality requires database update implementation")
+
+            with col_view:
+                if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data.get('id', index)}", use_container_width=True):
+                    st.session_state.current_image_index = index
+                    st.session_state.image_viewer_mode = True
+                    st.rerun()
+
+            # Like count and download
+            col_count, col_download = st.columns(2)
+            with col_count:
+                likes = img_data.get('likes', 0)
+                st.metric("Likes", likes, label_visibility="collapsed")
+
+            with col_download:
+                try:
+                    # Get image bytes for download
+                    image_bytes = None
+                    if 'bytes' in img_data:
+                        image_bytes = img_data['bytes']
+                    elif 'bytes_b64' in img_data:
+                        image_bytes = base64.b64decode(img_data['bytes_b64'])
+                    
+                    if image_bytes:
+                        b64_img = base64.b64encode(image_bytes).decode()
+                        file_format = img_data.get('format', 'png').lower()
+                        file_name = img_data.get('name', f'image_{index}')
+                        href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
+                        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
+                    else:
+                        st.caption("Download unavailable")
+                except Exception as e:
+                    st.caption("Download unavailable")
+
+        st.markdown("---")
 
 def render_user_image_card(img_data, index):
     """Render individual image card for users - UPDATED FOR PAGINATION"""
@@ -6265,7 +6384,7 @@ def render_user_image_card(img_data, index):
         st.markdown("---")
 
 def render_image_viewer():
-    """Image viewer for both admin and user galleries - UPDATED FOR PAGINATION"""
+    """Image viewer for both admin and user galleries"""
     if not hasattr(st.session_state, 'current_page_images') or not st.session_state.current_page_images:
         st.warning("No images to display")
         st.session_state.image_viewer_mode = False
@@ -6285,12 +6404,12 @@ def render_image_viewer():
     col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
     
     with col1:
-        if st.button("⬅️ Back", use_container_width=True):
+        if st.button("⬅️ Back", use_container_width=True, key="viewer_back"):
             st.session_state.image_viewer_mode = False
             st.rerun()
             
     with col2:
-        if st.button("◀️ Previous", use_container_width=True, disabled=current_index == 0):
+        if st.button("◀️ Previous", use_container_width=True, disabled=current_index == 0, key="viewer_prev"):
             st.session_state.current_image_index = max(0, current_index - 1)
             st.rerun()
             
@@ -6299,12 +6418,12 @@ def render_image_viewer():
         st.caption(f"Image {current_index + 1} of {len(current_images)}")
         
     with col4:
-        if st.button("Next ▶️", use_container_width=True, disabled=current_index >= len(current_images) - 1):
+        if st.button("Next ▶️", use_container_width=True, disabled=current_index >= len(current_images) - 1, key="viewer_next"):
             st.session_state.current_image_index = min(len(current_images) - 1, current_index + 1)
             st.rerun()
             
     with col5:
-        if st.button("📋 Close", use_container_width=True):
+        if st.button("📋 Close", use_container_width=True, key="viewer_close"):
             st.session_state.image_viewer_mode = False
             st.rerun()
 
