@@ -6764,6 +6764,296 @@ def render_user_account_settings():
         st.session_state.dashboard_view = 'main'
         st.rerun()
 
+def render_premium_user_section():
+    """Premium user section with membership options"""
+    st.title("💎 Premium User")
+    
+    user = st.session_state.user
+    current_plan = user['plan']
+    plan_name = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+    
+    # User status header
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Current Plan", plan_name)
+    with col2:
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.metric("Days Remaining", days_left)
+    with col3:
+        if current_plan == 'premium':
+            st.metric("Status", "Active ✅")
+        else:
+            st.metric("Status", "Trial ⏳")
+    
+    st.markdown("---")
+    
+    # Plan comparison
+    st.subheader("📊 Plan Comparison")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 🆓 Trial Plan")
+        trial_plan = Config.PLANS['trial']
+        st.write("**Features:**")
+        st.write(f"• {trial_plan['strategies']} Trading Strategies")
+        st.write(f"• {trial_plan['max_sessions']} Concurrent Session")
+        st.write(f"• {trial_plan['duration']}-day access")
+        st.write("• Basic Signal Access")
+        st.write("• View-Only Gallery")
+        st.write("• KAI Analysis View")
+        st.write(f"• **Price: ${trial_plan['price']}/month**")
+        
+        if current_plan == 'trial':
+            st.success("🎯 Your Current Plan")
+    
+    with col2:
+        st.markdown("### 💎 Premium Plan")
+        premium_plan = Config.PLANS['premium']
+        st.write("**Premium Features:**")
+        st.write(f"• {premium_plan['strategies']} Trading Strategies")
+        st.write(f"• {premium_plan['max_sessions']} Concurrent Sessions")
+        st.write(f"• {premium_plan['duration']}-day access")
+        st.write("• Full Signal Access")
+        st.write("• Upload & Download Gallery")
+        st.write("• Enhanced KAI Analysis")
+        st.write("• Priority Support")
+        st.write(f"• **Price: ${premium_plan['price']}/month**")
+        
+        if current_plan == 'premium':
+            st.success("🎉 Premium Member!")
+        else:
+            st.warning("Upgrade to unlock")
+    
+    st.markdown("---")
+    
+    # Action sections
+    if current_plan == 'trial':
+        render_become_member_section()
+    else:
+        render_renew_subscription_section()
+    
+    st.markdown("---")
+    
+    # Benefits showcase
+    st.subheader("🚀 Premium Benefits")
+    
+    benefits_col1, benefits_col2, benefits_col3 = st.columns(3)
+    
+    with benefits_col1:
+        st.markdown("""
+        **📈 Enhanced Signals**
+        - Full strategy access
+        - Real-time updates
+        - Advanced analytics
+        - Export capabilities
+        """)
+    
+    with benefits_col2:
+        st.markdown("""
+        **🖼️ Gallery Features**
+        - Upload your charts
+        - Download community images
+        - Fullscreen viewer
+        - Strategy tagging
+        """)
+    
+    with benefits_col3:
+        st.markdown("""
+        **🧠 KAI AI Agent**
+        - Enhanced analysis
+        - DeepSeek AI integration
+        - Historical archive
+        - Export functionality
+        """)
+    
+    # Support information
+    st.markdown("---")
+    st.info("""
+    **💁 Need Help?**
+    - Contact support: support@tradinganalysis.com
+    - Billing questions: billing@tradinganalysis.com
+    - Technical issues: tech@tradinganalysis.com
+    """)
+
+def render_become_member_section():
+    """Section for trial users to become premium members"""
+    st.subheader("⭐ Become a Premium Member")
+    
+    st.success("""
+    **Ready to upgrade?** Get full access to all premium features including enhanced signals, 
+    gallery uploads, and advanced KAI AI analysis.
+    """)
+    
+    # Payment options
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 💳 Credit Card")
+        with st.form("credit_card_upgrade"):
+            st.text_input("Card Number", placeholder="1234 5678 9012 3456", key="card_number")
+            col1a, col1b = st.columns(2)
+            with col1a:
+                st.text_input("Expiry Date", placeholder="MM/YY", key="expiry_date")
+            with col1b:
+                st.text_input("CVV", placeholder="123", key="cvv_code")
+            st.text_input("Cardholder Name", placeholder="John Doe", key="card_name")
+            
+            if st.form_submit_button("💳 Upgrade to Premium - $79/month", use_container_width=True):
+                # Simulate payment processing
+                with st.spinner("Processing payment..."):
+                    time.sleep(2)
+                    # Upgrade user to premium
+                    success, message = user_manager.change_user_plan(
+                        st.session_state.user['username'], 
+                        "premium"
+                    )
+                    if success:
+                        st.session_state.user['plan'] = "premium"
+                        st.success("🎉 Welcome to Premium! Your account has been upgraded.")
+                        st.balloons()
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Upgrade failed: {message}")
+    
+    with col2:
+        st.markdown("### 📧 Request Invoice")
+        with st.form("invoice_request"):
+            st.text_input("Company Name (Optional)", key="company_name")
+            st.text_input("Billing Address", key="billing_address")
+            st.text_input("Tax ID (Optional)", key="tax_id")
+            st.text_area("Special Requirements", key="requirements", height=100)
+            
+            if st.form_submit_button("📧 Send Invoice Request", use_container_width=True):
+                st.success("✅ Invoice request sent! Our team will contact you within 24 hours.")
+    
+    # Alternative payment methods
+    st.markdown("---")
+    st.subheader("Other Payment Methods")
+    
+    col3, col4 = st.columns(2)
+    
+    with col3:
+        if st.button("💰 PayPal", use_container_width=True):
+            st.info("🔗 Redirecting to PayPal... (simulated)")
+    
+    with col4:
+        if st.button("₿ Crypto Payment", use_container_width=True):
+            st.info("🔗 Crypto payment options coming soon!")
+    
+    # Trial extension option
+    st.markdown("---")
+    st.subheader("🎁 Need More Time?")
+    
+    if st.button("🔁 Extend Trial Period", use_container_width=True):
+        st.warning("""
+        **Trial Extension Policy:**
+        - One 7-day extension available per user
+        - Contact support for extension requests
+        - Extension subject to approval
+        """)
+        
+        if st.button("📧 Request Trial Extension", use_container_width=True):
+            st.success("✅ Extension request sent! Support will review your request.")
+
+def render_renew_subscription_section():
+    """Section for premium users to renew their subscription"""
+    st.subheader("🔄 Renew Your Subscription")
+    
+    user = st.session_state.user
+    days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+    
+    if days_left > 7:
+        st.success(f"✅ Your premium subscription is active! {days_left} days remaining.")
+    elif days_left > 0:
+        st.warning(f"⚠️ Your subscription expires in {days_left} days. Renew now to avoid interruption.")
+    else:
+        st.error("❌ Your subscription has expired. Renew to restore premium access.")
+    
+    # Renewal options
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### Monthly")
+        st.write("**$79 / month**")
+        st.write("• Flexible billing")
+        st.write("• Cancel anytime")
+        if st.button("🔄 Renew Monthly", use_container_width=True):
+            # Extend by 30 days
+            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")
+            user_manager.users[user['username']]['expires'] = new_expiry
+            user_manager.save_users()
+            st.session_state.user['expires'] = new_expiry
+            st.success("✅ Monthly subscription renewed! +30 days added.")
+            st.rerun()
+    
+    with col2:
+        st.markdown("#### Quarterly")
+        st.write("**$210 / 3 months**")
+        st.write("• Save $27")
+        st.write("• 3 months access")
+        if st.button("💎 Renew Quarterly", use_container_width=True):
+            # Extend by 90 days
+            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")
+            user_manager.users[user['username']]['expires'] = new_expiry
+            user_manager.save_users()
+            st.session_state.user['expires'] = new_expiry
+            st.success("✅ Quarterly subscription renewed! +90 days added.")
+            st.rerun()
+    
+    with col3:
+        st.markdown("#### Annual")
+        st.write("**$790 / year**")
+        st.write("• Save $158")
+        st.write("• Best value")
+        if st.button("🏆 Renew Annual", use_container_width=True):
+            # Extend by 365 days
+            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=365)).strftime("%Y-%m-%d")
+            user_manager.users[user['username']]['expires'] = new_expiry
+            user_manager.save_users()
+            st.session_state.user['expires'] = new_expiry
+            st.success("✅ Annual subscription renewed! +365 days added.")
+            st.rerun()
+    
+    # Auto-renewal settings
+    st.markdown("---")
+    st.subheader("⚙️ Subscription Settings")
+    
+    col4, col5 = st.columns(2)
+    
+    with col4:
+        auto_renew = st.checkbox("Enable Auto-Renewal", value=True, 
+                                help="Automatically renew your subscription before it expires")
+        if st.button("💾 Save Settings", use_container_width=True):
+            st.success("✅ Auto-renewal settings saved!")
+    
+    with col5:
+        if st.button("📧 Update Billing Info", use_container_width=True):
+            st.info("Billing portal coming soon! Contact support for billing changes.")
+    
+    # Cancellation option
+    st.markdown("---")
+    st.subheader("🔚 Cancel Subscription")
+    
+    if st.button("❌ Cancel Auto-Renewal", use_container_width=True):
+        st.warning("""
+        ⚠️ **Cancellation Confirmation**
+        
+        Your premium access will continue until your current billing period ends.
+        After that, your account will revert to trial mode with limited features.
+        
+        Are you sure you want to cancel auto-renewal?
+        """)
+        
+        col6, col7 = st.columns(2)
+        with col6:
+            if st.button("✅ Yes, Cancel Auto-Renewal", use_container_width=True):
+                st.success("✅ Auto-renewal cancelled. You'll keep premium access until your current period ends.")
+        with col7:
+            if st.button("🔙 Keep My Subscription", use_container_width=True):
+                st.info("✅ Auto-renewal remains active.")
+
 # -------------------------
 # ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
 # -------------------------
