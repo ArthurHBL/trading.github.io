@@ -6731,11 +6731,20 @@ def render_user_password_change():
 # FIXED: USER ACCOUNT SETTINGS - REMOVED KEY PARAMETER FROM ST.METRIC
 # -------------------------
 def render_user_account_settings():
-    """User account settings - FIXED VERSION"""
-    st.title("⚙️ Account Settings")
+    """User account settings - FIXED VERSION with top back button"""
+    
+    # ADDED: Back button at the top
+    col_back, col_title = st.columns([1, 5])
+    with col_back:
+        if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_settings_back_top"):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+    
+    with col_title:
+        st.title("⚙️ Account Settings")
     
     user = st.session_state.user
-    
+
     col1, col2 = st.columns(2)
     
     with col1:
