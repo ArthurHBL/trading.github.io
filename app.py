@@ -6877,75 +6877,32 @@ def render_premium_user_section():
     """)
 
 def render_become_member_section():
-    """Section for trial users to become premium members"""
-    st.subheader("⭐ Become a Premium Member")
+    """ULTRA SIMPLE - Just payment links"""
+    st.subheader("⭐ Upgrade to Premium")
     
-    st.success("""
-    **Ready to upgrade?** Get full access to all premium features including enhanced signals, 
-    gallery uploads, and advanced KAI AI analysis.
+    st.info("""
+    **💎 Premium Features:**
+    • Full strategy access • Gallery uploads • Enhanced KAI AI • Priority support
     """)
     
-    # Payment options - REMOVED INVOICE REQUEST
-    st.markdown("### 💳 Credit Card Payment")
-    with st.form("credit_card_upgrade"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.text_input("Card Number", placeholder="1234 5678 9012 3456", key="card_number")
-            st.text_input("Cardholder Name", placeholder="John Doe", key="card_name")
-        with col2:
-            col2a, col2b = st.columns(2)
-            with col2a:
-                st.text_input("Expiry Date", placeholder="MM/YY", key="expiry_date")
-            with col2b:
-                st.text_input("CVV", placeholder="123", key="cvv_code")
-        
-        if st.form_submit_button("💳 Upgrade to Premium - $79/month", use_container_width=True):
-            # Simulate payment processing
-            with st.spinner("Processing payment..."):
-                time.sleep(2)
-                # Upgrade user to premium
-                success, message = user_manager.change_user_plan(
-                    st.session_state.user['username'], 
-                    "premium"
-                )
-                if success:
-                    st.session_state.user['plan'] = "premium"
-                    st.success("🎉 Welcome to Premium! Your account has been upgraded.")
-                    st.balloons()
-                    time.sleep(2)
-                    st.rerun()
-                else:
-                    st.error(f"❌ Upgrade failed: {message}")
+    # Direct payment links
+    st.markdown("### Choose Subscription:")
     
-    # Alternative payment methods
-    st.markdown("---")
-    st.subheader("Other Payment Methods")
+    st.markdown(f"""
+    **Monthly - $79/month**
+    [💳 Subscribe Now]({Config.STRIPE_PREMIUM_MONTHLY_LINK}){{target="_blank"}}
     
-    col3, col4 = st.columns(2)
+    **Quarterly - $210/3 months (Save $27)**
+    [💎 Subscribe Now]({Config.STRIPE_PREMIUM_QUARTERLY_LINK}){{target="_blank"}}
     
-    with col3:
-        if st.button("💰 PayPal", use_container_width=True):
-            st.info("🔗 Redirecting to PayPal... (simulated)")
-            # In real implementation: redirect to PayPal
+    **Annual - $790/year (Save $158)**
+    [🏆 Subscribe Now]({Config.STRIPE_PREMIUM_ANNUAL_LINK}){{target="_blank"}}
+    """)
     
-    with col4:
-        if st.button("₿ Crypto Payment", use_container_width=True):
-            st.info("🔗 Crypto payment options coming soon!")
-    
-    # Trial extension option
-    st.markdown("---")
-    st.subheader("🎁 Need More Time?")
-    
-    if st.button("🔁 Extend Trial Period", use_container_width=True):
-        st.warning("""
-        **Trial Extension Policy:**
-        - One 7-day extension available per user
-        - Contact support for extension requests
-        - Extension subject to approval
-        """)
-        
-        if st.button("📧 Request Trial Extension", use_container_width=True):
-            st.success("✅ Extension request sent! Support will review your request.")
+    st.warning("""
+    **After payment:** Contact support with your receipt to activate premium features.
+    Email: support@tradinganalysis.com
+    """)
 
 def render_renew_subscription_section():
     """Section for premium users to renew their subscription"""
