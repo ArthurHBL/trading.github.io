@@ -5861,6 +5861,141 @@ def render_image_gallery():
     """Main gallery - now paginated"""
     render_image_gallery_paginated()
 
+# Simple in-memory cache for gallery data
+_gallery_cache = {}
+
+def _cache_get(key, default=None):
+    """Get value from cache"""
+    return _gallery_cache.get(key, default)
+
+def _cache_set(key, value):
+    """Set value in cache"""
+    _gallery_cache[key] = value
+
+def decode_image_from_storage(item):
+    """Decode image from storage format - placeholder implementation"""
+    try:
+        # This is a simplified version - you'll need to adapt based on your actual storage format
+        if 'bytes_b64' in item:
+            return base64.b64decode(item['bytes_b64'])
+        return None
+    except Exception:
+        return None
+
+# =====================================================================
+# GALLERY PAGINATION CORE (placed before dashboard & main)
+# =====================================================================
+def get_gallery_images_count():
+    """Get total count of gallery images"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count", 0)
+    try:
+        resp = supabase_client.table('gallery_images').select('id', count='exact').execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Count error: {resp.error}")
+            return _cache_get("lk_gallery_count", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count", count)
+        return count
+    except Exception as e:
+        logging.error(f"Database count error: {e}")
+        return _cache_get("lk_gallery_count", 0)
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
+def get_gallery_images_paginated(
+    page: int = 0,
+    per_page: int = 15,
+    sort_by: str = "newest",
+    filter_author: str = None,
+    filter_strategy: str = None
+):
+    """Query gallery images with pagination, filtering, and sorting"""
+    cached = _cache_get("lk_gallery_paginated", [])
+    if 'supabase_client' not in globals() or not supabase_client:
+        return cached
+    try:
+        offset = page * per_page
+        query = supabase_client.table('gallery_images').select('*')
+
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            # Optional: requires strategies array or denormalized column
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+
+        if sort_by == "most_liked":
+            query = query.order('likes', desc=True)
+        elif sort_by == "oldest":
+            query = query.order('timestamp', asc=True)
+        else:
+            query = query.order('timestamp', desc=True)
+
+        query = query.range(offset, offset + per_page - 1)
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            raise RuntimeError(f"Supabase error: {resp.error}")
+
+        images = []
+        decode_errors = 0
+        for item in (getattr(resp, 'data', None) or []):
+            try:
+                if isinstance(item.get('encoded_data'), dict):
+                    decoded = decode_image_from_storage(item['encoded_data'])
+                    if decoded:
+                        item['bytes'] = decoded
+                        images.append(item)
+                    else:
+                        decode_errors += 1
+                elif 'bytes_b64' in item:
+                    try:
+                        item['bytes'] = base64.b64decode(item['bytes_b64'])
+                        images.append(item)
+                    except Exception as e:
+                        logging.error(f"Legacy decode failed: {e}")
+                        decode_errors += 1
+                else:
+                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
+                    decode_errors += 1
+            except Exception as e:
+                decode_errors += 1
+                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
+
+        if decode_errors:
+            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
+
+        _cache_set("lk_gallery_paginated", images)
+        return images
+    except Exception as e:
+        logging.error(f"Pagination query failed: {e}")
+        return cached
+
+def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
+    """Get total count with filters applied"""
+    if 'supabase_client' not in globals() or not supabase_client:
+        return _cache_get("lk_gallery_count_filtered", 0)
+    try:
+        query = supabase_client.table('gallery_images').select('id', count='exact')
+        if filter_author:
+            query = query.eq('uploaded_by', filter_author)
+        if filter_strategy:
+            try:
+                query = query.contains('strategies', [filter_strategy])
+            except Exception:
+                pass
+        resp = query.execute()
+        if hasattr(resp, 'error') and resp.error:
+            logging.error(f"Filtered count error: {resp.error}")
+            return _cache_get("lk_gallery_count_filtered", 0)
+        count = getattr(resp, 'count', None) or (resp.data and len(resp.data)) or 0
+        _cache_set("lk_gallery_count_filtered", count)
+        return count
+    except Exception as e:
+        logging.error(f"Filtered count error: {e}")
+        return _cache_get("lk_gallery_count_filtered", 0)
+
 # USER IMAGE GALLERY - VIEW ONLY VERSION
 # -------------------------
 def render_user_image_gallery():
