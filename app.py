@@ -3401,7 +3401,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         except:
             meta_info = f" | {created_at[:16]}"
     
-    st.markdown(f"### 🔍 KAI Analysis Report{enhancement_badge}{meta_info}")
+    st.markdown(f"###{enhancement_badge}{meta_info}")
     
     # Executive Summary (KAI always starts with this)
     if is_enhanced and analysis.get('deepseek_analysis'):
