@@ -3480,14 +3480,13 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         reversal_signals = signals["reversal_signals"]
         # CRITICAL FIX: Ensure reversal_signals is a list
         if isinstance(reversal_signals, list):
-            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)}) - SCORED ANALYSIS", expanded=False):
+            with st.expander(f"🔄 Reversal Signals ({len(reversal_signals)})", expanded=False):
                 for signal in reversal_signals:
                     # CRITICAL FIX: Check if signal is a dict before calling .get()
                     if isinstance(signal, dict):
                         strength_icon = "🔥" if signal.get('strength') == 'HIGH' else "⚠️"
-                        score_display = f" | Score: {signal.get('score', 'N/A')}/10" if signal.get('score') else ""
-                        confidence_display = f" | Confidence: {signal.get('confidence', 'N/A')}%" if signal.get('confidence') else ""
-                        st.write(f"{strength_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**{score_display}{confidence_display}")
+                        # REMOVED: Score and confidence display
+                        st.write(f"{strength_icon} **{signal.get('strategy', 'Unknown')} - {signal.get('indicator', 'Unknown')}**")
                         st.write(f"   *{signal.get('message', 'No message')}*")
                     else:
                         st.write(f"⚠️ Invalid signal format: {type(signal)}")
