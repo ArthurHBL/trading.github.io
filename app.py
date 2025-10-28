@@ -6775,10 +6775,6 @@ def render_user_account_settings():
     
     st.markdown("---")
     
-    if st.button("⬅️ Back to Dashboard", use_container_width=True, key="user_back_to_dash_btn"):
-        st.session_state.dashboard_view = 'main'
-        st.rerun()
-
 def render_premium_user_section():
     """Premium user section with membership options"""
     st.title("💎 Premium User")
