@@ -8398,7 +8398,7 @@ def main():
             elif user_mode == "⚡ Trading Signals":
                 # Show the trading signals room in VIEW MODE
                 render_trading_signals_room()
-            elif user_mode == "🧠 KAI AI Agent":
+            elif user_mode == "🧠 KAI":
                 # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
                 render_kai_agent()
             else:
