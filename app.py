@@ -6772,9 +6772,7 @@ def render_user_account_settings():
         if st.button("🔑 Change Password", use_container_width=True, key="user_change_password_btn"):
             st.session_state.show_user_password_change = True
             st.rerun()
-    
-    st.markdown("---")
-    
+            
 def render_premium_user_section():
     """Premium user section with membership options"""
     st.title("💎 Premium User")
