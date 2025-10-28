@@ -6731,7 +6731,7 @@ def render_user_password_change():
 # FIXED: USER ACCOUNT SETTINGS - REMOVED KEY PARAMETER FROM ST.METRIC
 # -------------------------
 def render_user_account_settings():
-    """User account settings - FIXED VERSION with top back button"""
+    """User account settings - FIXED VERSION with top back button only"""
     
     # ADDED: Back button at the top
     col_back, col_title = st.columns([1, 5])
