@@ -9318,6 +9318,9 @@ def app_startup_check():
         st.warning("⚠️ Some checks failed; review messages above.")
 
 def main():
+    # Permanent startup verification
+    init_session()
+    app_startup_check()
     # KAI verification init
     app_startup_check()
     # Initialize session state variables
