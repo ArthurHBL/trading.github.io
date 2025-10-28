@@ -9525,9 +9525,22 @@ import errno
 import functools
 
 # Global in-memory "last good" caches (kept per-session)
+_cache = {}
 
-    except Exception:
-        pass
+def _cache_get(key, default=None):
+    return _cache.get(key, default)
+
+def _cache_set(key, value):
+    _cache[key] = value
+
+def _is_transient_error(err):
+    """Check if error is transient and worth retrying."""
+    # OSError with errno.EAGAIN (Resource temporarily unavailable)
+    if isinstance(err, OSError) and hasattr(err, 'errno') and err.errno == errno.EAGAIN:
+        return True
+    # Connection errors
+    if isinstance(err, (ConnectionError, TimeoutError)):
+        return True
     # Generic: some Supabase/postgrest errors bubble up as Exception with message patterns
     msg = str(err).lower()
     transient_fragments = ["temporarily unavailable", "timeout", "eagain", "rate limit", "connection reset"]
