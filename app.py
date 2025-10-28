@@ -8586,7 +8586,6 @@ def render_admin_dashboard():
         st.markdown("---")
         st.write(f"Welcome, **{st.session_state.user['name']}**")
 
-
         # Show current mode (CLEAN IF/ELIF CHAIN)
         current_mode = st.session_state.admin_dashboard_mode
         if current_mode == "admin":
@@ -9270,7 +9269,57 @@ st.set_page_config(
 # -------------------------
 # MAIN APPLICATION - FIXED USER ACCESS
 # -------------------------
+
+# =====================================================
+# Startup Self-Check Banner
+# =====================================================
+def app_startup_check():
+    import streamlit as st
+    st.markdown("### 🚀 KAI System Verification")
+    ok = True
+    try:
+        # Supabase client check
+        if 'supabase_client' not in globals() or supabase_client is None:
+            st.error("❌ Supabase client not initialized")
+            ok = False
+        else:
+            st.success("✅ Supabase client initialized")
+
+        # Functions check
+        required_funcs = [
+            'get_gallery_images_paginated',
+            'get_gallery_images_count_filtered',
+            'get_gallery_images_count',
+            'render_image_gallery_paginated',
+            'render_admin_image_gallery_paginated',
+        ]
+        missing = [f for f in required_funcs if f not in globals()]
+        if missing:
+            st.error(f"❌ Missing functions: {', '.join(missing)}")
+            ok = False
+        else:
+            st.success("✅ All pagination functions loaded")
+
+        # Session state check
+        if not hasattr(st.session_state, 'gallery_page'):
+            if 'init_session' in globals():
+                init_session()
+        if hasattr(st.session_state, 'gallery_page'):
+            st.success("✅ Session state initialized")
+        else:
+            st.warning("⚠️ Session state not initialized")
+    except Exception as e:
+        st.error(f"Startup check error: {e}")
+        ok = False
+
+    if ok:
+        st.info("🟢 System ready — all checks passed.")
+    else:
+        st.warning("⚠️ Some checks failed; review messages above.")
+
 def main():
+    # KAI verification init
+    app_startup_check()
     # Initialize session state variables
     init_session()
     init_session()
