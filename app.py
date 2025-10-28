@@ -3,6 +3,26 @@ import hashlib
 import json
 import pandas as pd
 import uuid
+
+# =====================================================
+# Utility: Retry with exponential backoff
+# =====================================================
+def retry_with_backoff(max_retries=3, base_delay=0.5, exceptions=(Exception,)):
+    import time
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            delay = base_delay
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(delay)
+                    delay *= 2
+        return wrapper
+    return decorator
+
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Tuple
 import re
@@ -8588,8 +8608,8 @@ def render_admin_dashboard():
         elif current_mode == "gallery":
             st.success("🖼️ Image Gallery Mode")
             render_admin_image_gallery_paginated()
-            st.success("🖼️ Image Gallery Mode")
-            render_admin_image_gallery_paginated()
+    st.success("🖼️ Image Gallery Mode")
+    render_admin_image_gallery_paginated()
 
         elif current_mode == "signals_room":
             st.success("⚡ Trading Signals Room")
@@ -9549,41 +9569,6 @@ def _is_transient_error(err: Exception) -> bool:
     transient_fragments = ["temporarily unavailable", "timeout", "eagain", "rate limit", "connection reset"]
     return any(frag in msg for frag in transient_fragments)
 
-def retry_with_backoff(max_retries=4, base_delay=0.4):
-    """
-    Decorator: retries on transient errors with exponential backoff.
-    Shows gentle UI hints; surfaces a single error only after final failure.
-    """
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            last_err = None
-            for attempt in range(max_retries):
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    last_err = e
-                    if not _is_transient_error(e) or attempt == max_retries - 1:
-                        # Non-transient or out of retries → raise to caller
-                        st.error(f"⚠️ {func.__name__} failed after {max_retries} attempts: {e}")
-                        break
-                    wait = base_delay * (2 ** attempt)
-                    st.info(f"⏳ {func.__name__}: transient issue, retrying in {wait:.1f}s (attempt {attempt+1}/{max_retries})...")
-                    time.sleep(wait)
-            # Fallback to last-known-good cache if available
-            cache_key = f"lk_{func.__name__}"
-            cached = _cache_get(cache_key)
-            if cached is not None:
-                st.warning(f"Using last-known-good {func.__name__} due to temporary backend issue.")
-                return cached
-            # Nothing cached; return sensible empty type
-            if func.__name__.startswith("supabase_get_"):
-                return {} if "analytics" in func.__name__ or "strategy" in func.__name__ or "users" in func.__name__ else []
-            return None
-        return wrapper
-    return decorator
-
-# Harden the client initialization with retries too (without duplicating the client).
 def _init_supabase_hardened():
     if '___supabase_ok___' in st.session_state:
         return supabase_client  # already initialized by the main code
