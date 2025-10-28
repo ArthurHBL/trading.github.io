@@ -3387,7 +3387,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
     
     # Header with enhancement indicator and IMPROVED metadata
     is_enhanced = analysis.get('deepseek_enhanced', False)
-    enhancement_badge = " 🧠 **DEEPSEEK AI ENHANCED**" if is_enhanced else " 📊 **STANDARD ANALYSIS**"
+    enhancement_badge = " 🧠 **KAI ENHANCED TECHNICAL ANALYSES**" if is_enhanced else " 📊 **STANDARD ANALYSIS**"
     
     # Use the passed meta_info parameter or construct it
     if not meta_info and analysis_meta:
@@ -3408,7 +3408,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         # CRITICAL FIX: Validate deepseek_analysis is a dict before accessing it
         deepseek_data = analysis['deepseek_analysis']
         if isinstance(deepseek_data, dict) and deepseek_data.get('executive_summary'):
-            st.success(f"**🧠 AI-Enhanced Summary:** {deepseek_data['executive_summary']}")
+            st.success(f"**🧠 KAI-Enhanced Summary:** {deepseek_data['executive_summary']}")
         else:
             st.info(analysis.get("executive_summary", "No executive summary available"))
     else:
@@ -3564,7 +3564,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         
         # Display AI-generated risk analysis
         if deepseek_data.get('risk_analysis'):
-            st.markdown("🧠 **DeepSeek AI Risk Assessment:**")
+            st.markdown("🧠 **KAI Risk Assessment:**")
             st.info(deepseek_data['risk_analysis'])
         
         # Display confidence score from AI
@@ -3593,7 +3593,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
         # Display AI trading recommendations
         if deepseek_data.get('trading_recommendations'):
             st.markdown("---")
-            st.markdown("🎯 **AI Trading Recommendations:**")
+            st.markdown("🧠 **KAI Trading Recommendations:**")
             for recommendation in deepseek_data['trading_recommendations'][:3]:
                 st.write(f"• {recommendation}")
                 
@@ -8387,7 +8387,7 @@ def main():
             # User mode selection
             user_mode = st.sidebar.radio(
                 "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI AI Agent"],
+                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI"],
                 key="user_navigation_mode"
             )
             
