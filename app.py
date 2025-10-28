@@ -8586,7 +8586,6 @@ def render_admin_dashboard():
         st.markdown("---")
         st.write(f"Welcome, **{st.session_state.user['name']}**")
 
-
         # Show current mode (CLEAN IF/ELIF CHAIN)
         current_mode = st.session_state.admin_dashboard_mode
         if current_mode == "admin":
@@ -9526,27 +9525,7 @@ import errno
 import functools
 
 # Global in-memory "last good" caches (kept per-session)
-if '___last_good___' not in st.session_state:
-    st.session_state.___last_good___ = {}
 
-def _cache_set(key, value):
-    st.session_state.___last_good___[key] = value
-
-def _cache_get(key, default=None):
-    return st.session_state.___last_good___.get(key, default)
-
-def _is_transient_error(err: Exception) -> bool:
-    # Treat common transient/network-ish errors as retryable
-    try:
-        if isinstance(err, OSError) and getattr(err, "errno", None) in {errno.EAGAIN, 11}:
-            return True
-    except Exception:
-        pass
-    # Requests timeouts / connection issues
-    try:
-        import requests
-        if isinstance(err, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
-            return True
     except Exception:
         pass
     # Generic: some Supabase/postgrest errors bubble up as Exception with message patterns
