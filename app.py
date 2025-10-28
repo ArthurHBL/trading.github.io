@@ -7256,7 +7256,7 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                 st.write(analysis.get('note', 'No notes'))
 
 def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface with full admin editing - UPDATED TYPE OPTIONS"""
+    """Detailed strategy notes interface with full admin editing - UPDATED TYPE OPTIONS AND PROVIDER"""
     st.title("📝 Admin Signal Editor")
     
     # Header with cycle info
@@ -7285,14 +7285,17 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         existing_data = strategy_data.get(selected_strategy, {})
         current_strategy_tag = next(iter(existing_data.values()), {}).get("strategy_tag", "Neutral")
         
-        # UPDATED: Strategy Type with new options
-        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "NEUTRAL READING")
+        # UPDATED: Strategy Type with new lowercase options
+        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "neutral reading")
         
         # Handle migration from old values to new values
         type_mapping = {
-            "Momentum": "MOMENTUM READING",
-            "Extreme": "EXTREME READING", 
-            "Not Defined": "NEUTRAL READING"
+            "Momentum": "momentum reading",
+            "Extreme": "extreme reading", 
+            "Not Defined": "neutral reading",
+            "MOMENTUM READING": "momentum reading",
+            "EXTREME READING": "extreme reading",
+            "NEUTRAL READING": "neutral reading"
         }
         
         # Convert old values to new values
@@ -7306,8 +7309,8 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                                       index=["Neutral","Buy","Sell"].index(current_strategy_tag),
                                       key="admin_strategy_tag")
         with col2:
-            # UPDATED: New Type options
-            new_type_options = ["NEUTRAL READING", "EXTREME READING", "MOMENTUM READING"]
+            # UPDATED: New Type options in lowercase
+            new_type_options = ["neutral reading", "extreme reading", "momentum reading"]
             current_index = new_type_options.index(current_strategy_type) if current_strategy_type in new_type_options else 0
             strategy_type = st.selectbox("Strategy Type:", new_type_options, 
                                        index=current_index,
@@ -7356,11 +7359,11 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                 st.session_state.strategy_analyses_data[selected_strategy][indicator] = {
                     "note": st.session_state.get(key_note, ""),
                     "status": st.session_state.get(key_status, "Open"),
-                    "momentum": strategy_type,  # This now stores the new type
+                    "momentum": strategy_type,  # This now stores the new lowercase type
                     "strategy_tag": strategy_tag,
                     "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                     "last_modified": datetime.utcnow().isoformat() + "Z",
-                    "modified_by": "admin"
+                    "modified_by": "KAI"  # CHANGED: from "admin" to "KAI"
                 }
             
             # Save to Supabase
@@ -7410,13 +7413,15 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
             
             for ind_name, meta in inds.items():
                 if meta.get("analysis_date") == analysis_date.strftime("%Y-%m-%d"):
-                    momentum_type = meta.get("momentum", "Not Defined")
+                    momentum_type = meta.get("momentum", "neutral reading")
+                    # Apply the same mapping for display
+                    if momentum_type in type_mapping:
+                        momentum_type = type_mapping[momentum_type]
                     status_icon = "✅ Done" if meta.get("status", "Open") == "Done" else "🕓 Open"
-                    modified_by = meta.get("modified_by", "system")
-                    with st.expander(f"{ind_name} ({momentum_type}) — {status_icon} — Edited by: {modified_by}", expanded=False):
+                    # CHANGED: Show "KAI" instead of the actual modified_by field
+                    with st.expander(f"{ind_name} ({momentum_type}) — {status_icon} — Provider: KAI", expanded=False):
                         st.write(meta.get("note", "") or "_No notes yet_")
                         st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
-            st.markdown("---")
 
 def render_admin_account_settings():
     """Admin account settings in premium mode"""
@@ -7659,7 +7664,6 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     
     st.markdown("---")
     
-    # Selected strategy analysis - UPDATED TYPE DISPLAY
     st.subheader(f"🔍 {selected_strategy} Analysis")
     
     # Display existing analysis
@@ -7670,14 +7674,16 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         # Get strategy-level info from first indicator
         first_indicator = next(iter(existing_data.values()), {})
         strategy_tag = first_indicator.get("strategy_tag", "Neutral")
-        strategy_type = first_indicator.get("momentum", "NEUTRAL READING")
-        modified_by = first_indicator.get("modified_by", "System")
+        strategy_type = first_indicator.get("momentum", "neutral reading")
         
         # Handle migration from old values for display
         type_mapping = {
-            "Momentum": "MOMENTUM READING",
-            "Extreme": "EXTREME READING", 
-            "Not Defined": "NEUTRAL READING"
+            "Momentum": "momentum reading",
+            "Extreme": "extreme reading", 
+            "Not Defined": "neutral reading",
+            "MOMENTUM READING": "momentum reading",
+            "EXTREME READING": "extreme reading", 
+            "NEUTRAL READING": "neutral reading"
         }
         
         # Convert old values to new values for display
@@ -7688,9 +7694,9 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         with col1:
             st.info(f"**Signal:** {strategy_tag}")
         with col2:
-            st.info(f"**Type:** {strategy_type}")  # Now shows new type options
+            st.info(f"**Type:** {strategy_type}")  # Now shows new lowercase type options
         with col3:
-            st.info(f"**Provider:** {modified_by}")
+            st.info(f"**Provider:** KAI")  # CHANGED: Always show "KAI" instead of the modified_by field
         
         st.markdown("---")
         
