@@ -3454,7 +3454,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
             st.metric("Risk Assessment", "Not Available")
     
     # Key Findings (Enhanced with AI insights)
-    st.markdown("### 🔑 Key Findings & AI Insights")
+    st.markdown("### 🔑 Key Findings & KAI Insights")
     
     if is_enhanced and analysis.get('deepseek_analysis', {}).get('key_findings'):
         # Use AI-enhanced findings
