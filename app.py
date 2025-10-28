@@ -3714,15 +3714,21 @@ def display_kai_analysis_summary(analysis):
 # -------------------------
 class Config:
     APP_NAME = "TradingAnalysis Pro"
-    VERSION = "2.1.0"  # Updated version with Enhanced KAI
+    VERSION = "2.1.0"
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
     
-    # Simplified Subscription Plans - Only Trial and Premium
+    # Updated Subscription Plans with new pricing
     PLANS = {
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
-        "premium": {"name": "Premium Plan", "price": 79, "duration": 30, "strategies": 15, "max_sessions": 3}
+        "premium": {"name": "Premium Plan", "price": 19, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
+    
+    # Updated Stripe Payment Links with new pricing
+    STRIPE_PREMIUM_MONTHLY_LINK = "https://buy.stripe.com/your_19_monthly_link"
+    STRIPE_PREMIUM_QUARTERLY_LINK = "https://buy.stripe.com/your_49_quarterly_link"
+    STRIPE_PREMIUM_SEMI_ANNUAL_LINK = "https://buy.stripe.com/your_97_semi_annual_link"
+    STRIPE_PREMIUM_ANNUAL_LINK = "https://buy.stripe.com/your_179_annual_link"
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -6818,7 +6824,7 @@ def render_premium_user_section():
         st.write("• Upload & Download Gallery")
         st.write("• Enhanced KAI Analysis")
         st.write("• Priority Support")
-        st.write(f"• **Price: ${premium_plan['price']}/month**")
+        st.write(f"• **Starting at: ${premium_plan['price']}/month**")
         
         if current_plan == 'premium':
             st.success("🎉 Premium Member!")
@@ -6877,35 +6883,82 @@ def render_premium_user_section():
     """)
 
 def render_become_member_section():
-    """ULTRA SIMPLE - Just payment links"""
-    st.subheader("⭐ Upgrade to Premium")
+    """Section for trial users to become premium members"""
+    st.subheader("⭐ Become a Premium Member")
     
+    st.success("""
+    **Ready to upgrade?** Get full access to all premium features including enhanced signals, 
+    gallery uploads, and advanced KAI AI analysis.
+    """)
+    
+    # Updated payment options with plain pricing
+    st.markdown("### 💳 Choose Your Plan")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("#### 1 Month")
+        st.write("**$19**")
+        st.write("• Flexible billing")
+        st.write("• Cancel anytime")
+        
+        monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
+        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>', 
+                   unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("#### 3 Months")
+        st.write("**$49**")
+        st.write("• 3 months access")
+        st.write("• Best for short-term")
+        
+        quarterly_link = Config.STRIPE_PREMIUM_QUARTERLY_LINK
+        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Subscribe Now</button></a>', 
+                   unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("#### 6 Months")
+        st.write("**$97**")
+        st.write("• 6 months access")
+        st.write("• Extended access")
+        
+        semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
+        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #9C27B0; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>', 
+                   unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("#### 12 Months")
+        st.write("**$179**")
+        st.write("• 12 months access")
+        st.write("• Long-term value")
+        
+        annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
+        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #FF9800; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>', 
+                   unsafe_allow_html=True)
+    
+    # Important information
+    st.markdown("---")
     st.info("""
-    **💎 Premium Features:**
-    • Full strategy access • Gallery uploads • Enhanced KAI AI • Priority support
+    **🔒 Secure Payment Process:**
+    - You'll be redirected to Stripe's secure payment page
+    - Multiple payment methods accepted (credit card, Apple Pay, Google Pay)
+    - Instant access after successful payment
+    - Email receipt provided
     """)
     
-    # Direct payment links
-    st.markdown("### Choose Subscription:")
-    
-    st.markdown(f"""
-    **Monthly - $79/month**
-    [💳 Subscribe Now]({Config.STRIPE_PREMIUM_MONTHLY_LINK}){{target="_blank"}}
-    
-    **Quarterly - $210/3 months (Save $27)**
-    [💎 Subscribe Now]({Config.STRIPE_PREMIUM_QUARTERLY_LINK}){{target="_blank"}}
-    
-    **Annual - $790/year (Save $158)**
-    [🏆 Subscribe Now]({Config.STRIPE_PREMIUM_ANNUAL_LINK}){{target="_blank"}}
-    """)
-    
-    st.warning("""
-    **After payment:** Contact support with your receipt to activate premium features.
-    Email: support@tradinganalysis.com
-    """)
+    # Manual upgrade option for admin
+    if st.session_state.user['plan'] == 'admin':
+        st.markdown("---")
+        st.warning("**Admin Manual Upgrade:**")
+        if st.button("🔼 Manually Upgrade User to Premium", key="manual_upgrade"):
+            success, message = user_manager.change_user_plan(st.session_state.user['username'], "premium")
+            if success:
+                st.session_state.user['plan'] = "premium"
+                st.success("✅ User upgraded to premium!")
+                st.rerun()
 
 def render_renew_subscription_section():
-    """Section for premium users to renew their subscription"""
+    """Updated renewal section with plain pricing"""
     st.subheader("🔄 Renew Your Subscription")
     
     user = st.session_state.user
@@ -6918,88 +6971,52 @@ def render_renew_subscription_section():
     else:
         st.error("❌ Your subscription has expired. Renew to restore premium access.")
     
-    # Renewal options
-    col1, col2, col3 = st.columns(3)
+    # Updated renewal options with plain pricing
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown("#### Monthly")
-        st.write("**$79 / month**")
-        st.write("• Flexible billing")
-        st.write("• Cancel anytime")
-        if st.button("🔄 Renew Monthly", use_container_width=True):
-            # Extend by 30 days
-            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=30)).strftime("%Y-%m-%d")
-            user_manager.users[user['username']]['expires'] = new_expiry
-            user_manager.save_users()
-            st.session_state.user['expires'] = new_expiry
-            st.success("✅ Monthly subscription renewed! +30 days added.")
-            st.rerun()
+        st.markdown("#### 1 Month")
+        st.write("**$19**")
+        monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
+        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>', 
+                   unsafe_allow_html=True)
     
     with col2:
-        st.markdown("#### Quarterly")
-        st.write("**$210 / 3 months**")
-        st.write("• Save $27")
-        st.write("• 3 months access")
-        if st.button("💎 Renew Quarterly", use_container_width=True):
-            # Extend by 90 days
-            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=90)).strftime("%Y-%m-%d")
-            user_manager.users[user['username']]['expires'] = new_expiry
-            user_manager.save_users()
-            st.session_state.user['expires'] = new_expiry
-            st.success("✅ Quarterly subscription renewed! +90 days added.")
-            st.rerun()
+        st.markdown("#### 3 Months")
+        st.write("**$49**")
+        quarterly_link = Config.STRIPE_PREMIUM_QUARTERLY_LINK
+        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Renew</button></a>', 
+                   unsafe_allow_html=True)
     
     with col3:
-        st.markdown("#### Annual")
-        st.write("**$790 / year**")
-        st.write("• Save $158")
-        st.write("• Best value")
-        if st.button("🏆 Renew Annual", use_container_width=True):
-            # Extend by 365 days
-            new_expiry = (datetime.strptime(user['expires'], "%Y-%m-%d") + timedelta(days=365)).strftime("%Y-%m-%d")
-            user_manager.users[user['username']]['expires'] = new_expiry
-            user_manager.save_users()
-            st.session_state.user['expires'] = new_expiry
-            st.success("✅ Annual subscription renewed! +365 days added.")
-            st.rerun()
+        st.markdown("#### 6 Months")
+        st.write("**$97**")
+        semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
+        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #9C27B0; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Renew</button></a>', 
+                   unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("#### 12 Months")
+        st.write("**$179**")
+        annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
+        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #FF9800; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Renew</button></a>', 
+                   unsafe_allow_html=True)
     
     # Auto-renewal settings
     st.markdown("---")
     st.subheader("⚙️ Subscription Settings")
     
-    col4, col5 = st.columns(2)
+    col5, col6 = st.columns(2)
     
-    with col4:
+    with col5:
         auto_renew = st.checkbox("Enable Auto-Renewal", value=True, 
                                 help="Automatically renew your subscription before it expires")
         if st.button("💾 Save Settings", use_container_width=True):
             st.success("✅ Auto-renewal settings saved!")
     
-    with col5:
+    with col6:
         if st.button("📧 Update Billing Info", use_container_width=True):
             st.info("Billing portal coming soon! Contact support for billing changes.")
-    
-    # Cancellation option
-    st.markdown("---")
-    st.subheader("🔚 Cancel Subscription")
-    
-    if st.button("❌ Cancel Auto-Renewal", use_container_width=True):
-        st.warning("""
-        ⚠️ **Cancellation Confirmation**
-        
-        Your premium access will continue until your current billing period ends.
-        After that, your account will revert to trial mode with limited features.
-        
-        Are you sure you want to cancel auto-renewal?
-        """)
-        
-        col6, col7 = st.columns(2)
-        with col6:
-            if st.button("✅ Yes, Cancel Auto-Renewal", use_container_width=True):
-                st.success("✅ Auto-renewal cancelled. You'll keep premium access until your current period ends.")
-        with col7:
-            if st.button("🔙 Keep My Subscription", use_container_width=True):
-                st.info("✅ Auto-renewal remains active.")
 
 # -------------------------
 # ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
