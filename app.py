@@ -7602,19 +7602,6 @@ def render_user_dashboard():
         
         st.markdown("---")
         
-        # Export functionality - READ ONLY
-        csv_bytes = generate_filtered_csv_bytes(strategy_data, analysis_date)
-        st.subheader("📄 Export Data")
-        st.download_button(
-            label="⬇️ Download CSV",
-            data=csv_bytes,
-            file_name=f"strategy_analyses_{analysis_date.strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            use_container_width=True,
-            key="user_export_btn"
-        )
-        
-        st.markdown("---")
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
