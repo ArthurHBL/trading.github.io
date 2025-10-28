@@ -8677,7 +8677,7 @@ def main():
             # User mode selection
             user_mode = st.sidebar.radio(
                 "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI"],
+                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI", "💎 PREMIUM USER"],
                 key="user_navigation_mode"
             )
             
@@ -8691,6 +8691,9 @@ def main():
             elif user_mode == "🧠 KAI":
                 # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
                 render_kai_agent()
+            elif user_mode == "💎 PREMIUM USER":
+                # Show the premium user section
+                render_premium_user_section()
             else:
                 # Show the premium trading dashboard in VIEW MODE
                 render_user_dashboard()
