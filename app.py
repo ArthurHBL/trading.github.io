@@ -7433,11 +7433,20 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                         st.caption(f"Last updated: {meta.get('last_modified', 'N/A')}")
 
 def render_admin_account_settings():
-    """Admin account settings in premium mode"""
-    st.title("⚙️ Admin Settings - Premium Mode")
+    """Admin account settings in premium mode - FIXED with top back button only"""
+    
+    # ADDED: Back button at the top
+    col_back, col_title = st.columns([1, 5])
+    with col_back:
+        if st.button("⬅️ Back to Dashboard", use_container_width=True, key="admin_settings_back_top"):
+            st.session_state.dashboard_view = 'main'
+            st.rerun()
+    
+    with col_title:
+        st.title("⚙️ Admin Settings - Premium Mode")
     
     user = st.session_state.user
-    
+
     col1, col2 = st.columns(2)
     
     with col1:
@@ -7465,11 +7474,6 @@ def render_admin_account_settings():
     with col2:
         if st.button("📊 Refresh All Data", use_container_width=True, key="refresh_admin_data_btn"):
             user_manager.load_data()
-            st.rerun()
-    
-    with col3:
-        if st.button("⬅️ Back to Signals", use_container_width=True, key="back_signals_admin_btn"):
-            st.session_state.dashboard_view = 'main'
             st.rerun()
 
 # -------------------------
