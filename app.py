@@ -7256,10 +7256,10 @@ def render_admin_trading_dashboard(data, user, daily_strategies, cycle_day, anal
                 st.write(analysis.get('note', 'No notes'))
 
 def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, analysis_date, selected_strategy):
-    """Detailed strategy notes interface with full admin editing - FIXED VERSION"""
+    """Detailed strategy notes interface with full admin editing - UPDATED TYPE OPTIONS"""
     st.title("📝 Admin Signal Editor")
     
-    # Header with cycle info - CHANGED: Removed " - ADMIN EDIT MODE" and added green BUY button
+    # Header with cycle info
     col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
     with col1:
         st.subheader(f"Day {cycle_day} - {selected_strategy}")
@@ -7284,7 +7284,20 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         # Load existing data for this strategy
         existing_data = strategy_data.get(selected_strategy, {})
         current_strategy_tag = next(iter(existing_data.values()), {}).get("strategy_tag", "Neutral")
-        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "Not Defined")
+        
+        # UPDATED: Strategy Type with new options
+        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "NEUTRAL READING")
+        
+        # Handle migration from old values to new values
+        type_mapping = {
+            "Momentum": "MOMENTUM READING",
+            "Extreme": "EXTREME READING", 
+            "Not Defined": "NEUTRAL READING"
+        }
+        
+        # Convert old values to new values
+        if current_strategy_type in type_mapping:
+            current_strategy_type = type_mapping[current_strategy_type]
         
         # Strategy-level settings
         col1, col2 = st.columns(2)
@@ -7293,8 +7306,11 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                                       index=["Neutral","Buy","Sell"].index(current_strategy_tag),
                                       key="admin_strategy_tag")
         with col2:
-            strategy_type = st.selectbox("Strategy Type:", ["Momentum", "Extreme", "Not Defined"], 
-                                       index=["Momentum","Extreme","Not Defined"].index(current_strategy_type),
+            # UPDATED: New Type options
+            new_type_options = ["NEUTRAL READING", "EXTREME READING", "MOMENTUM READING"]
+            current_index = new_type_options.index(current_strategy_type) if current_strategy_type in new_type_options else 0
+            strategy_type = st.selectbox("Strategy Type:", new_type_options, 
+                                       index=current_index,
                                        key="admin_strategy_type")
         
         st.markdown("---")
@@ -7327,7 +7343,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                     key=key_status
                 )
         
-        # Save button - FIXED: Now saves to session state and Supabase
+        # Save button
         submitted = st.form_submit_button("💾 Save All Signals (Admin)", use_container_width=True, key="admin_save_all_btn")
         if submitted:
             if selected_strategy not in st.session_state.strategy_analyses_data:
@@ -7340,14 +7356,14 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                 st.session_state.strategy_analyses_data[selected_strategy][indicator] = {
                     "note": st.session_state.get(key_note, ""),
                     "status": st.session_state.get(key_status, "Open"),
-                    "momentum": strategy_type,
+                    "momentum": strategy_type,  # This now stores the new type
                     "strategy_tag": strategy_tag,
                     "analysis_date": analysis_date.strftime("%Y-%m-%d"),
                     "last_modified": datetime.utcnow().isoformat() + "Z",
-                    "modified_by": "admin"  # Mark as admin-edited
+                    "modified_by": "admin"
                 }
             
-            # Save to Supabase - FIXED: Now saves the entire session state data
+            # Save to Supabase
             save_data(st.session_state.strategy_analyses_data)
             st.success("✅ All signals saved successfully! (Admin Mode)")
     
@@ -7643,10 +7659,10 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     
     st.markdown("---")
     
-    # Selected strategy analysis - CLEANED VERSION WITHOUT KAI BUTTONS
+    # Selected strategy analysis - UPDATED TYPE DISPLAY
     st.subheader(f"🔍 {selected_strategy} Analysis")
     
-    # Display existing analysis - ENHANCED WITH EXPANDABLE BOXES
+    # Display existing analysis
     strategy_data = st.session_state.strategy_analyses_data
     existing_data = strategy_data.get(selected_strategy, {})
     
@@ -7654,14 +7670,25 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         # Get strategy-level info from first indicator
         first_indicator = next(iter(existing_data.values()), {})
         strategy_tag = first_indicator.get("strategy_tag", "Neutral")
-        strategy_type = first_indicator.get("momentum", "Not Defined")
+        strategy_type = first_indicator.get("momentum", "NEUTRAL READING")
         modified_by = first_indicator.get("modified_by", "System")
+        
+        # Handle migration from old values for display
+        type_mapping = {
+            "Momentum": "MOMENTUM READING",
+            "Extreme": "EXTREME READING", 
+            "Not Defined": "NEUTRAL READING"
+        }
+        
+        # Convert old values to new values for display
+        if strategy_type in type_mapping:
+            strategy_type = type_mapping[strategy_type]
         
         col1, col2, col3 = st.columns(3)
         with col1:
             st.info(f"**Signal:** {strategy_tag}")
         with col2:
-            st.info(f"**Type:** {strategy_type}")
+            st.info(f"**Type:** {strategy_type}")  # Now shows new type options
         with col3:
             st.info(f"**Provider:** {modified_by}")
         
