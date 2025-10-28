@@ -7286,16 +7286,16 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
         current_strategy_tag = next(iter(existing_data.values()), {}).get("strategy_tag", "Neutral")
         
         # UPDATED: Strategy Type with new lowercase options
-        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "neutral reading")
+        current_strategy_type = next(iter(existing_data.values()), {}).get("momentum", "Neutral reading")
         
         # Handle migration from old values to new values
         type_mapping = {
-            "Momentum": "momentum reading",
-            "Extreme": "extreme reading", 
-            "Not Defined": "neutral reading",
-            "MOMENTUM READING": "momentum reading",
-            "EXTREME READING": "extreme reading",
-            "NEUTRAL READING": "neutral reading"
+            "Momentum": "Momentum reading",
+            "Extreme": "Extreme reading", 
+            "Not Defined": "Neutral reading",
+            "MOMENTUM READING": "Momentum reading",
+            "EXTREME READING": "Extreme reading",
+            "NEUTRAL READING": "Neutral reading"
         }
         
         # Convert old values to new values
@@ -7310,7 +7310,7 @@ def render_admin_strategy_notes(strategy_data, daily_strategies, cycle_day, anal
                                       key="admin_strategy_tag")
         with col2:
             # UPDATED: New Type options in lowercase
-            new_type_options = ["neutral reading", "extreme reading", "momentum reading"]
+            new_type_options = ["Neutral reading", "Extreme reading", "Momentum reading"]
             current_index = new_type_options.index(current_strategy_type) if current_strategy_type in new_type_options else 0
             strategy_type = st.selectbox("Strategy Type:", new_type_options, 
                                        index=current_index,
@@ -7678,12 +7678,12 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
         
         # Handle migration from old values for display
         type_mapping = {
-            "Momentum": "momentum reading",
-            "Extreme": "extreme reading", 
-            "Not Defined": "neutral reading",
-            "MOMENTUM READING": "momentum reading",
-            "EXTREME READING": "extreme reading", 
-            "NEUTRAL READING": "neutral reading"
+            "Momentum": "Momentum reading",
+            "Extreme": "Extreme reading", 
+            "Not Defined": "Neutral reading",
+            "MOMENTUM READING": "Momentum reading",
+            "EXTREME READING": "Extreme reading", 
+            "NEUTRAL READING": "Neutral reading"
         }
         
         # Convert old values to new values for display
