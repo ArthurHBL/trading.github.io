@@ -2879,50 +2879,37 @@ def save_signals_data(signals):
 # -------------------------
 
 @st.cache_data(ttl=60)
+@st.cache_data(ttl=60)
 def load_gallery_images():
     """
     Load gallery images from Supabase with safe fallbacks.
-    Handles missing fields, bad encodings, and empty tables gracefully.
+    Handles missing fields and empty tables gracefully.
     """
+    import streamlit as st
     try:
-        # Pull data from the Supabase table
         resp = supabase_client.table("gallery_images").select("*").order("timestamp", desc=True).execute()
 
-        # If query failed or returned nothing
         if not resp or not getattr(resp, "data", None):
             st.warning("⚠️ No image records found in the 'gallery_images' table.")
             return []
 
         images = []
         for row in resp.data:
-            # --- 1️⃣ Normalize tag structure ---
-            if "strategies" not in row or not row["strategies"]:
-                if "strategy" in row and row["strategy"]:
-                    row["strategies"] = [row["strategy"]]
-                else:
-                    row["strategies"] = ["Unspecified"]
-
-            # --- 2️⃣ Normalize URL field ---
-            if "image_url" not in row:
-                if "url" in row and row["url"]:
-                    row["image_url"] = row["url"]
-                else:
-                    row["image_url"] = None
-
-            # --- 3️⃣ Fallbacks for optional metadata ---
-            row.setdefault("likes", 0)
-            row.setdefault("uploaded_by", "Unknown")
-
+            # normalize keys
+            row["image_url"] = row.get("image_url") or row.get("url") or None
+            row["strategies"] = row.get("strategies") or [row.get("strategy") or "Unspecified"]
+            row["likes"] = row.get("likes", 0)
+            row["uploaded_by"] = row.get("uploaded_by", "Unknown")
             images.append(row)
 
         return images
 
     except Exception as e:
-        st.error(f"⚠️ Failed to load images for this page.\n\n💡 This might be a temporary issue or bad Supabase response:\n{e}")
+        st.error(f"⚠️ Failed to load images for this page.
+💡 Supabase error: {e}")
         return []
-        
-# ENHANCED KAI AI AGENT INTERFACE WITH COMPREHENSIVE ANALYSIS ARCHIVE
-# -------------------------
+
+
 def render_kai_agent():
     """Enhanced KAI AI Agent interface with comprehensive analysis archive"""
 
@@ -7878,6 +7865,7 @@ def render_admin_image_gallery_paginated():
 
 
 @retry_with_backoff(max_retries=4, base_delay=0.5, exceptions=(Exception,))
+@st.cache_data(ttl=15)
 def get_gallery_images_paginated(
     page: int = 0,
     per_page: int = 15,
@@ -7885,170 +7873,57 @@ def get_gallery_images_paginated(
     filter_author: str = None,
     filter_strategy: str = None
 ):
-    """
-    Query gallery images with pagination, filtering, and sorting.
-    
-    FIXES:
-    - Proper error handling with logging
-    - Fallback to session state if Supabase fails
-    - Correct byte decoding from multiple storage formats
-    - Safe None checking
-    """
-    
-    # STEP 1: Try database first
-    if supabase_client:
-        try:
-            offset = page * per_page
-            query = supabase_client.table('gallery_images').select('*')
-            
-            # Apply filters
-            if filter_author:
-                query = query.eq('uploaded_by', filter_author)
-            if filter_strategy:
-                try:
-                    query = query.contains('strategies', [filter_strategy])
-                except Exception:
-                    # Strategies column might not support array filtering
-                    pass
-            
-            # Apply sorting
-            if sort_by == "most_liked":
-                query = query.order('likes', desc=True)
-            elif sort_by == "oldest":
-                query = query.order('timestamp', asc=True)
-            else:  # newest (default)
-                query = query.order('timestamp', desc=True)
-            
-            # Apply pagination
-            query = query.range(offset, offset + per_page - 1)
-            
-            # Execute query
-            resp = query.execute()
-            
-            # Check for Supabase errors
-            if hasattr(resp, 'error') and resp.error:
-                logging.error(f"Supabase query error: {resp.error}")
-                raise RuntimeError(f"Database error: {resp.error}")
-            
-            # Extract data
-            data = getattr(resp, 'data', None) or []
-            if not isinstance(data, list):
-                logging.warning(f"Unexpected response type: {type(data)}")
-                data = []
-            
-            # STEP 2: Process images and decode bytes
-            images = []
-            decode_errors = 0
-            
-            for idx, item in enumerate(data):
-                try:
-                    # Ensure item is a dict
-                    if not isinstance(item, dict):
-                        logging.warning(f"Item {idx} is not a dict: {type(item)}")
-                        decode_errors += 1
-                        continue
-                    
-                    # Try to get image bytes from multiple possible storage formats
-                    image_bytes = None
-                    
-                    # Format 1: Direct 'bytes' field (in-memory)
-                    if isinstance(item.get('bytes'), bytes):
-                        image_bytes = item['bytes']
-                    
-                    # Format 2: Base64 encoded string in 'bytes_b64'
-                    elif isinstance(item.get('bytes_b64'), str):
-                        try:
-                            image_bytes = base64.b64decode(item['bytes_b64'])
-                        except Exception as e:
-                            logging.warning(f"Failed to decode bytes_b64: {e}")
-                    
-                    # Format 3: Encoded dict with 'b64_data' (new format)
-                    elif isinstance(item.get('encoded_data'), dict):
-                        enc_data = item['encoded_data']
-                        if 'b64_data' in enc_data:
-                            try:
-                                image_bytes = base64.b64decode(enc_data['b64_data'])
-                                # Verify checksum if available
-                                if 'checksum' in enc_data:
-                                    actual_checksum = hashlib.md5(image_bytes).hexdigest()[:8]
-                                    if actual_checksum != enc_data['checksum']:
-                                        logging.warning(f"Checksum mismatch for image {item.get('name')}")
-                                        decode_errors += 1
-                                        continue
-                            except Exception as e:
-                                logging.warning(f"Failed to decode encoded_data: {e}")
-                    
-                    # If we couldn't get bytes, skip this image
-                    if image_bytes is None:
-                        logging.warning(f"No image bytes found for {item.get('name', 'unknown')}")
-                        decode_errors += 1
-                        continue
-                    
-                    # Add bytes back to item and include in results
-                    item['bytes'] = image_bytes
-                    images.append(item)
-                    
-                except Exception as e:
-                    decode_errors += 1
-                    logging.error(f"Error processing image {idx}: {e}")
-                    continue
-            
-            # Log statistics
-            if decode_errors > 0:
-                logging.warning(f"⚠️ {decode_errors} corrupted/unreadable images skipped, {len(images)} valid images loaded")
-            
-            # Cache the results for fallback
-            _cache_set("lk_gallery_paginated", images)
-            
-            logging.info(f"✅ Loaded {len(images)} images for page {page}")
-            return images
-            
-        except Exception as e:
-            logging.error(f"❌ Supabase pagination query failed: {e}")
-            # Fall through to session state fallback
-    
-    # STEP 3: Fallback to session state if Supabase unavailable
+    """Paginated fetch of gallery images with robust filtering and sorting."""
+    import streamlit as st
     try:
-        all_images = st.session_state.get('uploaded_images', [])
-        
-        if not all_images:
-            logging.warning("No images in session state")
+        if not supabase_client:
+            st.warning("⚠️ Supabase client not initialized.")
             return []
-        
-        # Apply filters to session images
-        filtered = all_images.copy()
-        
-        if filter_author:
-            filtered = [img for img in filtered if img.get('uploaded_by') == filter_author]
-        
-        if filter_strategy:
-            filtered = [img for img in filtered if filter_strategy in (img.get('strategies') or [])]
-        
-        # Apply sorting
-        if sort_by == "most_liked":
-            filtered.sort(key=lambda x: x.get('likes', 0), reverse=True)
-        elif sort_by == "oldest":
-            filtered.sort(key=lambda x: x.get('timestamp', ''), reverse=False)
-        else:  # newest
-            filtered.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        
-        # Apply pagination
-        start = page * per_page
-        end = start + per_page
-        paginated = filtered[start:end]
-        
-        logging.info(f"✅ Loaded {len(paginated)} images from session state (page {page})")
-        return paginated
-        
+
+        offset = max(page, 0) * max(per_page, 1)
+        query = supabase_client.table("gallery_images").select("*")
+
+        # filters
+        if filter_author and filter_author != "All Authors":
+            query = query.eq("uploaded_by", filter_author)
+        if filter_strategy and filter_strategy != "All Strategies":
+            try:
+                query = query.contains("strategies", [filter_strategy])
+            except Exception:
+                query = query.eq("strategy", filter_strategy)
+
+        # sort
+        s = (sort_by or "").lower()
+        if s == "most_liked":
+            query = query.order("likes", desc=True)
+        elif s == "oldest":
+            query = query.order("timestamp", asc=True)
+        else:
+            query = query.order("timestamp", desc=True)
+
+        # pagination
+        query = query.range(offset, offset + per_page - 1)
+
+        resp = query.execute()
+        if not resp or not getattr(resp, "data", None):
+            st.warning("⚠️ No images returned from Supabase (check filters or table contents).")
+            return []
+
+        imgs = []
+        for row in resp.data:
+            row["image_url"] = row.get("image_url") or row.get("url") or None
+            row["strategies"] = row.get("strategies") or [row.get("strategy") or "Unspecified"]
+            row["likes"] = row.get("likes", 0)
+            imgs.append(row)
+
+        return imgs
+
     except Exception as e:
-        logging.error(f"❌ Session state fallback failed: {e}")
+        st.error(f"⚠️ Failed to load images for this page.
+💡 Supabase error: {e}")
         return []
 
-# -------------------------
-# Gallery Pagination - UI Layer
-# -------------------------
-import streamlit as st
-             
+
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display"""
     with st.container():
