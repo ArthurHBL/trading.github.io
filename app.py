@@ -6267,7 +6267,7 @@ def render_user_image_gallery():
         st.markdown("---")
         st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
 
-def render_user_image_card_paginated(img_data, index):
+def render_user_image_card_paginated(img_data, page_num, index):
     """Render individual image card for users with pagination support"""
     with st.container():
         # Display image at 50% width for better visibility
@@ -6289,7 +6289,7 @@ def render_user_image_card_paginated(img_data, index):
                         caption=img_data.get('name', 'Unnamed Image')
                     )
                 else:
-                    st.warning("📷 Image data not available")
+                    st.warning("🖼️ Image data not available")
             except Exception as e:
                 st.error(f"❌ Error displaying image: {str(e)}")
 
@@ -6333,11 +6333,11 @@ def render_user_image_card_paginated(img_data, index):
             col_like, col_view = st.columns(2)
 
             with col_like:
-                if st.button("❤️ Like", key=f"user_like_{index}_{img_data.get('id', index)}", use_container_width=True):
+                if st.button("❤️ Like", key=f"user_like_{page_num}_{index}_{img_data.get('id', index)}", use_container_width=True):
                     st.info("Like functionality requires database update implementation")
 
             with col_view:
-                if st.button("🖼️ Fullscreen", key=f"user_view_{index}_{img_data.get('id', index)}", use_container_width=True):
+                if st.button("🖼️ Fullscreen", key=f"user_view_{page_num}_{index}_{img_data.get('id', index)}", use_container_width=True):
                     st.session_state.current_image_index = index
                     st.session_state.image_viewer_mode = True
                     st.rerun()
