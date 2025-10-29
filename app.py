@@ -8065,7 +8065,7 @@ import streamlit as st
 
 def render_image_uploader():
     """
-    COMPLETE IMAGE UPLOADER - Handles all required columns
+    EXACT IMAGE UPLOADER - Matches your table columns exactly
     """
     st.subheader("🖼️ Upload Trading Images")
     
@@ -8081,7 +8081,7 @@ def render_image_uploader():
         "Choose images to upload",
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_complete"
+        key="gallery_uploader_exact"
     )
     
     # Image description
@@ -8089,7 +8089,7 @@ def render_image_uploader():
         "Image Description (Optional):",
         placeholder="Describe what this image shows...",
         height=100,
-        key="gallery_description_complete"
+        key="gallery_description_exact"
     )
     
     # Strategy tagging
@@ -8097,10 +8097,10 @@ def render_image_uploader():
         "Tag Related Strategies (Optional):",
         available_strategies,
         default=[],
-        key="gallery_strategies_complete"
+        key="gallery_strategies_exact"
     )
     
-    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_complete"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_exact"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
@@ -8137,7 +8137,7 @@ def render_image_uploader():
                 }
                 file_format = format_map.get(file_ext, 'PNG')
                 
-                # Create unique filename and paths
+                # Create unique filename
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 unique_name = f"{timestamp}_{uf.name}"
                 
@@ -8149,56 +8149,29 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # Create COMPLETE database record with ALL potential required fields
+                # Create EXACT database record matching your table columns
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
-                    "storage_path": f"gallery/{unique_name}",
-                    "public_url": f"https://example.com/gallery/{unique_name}",
-                    "description": image_description if image_description else None,
-                    "strategies": selected_strategies if selected_strategies else [],
+                    "storage_path": f"gallery/{unique_name}",  # Required (NOT NULL)
+                    "public_url": f"https://example.com/gallery/{unique_name}",  # Required (NOT NULL)
+                    "description": image_description if image_description else "",
                     "uploaded_by": st.session_state.user['username'],
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "format": file_format,
-                    "bytes_b64": bytes_b64,
+                    "file_format": file_format,  # Note: This is file_format, not format!
                     "likes": 0,
-                    "comments": [],
-                    "created_at": datetime.now().isoformat(),
-                    "updated_at": datetime.now().isoformat()
+                    "strategies": selected_strategies if selected_strategies else [],  # Array type
+                    "bytes_b64": bytes_b64,
+                    "comments": [],  # JSONB type
+                    "format": file_format  # This is the optional 'format' column
                 }
                 
-                # Try the complete insert first
-                try:
-                    response = supabase_client.table('gallery_images').insert(db_record).execute()
-                    
-                    if hasattr(response, 'error') and response.error:
-                        # If there are column errors, try a minimal approach
-                        error_msg = str(response.error)
-                        st.warning(f"⚠️ {uf.name}: Column issues detected, trying minimal upload...")
-                        
-                        # Minimal record with only the most essential fields
-                        minimal_record = {
-                            "name": uf.name,
-                            "filename": unique_name,
-                            "storage_path": "gallery/",
-                            "public_url": "https://example.com/default.jpg",
-                            "uploaded_by": st.session_state.user['username'],
-                            "timestamp": datetime.now().isoformat(),
-                            "bytes_b64": bytes_b64,
-                            "likes": 0
-                        }
-                        
-                        response = supabase_client.table('gallery_images').insert(minimal_record).execute()
-                        
-                        if hasattr(response, 'error') and response.error:
-                            raise RuntimeError(f"Minimal upload failed: {response.error}")
+                # Insert the record
+                response = supabase_client.table('gallery_images').insert(db_record).execute()
                 
-                except Exception as e:
-                    error_msg = str(e)
-                    st.error(f"❌ {uf.name}: Upload failed - {error_msg[:100]}")
-                    error_count += 1
-                    continue
+                if hasattr(response, 'error') and response.error:
+                    raise RuntimeError(f"Supabase error: {response.error}")
                 
                 st.success(f"✅ {uf.name} uploaded successfully!")
                 success_count += 1
