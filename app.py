@@ -8485,111 +8485,55 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 import streamlit as st
 
 def render_image_uploader():
-    """Enhanced uploader with bucket error handling"""
-    st.subheader("Upload New Images")
-    
-    if Image is None:
-        st.warning("Pillow (PIL) not installed; image preview disabled.")
-    
-    uploaded_files = st.file_uploader(
-        "Choose trading analysis images to upload",
-        type=['png','jpg','jpeg','gif','bmp'],
-        accept_multiple_files=True,
-        key="gallery_uploader"
+    """Supabase uploader for gallery images (admin-only, with strategy tagging)."""
+    import base64
+    from datetime import datetime
+
+    st.subheader("📤 Upload a New Image to the Gallery")
+
+    uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
+    description = st.text_area("📝 Add a description (optional):")
+
+    # 🏷️ Strategy / Tag selector
+    STRATEGIES = st.session_state.get("STRATEGIES", {})
+    strategy_list = list(STRATEGIES.keys())
+    selected_strategy = st.selectbox(
+        "🏷️ Select Strategy / Tag:",
+        strategy_list,
+        index=0,
+        key="upload_strategy_tag"
     )
-    
-    image_description = st.text_area(
-        "Image Description (Optional):",
-        placeholder="Describe what this image shows...",
-        height=100,
-        key="gallery_description"
-    )
-    
-    if st.button("Upload Images to Gallery", use_container_width=True, key="upload_images_btn"):
-        if not uploaded_files:
-            st.warning("Select at least one image to upload.")
-            return
-        
-        prepared, errors = [], []
-        
-        for uf in uploaded_files:
+
+    if uploaded_file and st.button("🚀 Upload to Gallery", use_container_width=True):
+        with st.spinner("Uploading to Supabase..."):
             try:
-                if Image:
-                    img = Image.open(uf)
-                    buf = io.BytesIO()
-                    fmt = img.format or 'PNG'
-                    img.save(buf, format=fmt)
-                    buf.seek(0)
-                    data = buf.getvalue()
-                else:
-                    data = uf.read()
-                    fmt = 'PNG'
-                
-                # Check file size (5MB limit)
-                if len(data) > 5*1024*1024:
-                    errors.append(f"{uf.name}: file too large (>5MB)")
-                    continue
-                
-                prepared.append({
-                    "name": uf.name,
-                    "bytes": data,
-                    "format": fmt,
-                    "description": image_description,
-                    "strategies": [],
-                    "uploaded_by": (st.session_state.get('user') or {}).get('username', 'unknown'),
+                # Build unique filename
+                file_bytes = uploaded_file.getvalue()
+                filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
+                storage_path = f"gallery_uploads/{filename}"
+
+                # Upload to Supabase Storage bucket
+                supabase_client.storage.from_("gallery_images").upload(storage_path, file_bytes)
+
+                # Get public URL for the file
+                public_url = supabase_client.storage.from_("gallery_images").get_public_url(storage_path)
+
+                # Insert record into gallery_images table
+                supabase_client.table("gallery_images").insert({
+                    "name": filename,
+                    "description": description,
+                    "uploaded_by": st.session_state.user.get("name", "Admin"),
                     "timestamp": datetime.now().isoformat(),
                     "likes": 0,
-                    "comments": []
-                })
-            except Exception as e:
-                errors.append(f"{uf.name}: {str(e)[:60]}")
-        
-        # Display errors
-        for e in errors:
-            st.error(f"[ERROR] {e}")
-        
-        if not prepared:
-            st.error("No valid images to upload.")
-            return
-        
-        with st.spinner(f"Uploading {len(prepared)} image(s)..."):
-            try:
-                # Update session state optimistically
-                st.session_state.uploaded_images = (st.session_state.get('uploaded_images') or []) + prepared
-                
-                # Try to save to Supabase
-                if supabase_client:
-                    try:
-                        ok = supabase_save_gallery_images(st.session_state.uploaded_images)
-                        if ok:
-                            st.success(f"[SUCCESS] Uploaded {len(prepared)} image(s) to database")
-                        else:
-                            st.warning(f"[WARNING] Saved locally but database sync failed. Try again later.")
-                    except Exception as db_error:
-                        if "Bucket not found" in str(db_error):
-                            st.error("""
-[ERROR] Storage Bucket Missing!
+                    "strategy": selected_strategy,
+                    "image_url": public_url
+                }).execute()
 
-Please create the storage bucket:
-1. Go to Supabase Dashboard > Storage
-2. Click "New bucket"
-3. Name it: gallery_images
-4. Set to Public
-5. Click Create
-
-Images saved locally but need bucket to persist.
-                            """)
-                        else:
-                            st.error(f"[ERROR] Database error: {str(db_error)[:100]}")
-                else:
-                    st.warning("[WARNING] Database not connected. Images saved locally only.")
-                
+                st.success("✅ Image uploaded successfully!")
+                st.session_state.gallery_page = 0
                 st.rerun()
-                
             except Exception as e:
-                # Rollback
-                st.session_state.uploaded_images = st.session_state.get('uploaded_images', [])[:-len(prepared)]
-                st.error(f"[ERROR] Upload failed: {str(e)[:150]}")
+                st.error(f"❌ Upload failed: {e}")
 
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display"""
