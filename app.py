@@ -8486,24 +8486,45 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 import streamlit as st
 
 def render_image_uploader():
-    """Upload images to Supabase Storage bucket"""
+    """Upload images to Supabase Storage bucket with strategy tags"""
     st.subheader("Upload Trading Images")
+    
+    # Get available strategies for tagging
+    STRATEGIES = st.session_state.get('STRATEGIES', {})
+    if isinstance(STRATEGIES, dict):
+        available_strategies = list(STRATEGIES.keys())
+    else:
+        available_strategies = []
     
     uploaded_files = st.file_uploader(
         "Choose images to upload",
         type=['png','jpg','jpeg','gif','bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_fixed"
+        key="gallery_uploader_paginated"
     )
     
-    image_description = st.text_area(
-        "Image Description (Optional):",
-        placeholder="Describe what this image shows...",
-        height=100,
-        key="gallery_description_fixed"
-    )
+    # Two-column layout for description and strategy selection
+    col1, col2 = st.columns(2)
     
-    if st.button("Upload to Gallery", use_container_width=True, key="upload_btn_fixed"):
+    with col1:
+        image_description = st.text_area(
+            "Image Description (Optional):",
+            placeholder="Describe what this image shows...",
+            height=100,
+            key="gallery_description_paginated"
+        )
+    
+    with col2:
+        # Strategy tag selection (multi-select)
+        selected_strategies = st.multiselect(
+            "Tag Related Strategies (Optional):",
+            available_strategies,
+            default=[],
+            key="gallery_strategies_paginated",
+            help="Select all strategies this image relates to"
+        )
+    
+    if st.button("Upload to Gallery", use_container_width=True, key="upload_btn_paginated"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
@@ -8544,13 +8565,14 @@ def render_image_uploader():
                     storage_path
                 )
                 
-                # Insert metadata into database
+                # Insert metadata into database WITH STRATEGY TAGS
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
                     "storage_path": storage_path,
                     "public_url": public_url,
                     "description": image_description,
+                    "strategies": selected_strategies,  # NOW INCLUDES USER-SELECTED TAGS
                     "uploaded_by": (st.session_state.get('user') or {}).get('username', 'anonymous'),
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
@@ -8571,9 +8593,12 @@ def render_image_uploader():
         # Summary
         st.markdown("---")
         if success_count > 0:
-            st.success(f"Successfully uploaded {success_count} image(s)")
+            st.success(f"✅ Successfully uploaded {success_count} image(s)")
+            if selected_strategies:
+                st.info(f"🏷️ Tagged with strategies: {', '.join(selected_strategies)}")
+            st.balloons()
         if error_count > 0:
-            st.error(f"Failed to upload {error_count} image(s)")
+            st.error(f"❌ Failed to upload {error_count} image(s)")
         
         if success_count > 0:
             time.sleep(1)
