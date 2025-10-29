@@ -9187,7 +9187,7 @@ def render_admin_dashboard():
     elif st.session_state.get('admin_dashboard_mode') == "kai_agent":  # ADDED: KAI Agent condition
         render_kai_agent()
     else:
-        render_image_gallery()
+        render_image_gallery_paginated()
 
 def render_admin_sidebar_options():
     """Sidebar options for admin management mode"""
