@@ -5950,95 +5950,7 @@ def get_gallery_images_count():
     except Exception as e:
         logging.error(f"Database count error: {e}")
         return _cache_get("lk_gallery_count", 0)
-
-@retry_with_backoff(max_retries=4, base_delay=0.5)
-def get_gallery_images_paginated(
-    page: int = 0,
-    per_page: int = 15,
-    sort_by: str = "newest",
-    filter_author: str = None,
-    filter_strategy: str = None
-):
-    """Query gallery images with pagination, filtering, and sorting"""
-    cached = _cache_get("lk_gallery_paginated", [])
-    if 'supabase_client' not in globals() or not supabase_client:
-        return cached
-    try:
-        offset = page * per_page
-        query = supabase_client.table('gallery_images').select('*')
-
-        if filter_author:
-            query = query.eq('uploaded_by', filter_author)
-        if filter_strategy:
-            # Optional: requires strategies array or denormalized column
-            try:
-                query = query.contains('strategies', [filter_strategy])
-            except Exception:
-                pass
-
-        if sort_by == "most_liked":
-            query = query.order('likes', desc=True)
-        elif sort_by == "oldest":
-            query = query.order('timestamp', asc=True)
-        else:
-            query = query.order('timestamp', desc=True)
-
-        query = query.range(offset, offset + per_page - 1)
-        resp = query.execute()
-        if hasattr(resp, 'error') and resp.error:
-            raise RuntimeError(f"Supabase error: {resp.error}")
-
-        images = []
-        decode_errors = 0
-        for item in (getattr(resp, 'data', None) or []):
-            try:
-                # Handle strategies array - ensure it's a list
-                if 'strategies' in item:
-                    strategies = item.get('strategies')
-                    if isinstance(strategies, str):
-                        # If it's a JSON string, parse it
-                        try:
-                            import json
-                            item['strategies'] = json.loads(strategies)
-                        except:
-                            item['strategies'] = []
-                    elif not isinstance(strategies, list):
-                        item['strategies'] = []
-                else:
-                    item['strategies'] = []
-                
-                # Handle image bytes - try new and old formats
-                if isinstance(item.get('encoded_data'), dict):
-                    decoded = decode_image_from_storage(item['encoded_data'])
-                    if decoded:
-                        item['bytes'] = decoded
-                        images.append(item)
-                    else:
-                        decode_errors += 1
-                elif 'bytes_b64' in item:
-                    try:
-                        item['bytes'] = base64.b64decode(item['bytes_b64'])
-                        images.append(item)
-                    except Exception as e:
-                        logging.error(f"Legacy decode failed: {e}")
-                        decode_errors += 1
-                else:
-                    # No image bytes found - skip this item
-                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
-                    decode_errors += 1
-            except Exception as e:
-                decode_errors += 1
-                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
-
-        if decode_errors:
-            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
-
-        _cache_set("lk_gallery_paginated", images)
-        return images
-    except Exception as e:
-        logging.error(f"Pagination query failed: {e}")
-        return cached
-
+        
 def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
     """Get total count with filters applied"""
     if 'supabase_client' not in globals() or not supabase_client:
@@ -7870,77 +7782,6 @@ def get_gallery_images_count():
         logging.error(f"Database count error: {e}")
         return _cache_get("lk_gallery_count", 0)
 
-@retry_with_backoff(max_retries=4, base_delay=0.5)
-def get_gallery_images_paginated(
-    page: int = 0,
-    per_page: int = 15,
-    sort_by: str = "newest",
-    filter_author: str = None,
-    filter_strategy: str = None
-):
-    """Query gallery images with pagination, filtering, and sorting"""
-    cached = _cache_get("lk_gallery_paginated", [])
-    if 'supabase_client' not in globals() or not supabase_client:
-        return cached
-    try:
-        offset = page * per_page
-        query = supabase_client.table('gallery_images').select('*')
-
-        if filter_author:
-            query = query.eq('uploaded_by', filter_author)
-        if filter_strategy:
-            # Optional: requires strategies array or denormalized column
-            try:
-                query = query.contains('strategies', [filter_strategy])
-            except Exception:
-                pass
-
-        if sort_by == "most_liked":
-            query = query.order('likes', desc=True)
-        elif sort_by == "oldest":
-            query = query.order('timestamp', asc=True)
-        else:
-            query = query.order('timestamp', desc=True)
-
-        query = query.range(offset, offset + per_page - 1)
-        resp = query.execute()
-        if hasattr(resp, 'error') and resp.error:
-            raise RuntimeError(f"Supabase error: {resp.error}")
-
-        images = []
-        decode_errors = 0
-        for item in (getattr(resp, 'data', None) or []):
-            try:
-                if isinstance(item.get('encoded_data'), dict):
-                    decoded = decode_image_from_storage(item['encoded_data'])
-                    if decoded:
-                        item['bytes'] = decoded
-                        images.append(item)
-                    else:
-                        decode_errors += 1
-                elif 'bytes_b64' in item:
-                    try:
-                        item['bytes'] = base64.b64decode(item['bytes_b64'])
-                        images.append(item)
-                    except Exception as e:
-                        logging.error(f"Legacy decode failed: {e}")
-                        decode_errors += 1
-                else:
-                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
-                    decode_errors += 1
-            except Exception as e:
-                decode_errors += 1
-                logging.error(f"Error processing image {item.get('name','unknown')}: {e}")
-
-        if decode_errors:
-            logging.warning(f"⚠️ {decode_errors} corrupted images skipped")
-
-        _cache_set("lk_gallery_paginated", images)
-        return images
-    except Exception as e:
-        logging.error(f"Pagination query failed: {e}")
-        return cached
-
 def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
     """Get total count with filters applied"""
     if 'supabase_client' not in globals() or not supabase_client:
@@ -8172,6 +8013,8 @@ def render_admin_image_gallery_paginated():
             except Exception as e:
                 st.error(f"❌ Error: {e}")
 
+
+@retry_with_backoff(max_retries=4, base_delay=0.5)
 def get_gallery_images_paginated(
     page: int = 0,
     per_page: int = 15,
@@ -8212,6 +8055,22 @@ def get_gallery_images_paginated(
         decode_errors = 0
         for item in (getattr(resp, 'data', None) or []):
             try:
+                # Handle strategies array - ensure it's a list
+                if 'strategies' in item:
+                    strategies = item.get('strategies')
+                    if isinstance(strategies, str):
+                        # If it's a JSON string, parse it
+                        try:
+                            import json
+                            item['strategies'] = json.loads(strategies)
+                        except:
+                            item['strategies'] = []
+                    elif not isinstance(strategies, list):
+                        item['strategies'] = []
+                else:
+                    item['strategies'] = []
+                
+                # Handle image bytes - try new and old formats
                 if isinstance(item.get('encoded_data'), dict):
                     decoded = decode_image_from_storage(item['encoded_data'])
                     if decoded:
@@ -8227,6 +8086,7 @@ def get_gallery_images_paginated(
                         logging.error(f"Legacy decode failed: {e}")
                         decode_errors += 1
                 else:
+                    # No image bytes found - skip this item
                     logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
                     decode_errors += 1
             except Exception as e:
@@ -8241,7 +8101,7 @@ def get_gallery_images_paginated(
     except Exception as e:
         logging.error(f"Pagination query failed: {e}")
         return cached
-
+        
 def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy: str = None, min_likes: int = 0):
     """Get total count with filters applied"""
     if 'supabase_client' not in globals() or not supabase_client:
