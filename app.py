@@ -2639,6 +2639,24 @@ def init_session():
         st.session_state.current_strategy_indicator_image = None
     if 'current_strategy_indicator' not in st.session_state:
         st.session_state.current_strategy_indicator = None
+    if "STRATEGIES" not in st.session_state:
+        st.session_state.STRATEGIES = {
+            "Premium Stoch": "",
+            "LS Copy": "",
+            "PositionFlow": "",
+            "RenkoVol": "",
+            "10h WWV": "",
+            "Momentum Delta": "",
+            "WaveSync": "",
+            "Trend Volume": "",
+            "EMA Cloud": "",
+            "Smart ROC": "",
+            "Rainbow RSI": "",
+            "Cycle Divergence": "",
+            "Macro Bias": "",
+            "DeltaFlow": "",
+            "Quant Pulse": ""
+        }
     # NEW: Strategy analyses data state - CRITICAL FIX
     if 'strategy_analyses_data' not in st.session_state:
         st.session_state.strategy_analyses_data = load_data()
@@ -8478,10 +8496,11 @@ def render_image_uploader():
 
     # 🏷️ Strategy / Tag selector
     STRATEGIES = st.session_state.get("STRATEGIES", {})
-    strategy_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
+    strategy_list = list(STRATEGIES.keys())
     selected_strategy = st.selectbox(
         "🏷️ Select Strategy / Tag:",
-        ["Unspecified"] + strategy_list,
+        strategy_list,
+        index=0,
         key="upload_strategy_tag"
     )
 
