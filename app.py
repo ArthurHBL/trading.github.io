@@ -9352,9 +9352,10 @@ st.set_page_config(
 # MAIN APPLICATION - FIXED USER ACCESS
 # -------------------------
 def main():
-    # Initialize session state variables
-    init_session()
-    init_session()
+    # Initialize session state variables - ONLY ONCE
+    if 'session_initialized' not in st.session_state:
+        init_session()
+        st.session_state.session_initialized = True
 
     # Setup data persistence
     setup_data_persistence()
