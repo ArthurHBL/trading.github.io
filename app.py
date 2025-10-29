@@ -7665,6 +7665,18 @@ def render_user_dashboard():
 
         st.markdown("---")
 
+        # === ADD THE DISCLAIMER RIGHT HERE - ABOVE THE LOGOUT BUTTON ===
+        st.markdown("""
+        <div style="background-color: #ffebee; padding: 10px; border-radius: 5px; border-left: 4px solid #f44336; margin: 10px 0;">
+            <small><strong>⚠️ IMPORTANT DISCLAIMER</strong></small><br>
+            <small>This is not financial advice. All trading involves risk. 
+            Only trade with money you can afford to lose. Past performance 
+            is not indicative of future results.</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
