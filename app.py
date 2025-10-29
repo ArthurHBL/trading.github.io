@@ -6268,54 +6268,57 @@ def render_user_image_gallery():
         st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
 
 def render_user_image_card_paginated(img_data, page_num, index):
-    """Render individual image card for users with pagination support"""
-    with st.container():
-        # Display image at 50% width for better visibility
-        col_image, col_info = st.columns([1.5, 1])
-
-        with col_image:
-            try:
-                # Get image bytes
-                image_bytes = None
-                if 'bytes' in img_data:
-                    image_bytes = img_data['bytes']
-                elif 'bytes_b64' in img_data:
-                    image_bytes = base64.b64decode(img_data['bytes_b64'])
-                
-                if image_bytes:
-                    st.image(
-                        image_bytes,
-                        use_container_width=True,
-                        caption=img_data.get('name', 'Unnamed Image')
-                    )
-                else:
-                    st.warning("🖼️ Image data not available")
-            except Exception as e:
-                st.error(f"❌ Error displaying image: {str(e)}")
-
-        with col_info:
-            # Image info on the right side
-            st.markdown(f"**{img_data.get('name', 'Unnamed Image')}**")
-            st.divider()
-
-            # Description
-            description = img_data.get('description', '')
-            if description:
-                preview = description[:100] + "..." if len(description) > 100 else description
-                st.caption(f"📝 {preview}")
-            else:
-                st.caption("No description")
-
-            # Strategy tags
-            strategies = img_data.get('strategies', [])
-            if strategies:
-                st.caption(f"🏷️ **Strategies:**")
-                for strategy in strategies[:3]:
-                    st.caption(f"  • {strategy}")
-                if len(strategies) > 3:
-                    st.caption(f"  +{len(strategies) - 3} more")
-
-            st.divider()
+    """Render individual image card - CLEAN IMAGE-ONLY VERSION"""
+    try:
+        # Get image bytes
+        image_bytes = None
+        if 'bytes' in img_data:
+            image_bytes = img_data['bytes']
+        elif 'bytes_b64' in img_data:
+            image_bytes = base64.b64decode(img_data['bytes_b64'])
+        
+        if image_bytes:
+            st.image(
+                image_bytes,
+                use_container_width=True,
+                caption=None  # No caption
+            )
+        else:
+            st.warning("🖼️ Image data not available")
+    except Exception as e:
+        st.error(f"❌ Error displaying image")
+    
+    # MINIMAL action buttons - below image only
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("❤️", key=f"like_{page_num}_{index}", use_container_width=True, help="Like this image"):
+            st.info("Like functionality coming soon")
+    
+    with col2:
+        if st.button("🖼️", key=f"view_{page_num}_{index}", use_container_width=True, help="View fullscreen"):
+            st.session_state.current_image_index = index
+            st.session_state.image_viewer_mode = True
+            st.rerun()
+    
+    with col3:
+        try:
+            image_bytes = None
+            if 'bytes' in img_data:
+                image_bytes = img_data['bytes']
+            elif 'bytes_b64' in img_data:
+                image_bytes = base64.b64decode(img_data['bytes_b64'])
+            
+            if image_bytes:
+                b64_img = base64.b64encode(image_bytes).decode()
+                file_format = img_data.get('format', 'png').lower()
+                file_name = img_data.get('name', f'image_{index}')
+                href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px;">⬇️</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+        except Exception as e:
+            st.button("⬇️", disabled=True, use_container_width=True)
+    
+    st.divider()
 
             # Metadata
             st.caption(f"👤 By: **{img_data.get('uploaded_by', 'Unknown')}**")
