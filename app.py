@@ -2646,16 +2646,16 @@ def init_session():
             "PositionFlow": "",
             "RenkoVol": "",
             "10h WWV": "",
-            "Momentum Delta": "",
-            "WaveSync": "",
-            "Trend Volume": "",
-            "EMA Cloud": "",
-            "Smart ROC": "",
-            "Rainbow RSI": "",
-            "Cycle Divergence": "",
-            "Macro Bias": "",
-            "DeltaFlow": "",
-            "Quant Pulse": ""
+            "Premium Osc Volatility": "",
+            "RSI": "",
+            "WeisWaveVol": "",
+            "PremiumACC": "",
+            "VolPress": "",
+            "Volatility": "",
+            "ACC/DIST": "",
+            "Lux Algo": "",
+            "Point and Figure": "",
+            "Rational Strategy LT": ""
         }
     # NEW: Strategy analyses data state - CRITICAL FIX
     if 'strategy_analyses_data' not in st.session_state:
