@@ -6268,7 +6268,7 @@ def render_user_image_gallery():
         st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
 
 def render_user_image_card_paginated(img_data, page_num, index):
-    """Render individual image card - CLEAN IMAGE ONLY WITH DOWNLOAD"""
+    """Render individual image card - CLEAN IMAGE WITH DATE AND SMALL INFO"""
     try:
         # Get image bytes
         image_bytes = None
@@ -6288,22 +6288,36 @@ def render_user_image_card_paginated(img_data, page_num, index):
     except Exception as e:
         st.error(f"❌ Error displaying image")
     
-    # ONLY download button below image
-    try:
-        image_bytes = None
-        if 'bytes' in img_data:
-            image_bytes = img_data['bytes']
-        elif 'bytes_b64' in img_data:
-            image_bytes = base64.b64decode(img_data['bytes_b64'])
-        
-        if image_bytes:
-            b64_img = base64.b64encode(image_bytes).decode()
-            file_format = img_data.get('format', 'png').lower()
-            file_name = img_data.get('name', f'image_{index}')
-            href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:10px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; font-weight:bold;">⬇️ Download</button></a>'
-            st.markdown(href, unsafe_allow_html=True)
-    except Exception as e:
-        st.button("⬇️ Download", disabled=True, use_container_width=True)
+    # Date and Download button row
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        timestamp = img_data.get('timestamp', '')
+        if timestamp:
+            try:
+                upload_time = datetime.fromisoformat(timestamp).strftime("%m/%d/%Y")
+                st.caption(f"📅 {upload_time}")
+            except:
+                st.caption(f"📅 {timestamp[:10]}")
+        else:
+            st.caption("📅 Unknown date")
+    
+    with col2:
+        try:
+            image_bytes = None
+            if 'bytes' in img_data:
+                image_bytes = img_data['bytes']
+            elif 'bytes_b64' in img_data:
+                image_bytes = base64.b64decode(img_data['bytes_b64'])
+            
+            if image_bytes:
+                b64_img = base64.b64encode(image_bytes).decode()
+                file_format = img_data.get('format', 'png').lower()
+                file_name = img_data.get('name', f'image_{index}')
+                href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">⬇️ Download</button></a>'
+                st.markdown(href, unsafe_allow_html=True)
+        except Exception as e:
+            st.button("⬇️ Download", disabled=True, use_container_width=True)
     
     st.divider()
 
