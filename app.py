@@ -22,6 +22,7 @@ def _cache_set(key, value):
     st.session_state[f"_cache_{key}"] = value
     _gallery_cache[key] = value
 
+
 def retry_with_backoff(max_retries=3, base_delay=0.5, exceptions=(Exception,)):
     import time
     def decorator(func):
