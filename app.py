@@ -7665,21 +7665,21 @@ def render_user_dashboard():
 
         st.markdown("---")
 
+        # LOGOUT BUTTON FIRST
+        if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
+            user_manager.logout(user['username'])
+            st.session_state.user = None
+            st.rerun()
 
-    if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
-        user_manager.logout(user['username'])
-        st.session_state.user = None
-        st.rerun()
-
-    # === ADD THE DISCLAIMER RIGHT HERE - AFTER THE LOGOUT BUTTON ===
-    st.markdown("---")
-    st.markdown("""
-    <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
-        <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
-        <small style="color: #3e2723;">This is not financial advice. Trading carries high risk of loss. 
-        Only risk capital you can afford to lose. Past performance ≠ future results.</small>
-    </div>
-    """, unsafe_allow_html=True)
+        # DISCLAIMER AFTER LOGOUT BUTTON - BETTER VISUAL PLACEMENT
+        st.markdown("---")
+        st.markdown("""
+        <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
+            <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
+            <small style="color: #3e2723;">This is not financial advice. Trading carries high risk of loss. 
+            Only risk capital you can afford to lose. Past performance ≠ future results.</small>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Main dashboard content - READ ONLY for users but same layout as admin
     current_view = st.session_state.get('dashboard_view', 'main')
