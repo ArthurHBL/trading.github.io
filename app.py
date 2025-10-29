@@ -2882,32 +2882,73 @@ def save_signals_data(signals):
 @st.cache_data(ttl=60)
 def load_gallery_images():
     """
-    Load gallery images from Supabase with safe fallbacks.
-    Handles missing fields and empty tables gracefully.
+    UNIFIED gallery image loader - Single source of truth
+    Handles all image retrieval with proper error handling and caching
     """
-    import streamlit as st
     try:
-        resp = supabase_client.table("gallery_images").select("*").order("timestamp", desc=True).execute()
-
-        if not resp or not getattr(resp, "data", None):
-            st.warning("⚠️ No image records found in the 'gallery_images' table.")
+        # Try to get from Supabase first
+        if not supabase_client:
+            logging.warning("Supabase client not available, using cache")
+            return _cache_get("lk_gallery_images", []) or []
+        
+        # Fetch from database with retry
+        try:
+            response = supabase_client.table('gallery_images').select('*').execute()
+            
+            if hasattr(response, 'error') and response.error:
+                raise RuntimeError(f"Supabase error: {response.error}")
+            
+            images = []
+            decode_errors = 0
+            
+            for item in (response.data or []):
+                try:
+                    # Try to decode image bytes from base64
+                    if 'bytes_b64' in item and item['bytes_b64']:
+                        try:
+                            item['bytes'] = base64.b64decode(item['bytes_b64'])
+                        except Exception as e:
+                            logging.warning(f"Failed to decode {item.get('name')}: {e}")
+                            decode_errors += 1
+                            continue
+                    
+                    # Ensure format field exists (CRITICAL)
+                    if not item.get('format'):
+                        item['format'] = 'PNG'  # Safe default
+                    
+                    # Normalize strategies field
+                    item["strategies"] = item.get("strategies") or [item.get("strategy") or "Unspecified"]
+                    
+                    # Ensure likes field exists
+                    item["likes"] = item.get("likes", 0)
+                    
+                    images.append(item)
+                    
+                except Exception as e:
+                    logging.warning(f"Skipping corrupted image: {e}")
+                    continue
+            
+            if decode_errors > 0:
+                logging.info(f"⚠️ {decode_errors} images had decode errors but continued")
+            
+            # Cache successful load
+            if images:
+                _cache_set("lk_gallery_images", images)
+            
+            return images
+        
+        except Exception as e:
+            logging.error(f"Supabase fetch failed: {e}")
+            # Fall back to cache on error
+            cached = _cache_get("lk_gallery_images", [])
+            if cached:
+                logging.info("Using cached gallery images")
+                return cached
             return []
-
-        images = []
-        for row in resp.data:
-            # normalize keys
-            row["image_url"] = row.get("image_url") or row.get("url") or None
-            row["strategies"] = row.get("strategies") or [row.get("strategy") or "Unspecified"]
-            row["likes"] = row.get("likes", 0)
-            row["uploaded_by"] = row.get("uploaded_by", "Unknown")
-            images.append(row)
-
-        return images
-
+    
     except Exception as e:
-        st.error(f"⚠️ Failed to load images for this page.💡 Supabase error: {e}")
+        logging.error(f"load_gallery_images() failed completely: {e}")
         return []
-
 
 def render_kai_agent():
     """Enhanced KAI AI Agent interface with comprehensive analysis archive"""
@@ -9947,108 +9988,7 @@ def decode_image_from_storage(encoded_data: dict) -> bytes | None:
 # ----- Fixed Supabase gallery functions (use existing retry_with_backoff if present) -----
 _retry = retry_with_backoff if 'retry_with_backoff' in globals() else (lambda **kw: (lambda f: f))
 
-@_retry(max_retries=5, base_delay=0.3)
-def supabase_get_gallery_images_fixed():
-    client = _init_supabase_hardened() if '_init_supabase_hardened' in globals() else supabase_client
-    if not client:
-        cached = _cache_get("lk_supabase_get_gallery_images", []) if '_cache_get' in globals() else []
-        return cached
-    try:
-        resp = client.table('gallery_images').select('*').execute()
-        if hasattr(resp, 'error') and resp.error:
-            raise RuntimeError(f"Supabase error: {resp.error}")
-        images, decode_errors = [], 0
-        for item in (resp.data or []):
-            try:
-                if isinstance(item.get('encoded_data'), dict):
-                    decoded = decode_image_from_storage(item['encoded_data'])
-                    if decoded:
-                        item['bytes'] = decoded
-                        images.append(item)
-                    else:
-                        decode_errors += 1
-                elif 'bytes_b64' in item:
-                    try:
-                        item['bytes'] = base64.b64decode(item['bytes_b64'])
-                        images.append(item)
-                    except Exception:
-                        decode_errors += 1
-                else:
-                    logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
-            except Exception as e:
-                decode_errors += 1
-                logging.error(f"Error processing image item: {e}")
-        if decode_errors:
-            logging.warning(f"{decode_errors} corrupted images skipped")
-        if '_cache_set' in globals():
-            _cache_set("lk_supabase_get_gallery_images", images)
-        return images
-    except Exception as e:
-        logging.error(f"Gallery retrieval failed: {e}")
-        cached = _cache_get("lk_supabase_get_gallery_images", []) if '_cache_get' in globals() else []
-        return cached or []
-
-@_retry(max_retries=5, base_delay=0.3)
-def supabase_save_gallery_images_fixed(images: list) -> bool:
-    client = _init_supabase_hardened() if '_init_supabase_hardened' in globals() else supabase_client
-    if not client:
-        st.error("Cannot save images: database unavailable")
-        return False
-    try:
-        encoded_records, encode_errors = [], 0
-        for img in (images or []):
-            try:
-                record = dict(img)
-                if isinstance(record.get('bytes'), bytes):
-                    enc = encode_image_for_storage(record['bytes'], record.get('format', 'PNG'))
-                    if enc:
-                        record['encoded_data'] = enc
-                        record.pop('bytes', None)
-                    else:
-                        raise ValueError(f"Failed to encode {record.get('name','unknown')}")
-                record.pop('image', None)
-                record.setdefault('timestamp', datetime.now().isoformat())
-                encoded_records.append(record)
-            except Exception as e:
-                encode_errors += 1
-                logging.error(f"prepare image failed: {e}")
-        if encode_errors:
-            logging.warning(f"{encode_errors} images failed validation; skipping them")
-        if not encoded_records:
-            st.error("No valid images to save")
-            return False
-        # Clear table (best-effort), then insert
-        try:
-            client.table('gallery_images').delete().neq('id', 0).execute()
-        except Exception as e:
-            logging.info(f"Could not clear old gallery rows: {e}")
-        resp = client.table('gallery_images').insert(encoded_records).execute()
-        if hasattr(resp, 'error') and resp.error:
-            raise RuntimeError(f"Insert failed: {resp.error}")
-        if '_cache_set' in globals():
-            _cache_set("lk_supabase_get_gallery_images", encoded_records)
-        return True
-    except Exception as e:
-        logging.error(f"Gallery save failed: {e}")
-        st.error(f"Failed to save images: {str(e)[:100]}")
-        return False
-
-# Backward-compatible wrappers to override existing names (no change at call sites)
-supabase_get_gallery_images = supabase_get_gallery_images_fixed
-supabase_save_gallery_images = supabase_save_gallery_images_fixed
-
 # ----- Local loading & uploader (override) -----
-def load_gallery_images_fixed():
-    try:
-        imgs = supabase_get_gallery_images_fixed()
-        valid = [img for img in imgs if isinstance(img.get('bytes'), bytes)]
-        return valid
-    except Exception as e:
-        logging.error(f"load_gallery_images_fixed failed: {e}")
-        cached = _cache_get("lk_supabase_get_gallery_images", []) if '_cache_get' in globals() else []
-        return cached or []
-
-
 # =====================================================================
 # END OF GALLERY IMAGE PERSISTENCE FIX
 # =====================================================================
