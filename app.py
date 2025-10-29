@@ -2878,12 +2878,35 @@ def save_signals_data(signals):
 # GALLERY IMAGE PERSISTENCE
 # -------------------------
 
+@st.cache_data(ttl=60)
 def load_gallery_images():
-    """Load gallery images with pagination support (first page)"""
+    """Load gallery images from Supabase, tolerant to missing buckets and tags."""
     try:
-        return get_gallery_images_paginated(page=0, per_page=15, sort_by="newest")
+        from datetime import datetime
+
+        # Fetch from table
+        data = supabase_client.table("gallery_images").select("*").order("timestamp", desc=True).execute()
+        if not data or not data.data:
+            st.warning("⚠️ No image records found in 'gallery_images' table.")
+            return []
+
+        images = data.data
+
+        # Normalize tag fields
+        for img in images:
+            if "strategies" not in img or not img["strategies"]:
+                if "strategy" in img and img["strategy"]:
+                    img["strategies"] = [img["strategy"]]
+                else:
+                    img["strategies"] = ["Unspecified"]
+            # Ensure URL key exists
+            if "image_url" not in img and "url" in img:
+                img["image_url"] = img["url"]
+
+        return images
+
     except Exception as e:
-        logging.error(f"Error loading gallery: {e}")
+        st.error(f"⚠️ Failed to load images for this page.\n\n💡 This might be a temporary issue: {e}")
         return []
 
 # ENHANCED KAI AI AGENT INTERFACE WITH COMPREHENSIVE ANALYSIS ARCHIVE
