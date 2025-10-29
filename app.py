@@ -8467,36 +8467,46 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 import streamlit as st
 
 def render_image_uploader():
-    """Supabase uploader for gallery images (admin-only)."""
+    """Supabase uploader for gallery images (admin-only, with strategy tagging)."""
     import base64
     from datetime import datetime
 
     st.subheader("📤 Upload a New Image to the Gallery")
-    uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
 
+    uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
     description = st.text_area("📝 Add a description (optional):")
+
+    # 🏷️ Strategy / Tag selector
+    STRATEGIES = st.session_state.get("STRATEGIES", {})
+    strategy_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
+    selected_strategy = st.selectbox(
+        "🏷️ Select Strategy / Tag:",
+        ["Unspecified"] + strategy_list,
+        key="upload_strategy_tag"
+    )
 
     if uploaded_file and st.button("🚀 Upload to Gallery", use_container_width=True):
         with st.spinner("Uploading to Supabase..."):
             try:
-                # Create a unique filename
+                # Build unique filename
                 file_bytes = uploaded_file.getvalue()
                 filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
                 storage_path = f"gallery_uploads/{filename}"
 
-                # Upload file to Supabase Storage bucket
+                # Upload to Supabase Storage bucket
                 supabase_client.storage.from_("gallery_images").upload(storage_path, file_bytes)
 
-                # Get the public URL for the file
+                # Get public URL for the file
                 public_url = supabase_client.storage.from_("gallery_images").get_public_url(storage_path)
 
-                # Insert metadata into the gallery_images table
+                # Insert record into gallery_images table
                 supabase_client.table("gallery_images").insert({
                     "name": filename,
                     "description": description,
                     "uploaded_by": st.session_state.user.get("name", "Admin"),
                     "timestamp": datetime.now().isoformat(),
                     "likes": 0,
+                    "strategy": selected_strategy,
                     "image_url": public_url
                 }).execute()
 
