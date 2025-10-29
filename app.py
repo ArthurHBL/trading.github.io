@@ -2880,35 +2880,47 @@ def save_signals_data(signals):
 
 @st.cache_data(ttl=60)
 def load_gallery_images():
-    """Load gallery images from Supabase, tolerant to missing buckets and tags."""
+    """
+    Load gallery images from Supabase with safe fallbacks.
+    Handles missing fields, bad encodings, and empty tables gracefully.
+    """
     try:
-        from datetime import datetime
+        # Pull data from the Supabase table
+        resp = supabase_client.table("gallery_images").select("*").order("timestamp", desc=True).execute()
 
-        # Fetch from table
-        data = supabase_client.table("gallery_images").select("*").order("timestamp", desc=True).execute()
-        if not data or not data.data:
-            st.warning("⚠️ No image records found in 'gallery_images' table.")
+        # If query failed or returned nothing
+        if not resp or not getattr(resp, "data", None):
+            st.warning("⚠️ No image records found in the 'gallery_images' table.")
             return []
 
-        images = data.data
-
-        # Normalize tag fields
-        for img in images:
-            if "strategies" not in img or not img["strategies"]:
-                if "strategy" in img and img["strategy"]:
-                    img["strategies"] = [img["strategy"]]
+        images = []
+        for row in resp.data:
+            # --- 1️⃣ Normalize tag structure ---
+            if "strategies" not in row or not row["strategies"]:
+                if "strategy" in row and row["strategy"]:
+                    row["strategies"] = [row["strategy"]]
                 else:
-                    img["strategies"] = ["Unspecified"]
-            # Ensure URL key exists
-            if "image_url" not in img and "url" in img:
-                img["image_url"] = img["url"]
+                    row["strategies"] = ["Unspecified"]
+
+            # --- 2️⃣ Normalize URL field ---
+            if "image_url" not in row:
+                if "url" in row and row["url"]:
+                    row["image_url"] = row["url"]
+                else:
+                    row["image_url"] = None
+
+            # --- 3️⃣ Fallbacks for optional metadata ---
+            row.setdefault("likes", 0)
+            row.setdefault("uploaded_by", "Unknown")
+
+            images.append(row)
 
         return images
 
     except Exception as e:
-        st.error(f"⚠️ Failed to load images for this page.\n\n💡 This might be a temporary issue: {e}")
+        st.error(f"⚠️ Failed to load images for this page.\n\n💡 This might be a temporary issue or bad Supabase response:\n{e}")
         return []
-
+        
 # ENHANCED KAI AI AGENT INTERFACE WITH COMPREHENSIVE ANALYSIS ARCHIVE
 # -------------------------
 def render_kai_agent():
