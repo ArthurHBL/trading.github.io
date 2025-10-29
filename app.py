@@ -7787,7 +7787,7 @@ import streamlit as st
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display - FIXED"""
     with st.container():
-        # CRITICAL FIX: Check if image bytes exist before rendering
+        # CRITICAL FIX: Safely get image bytes
         image_bytes = img_data.get('bytes')
         
         if image_bytes is None:
@@ -7807,7 +7807,7 @@ def render_image_card_paginated(img_data, page_num, index):
                 st.warning("⚠️ No image data available")
                 return
         
-        # Now safely display the image
+        # Display image safely
         try:
             st.image(image_bytes, use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
         except Exception as e:
@@ -7817,11 +7817,13 @@ def render_image_card_paginated(img_data, page_num, index):
         st.divider()
         st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
         
+        # Description
         desc = img_data.get('description', '')
         if desc:
             preview = desc[:60] + "..." if len(desc) > 60 else desc
             st.caption(f"📝 {preview}")
             
+        # Metadata
         col1, col2 = st.columns(2)
         with col1:
             st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
@@ -7834,6 +7836,7 @@ def render_image_card_paginated(img_data, page_num, index):
                 
         st.divider()
         
+        # Action buttons
         action_col1, action_col2, action_col3 = st.columns(3)
         unique_key = f"like_p{page_num}_{index}"
         
@@ -7854,16 +7857,21 @@ def render_image_card_paginated(img_data, page_num, index):
                 st.rerun()
                 
         with action_col3:
+            # FIXED: Safely generate download link
             try:
-                if image_bytes:  # FIXED: Check bytes exist
+                if image_bytes:
                     b64 = base64.b64encode(image_bytes).decode()
-                    img_format = img_data.get('format', 'png').lower()
-                    href = f'<a href="data:image/{img_format};base64,{b64}" download="{img_data.get("name","image")}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">⬇️</button></a>'
+                    img_format = (img_data.get('format') or 'png').lower().replace('jpeg', 'jpg')
+                    if not img_format:
+                        img_format = 'png'  # Safe default
+                    file_name = img_data.get('name', f'image_{index}')
+                    href = f'<a href="data:image/{img_format};base64,{b64}" download="{file_name}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px;">⬇️ Download</button></a>'
                     st.markdown(href, unsafe_allow_html=True)
                 else:
-                    st.button("⬇️ DL", disabled=True, use_container_width=True)
+                    st.button("⬇️ Download", disabled=True, use_container_width=True)
             except Exception as e:
-                st.button("⬇️ DL", disabled=True, use_container_width=True)
+                logging.error(f"Download button error: {e}")
+                st.button("⬇️ Download", disabled=True, use_container_width=True)
 
 def render_admin_image_gallery_paginated():
     st.title("🖼️ Admin: Image Gallery Management")
@@ -8112,8 +8120,17 @@ def get_gallery_images_count_filtered(
 import streamlit as st
 
 def render_image_uploader():
-    """Upload images to Supabase Storage bucket with strategy tags"""
-    st.subheader("Upload Trading Images")
+    """
+    UNIFIED IMAGE UPLOADER - Single source of truth
+    Handles:
+    - Multiple file upload
+    - Format detection & validation
+    - Base64 encoding for storage
+    - Strategy tagging
+    - Supabase integration with retry
+    - Comprehensive error handling
+    """
+    st.subheader("🖼️ Upload Trading Images")
     
     # Get available strategies for tagging
     STRATEGIES = st.session_state.get('STRATEGIES', {})
@@ -8122,114 +8139,167 @@ def render_image_uploader():
     else:
         available_strategies = []
     
+    # File uploader
     uploaded_files = st.file_uploader(
         "Choose images to upload",
-        type=['png','jpg','jpeg','gif','bmp'],
+        type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_paginated"
+        key="gallery_uploader_unified"
     )
     
-    # Two-column layout for description and strategy selection
-    col1, col2 = st.columns(2)
+    # Image description
+    image_description = st.text_area(
+        "Image Description (Optional):",
+        placeholder="Describe what this image shows...",
+        height=100,
+        key="gallery_description_unified"
+    )
     
-    with col1:
-        image_description = st.text_area(
-            "Image Description (Optional):",
-            placeholder="Describe what this image shows...",
-            height=100,
-            key="gallery_description_paginated"
-        )
+    # Strategy tagging
+    selected_strategies = st.multiselect(
+        "Tag Related Strategies (Optional):",
+        available_strategies,
+        default=[],
+        key="gallery_strategies_unified",
+        help="Select all strategies this image relates to"
+    )
     
-    with col2:
-        # Strategy tag selection (multi-select)
-        selected_strategies = st.multiselect(
-            "Tag Related Strategies (Optional):",
-            available_strategies,
-            default=[],
-            key="gallery_strategies_paginated",
-            help="Select all strategies this image relates to"
-        )
-    
-    if st.button("Upload to Gallery", use_container_width=True, key="upload_btn_paginated"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_unified"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
         
         if not supabase_client:
-            st.error("[ERROR] Supabase client not initialized")
+            st.error("❌ [ERROR] Supabase client not initialized")
             return
         
         success_count = 0
         error_count = 0
+        prepared_records = []
         
+        # STEP 1: Validate and prepare all records
         for uf in uploaded_files:
             try:
                 # Read file bytes
                 file_bytes = uf.read()
                 
-                # Check file size
-                if len(file_bytes) > 10*1024*1024:  # 10MB limit
-                    st.error(f"[ERROR] {uf.name}: File too large (>10MB)")
+                # Validate file size (10MB limit)
+                if len(file_bytes) > 10 * 1024 * 1024:
+                    st.error(f"❌ {uf.name}: File too large (>10MB)")
                     error_count += 1
                     continue
                 
-                # Create unique filename with timestamp
+                # Validate file not empty
+                if len(file_bytes) == 0:
+                    st.error(f"❌ {uf.name}: File is empty")
+                    error_count += 1
+                    continue
+                
+                # CRITICAL: Determine file format properly
                 file_ext = uf.name.split('.')[-1].lower()
+                format_map = {
+                    'jpg': 'JPEG',
+                    'jpeg': 'JPEG',
+                    'png': 'PNG',
+                    'gif': 'GIF',
+                    'bmp': 'BMP'
+                }
+                file_format = format_map.get(file_ext, 'PNG')  # Safe default to PNG
+                
+                # Create unique filename
                 unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uf.name}"
-                storage_path = f"images/{unique_name}"
                 
-                # Upload to Supabase Storage
-                st.info(f"Uploading {uf.name}...")
+                # Encode to base64 for storage
+                try:
+                    bytes_b64 = base64.b64encode(file_bytes).decode('utf-8')
+                except Exception as e:
+                    st.error(f"❌ {uf.name}: Failed to encode - {str(e)[:50]}")
+                    error_count += 1
+                    continue
                 
-                response = supabase_client.storage.from_("gallery_images").upload(
-                    storage_path,
-                    file_bytes
-                )
-                
-                # Get public URL
-                public_url = supabase_client.storage.from_("gallery_images").get_public_url(
-                    storage_path
-                )
-                
-                # Insert metadata into database WITH STRATEGY TAGS
+                # Create database record with ALL required fields
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
-                    "storage_path": storage_path,
-                    "public_url": public_url,
-                    "description": image_description,
-                    "strategies": selected_strategies,  # NOW INCLUDES USER-SELECTED TAGS
+                    "description": image_description if image_description else None,
+                    "strategies": selected_strategies if selected_strategies else [],
                     "uploaded_by": (st.session_state.get('user') or {}).get('username', 'anonymous'),
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "file_format": file_ext.upper(),
-                    "likes": 0
+                    "format": file_format,  # ✅ ALWAYS SET
+                    "file_format": file_format,  # ✅ ALWAYS SET (backup)
+                    "bytes_b64": bytes_b64,  # ✅ Base64 encoded bytes
+                    "likes": 0,
+                    "comments": []
                 }
                 
-                supabase_client.table('gallery_images').insert(db_record).execute()
-                
-                st.success(f"[SUCCESS] {uf.name} uploaded!")
-                success_count += 1
+                prepared_records.append(db_record)
                 
             except Exception as e:
-                error_msg = str(e)
-                st.error(f"[ERROR] {uf.name}: {error_msg[:100]}")
+                st.error(f"❌ {uf.name}: Preparation failed - {str(e)[:60]}")
+                error_count += 1
+                continue
+        
+        if not prepared_records:
+            st.error("❌ No valid images to upload")
+            return
+        
+        # STEP 2: Upload to Supabase with retry
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, db_record in enumerate(prepared_records):
+            try:
+                status_text.text(f"⏳ Uploading {idx + 1}/{len(prepared_records)}: {db_record['name']}")
+                progress_bar.progress((idx + 1) / len(prepared_records))
+                
+                # Try to insert with retry
+                max_retries = 3
+                last_error = None
+                
+                for attempt in range(max_retries):
+                    try:
+                        response = supabase_client.table('gallery_images').insert(db_record).execute()
+                        
+                        if hasattr(response, 'error') and response.error:
+                            raise RuntimeError(f"Supabase error: {response.error}")
+                        
+                        st.success(f"✅ {db_record['name']} uploaded!")
+                        success_count += 1
+                        break  # Success, exit retry loop
+                        
+                    except Exception as e:
+                        last_error = e
+                        if attempt < max_retries - 1:
+                            time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
+                            continue
+                        else:
+                            raise last_error
+                
+            except Exception as e:
+                st.error(f"❌ {db_record['name']}: Upload failed - {str(e)[:60]}")
                 error_count += 1
         
-        # Summary
+        # STEP 3: Display summary
         st.markdown("---")
-        if success_count > 0:
-            st.success(f"✅ Successfully uploaded {success_count} image(s)")
-            if selected_strategies:
-                st.info(f"🏷️ Tagged with strategies: {', '.join(selected_strategies)}")
-            st.balloons()
-        if error_count > 0:
-            st.error(f"❌ Failed to upload {error_count} image(s)")
         
         if success_count > 0:
+            st.success(f"✅ Successfully uploaded {success_count}/{len(prepared_records)} image(s)")
+            
+            if selected_strategies:
+                st.info(f"🏷️ Tagged with: {', '.join(selected_strategies)}")
+            
+            # Update session state
+            st.session_state.uploaded_images = load_gallery_images()
+            st.session_state.gallery_page = 0  # Reset to first page
+            
+            st.balloons()
             time.sleep(1)
             st.rerun()
-
+        
+        if error_count > 0:
+            st.warning(f"⚠️ {error_count} image(s) failed to upload")
+            
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display"""
     with st.container():
@@ -9978,79 +10048,6 @@ def load_gallery_images_fixed():
         cached = _cache_get("lk_supabase_get_gallery_images", []) if '_cache_get' in globals() else []
         return cached or []
 
-def render_image_uploader_fixed():
-    st.subheader("🖼️ Upload New Images")
-    if Image is None:
-        st.warning("Pillow (PIL) not installed; image preview disabled.")
-    uploaded_files = st.file_uploader(
-        "Choose trading analysis images to upload",
-        type=['png','jpg','jpeg','gif','bmp'],
-        accept_multiple_files=True,
-        key="gallery_uploader_fixed"
-    )
-    image_description = st.text_area(
-        "Image Description (Optional):",
-        placeholder="Describe what this image shows...",
-        height=100,
-        key="gallery_description_fixed"
-    )
-    if st.button("🚀 Upload Images to Gallery", use_container_width=True, key="upload_images_btn_fixed"):
-        if not uploaded_files:
-            st.warning("Select at least one image to upload.")
-            return
-        prepared, errors = [], []
-        for uf in uploaded_files:
-            try:
-                if Image:
-                    img = Image.open(uf)
-                    buf = io.BytesIO()
-                    fmt = img.format or 'PNG'
-                    img.save(buf, format=fmt)
-                    buf.seek(0)
-                    data = buf.getvalue()
-                else:
-                    data = uf.read()
-                    fmt = 'PNG'
-                if len(data) > 5*1024*1024:
-                    errors.append(f"{uf.name}: file too large (>5MB)")
-                    continue
-                prepared.append({
-                    "name": uf.name,
-                    "bytes": data,
-                    "format": fmt,
-                    "description": image_description,
-                    "strategies": [],
-                    "uploaded_by": (st.session_state.get('user') or {}).get('username', 'unknown'),
-                    "timestamp": datetime.now().isoformat(),
-                    "likes": 0,
-                    "comments": []
-                })
-            except Exception as e:
-                errors.append(f"{uf.name}: {str(e)[:60]}")
-        for e in errors:
-            st.error(f"❌ {e}")
-        if not prepared:
-            st.error("No valid images to upload.")
-            return
-        with st.spinner(f"Uploading {len(prepared)} image(s)..."):
-            # optimistic update
-            st.session_state.uploaded_images = (st.session_state.get('uploaded_images') or []) + prepared
-            ok = supabase_save_gallery_images_fixed(st.session_state.uploaded_images)
-            if ok:
-                st.success(f"✅ Uploaded {len(prepared)} image(s)")
-                st.rerun()
-            else:
-                # rollback
-                st.session_state.uploaded_images = st.session_state.get('uploaded_images', [])[:-len(prepared)]
-                st.error("❌ Failed to save images; rolled back.")
-
-# Override original names
-load_gallery_images = load_gallery_images_fixed
-render_image_uploader = render_image_uploader_fixed
-
-# Ensure session init uses fixed loader if not present yet
-if 'uploaded_images' not in st.session_state:
-    st.session_state.uploaded_images = load_gallery_images_fixed()
 
 # =====================================================================
 # END OF GALLERY IMAGE PERSISTENCE FIX
