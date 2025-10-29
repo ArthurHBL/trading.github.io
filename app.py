@@ -7665,14 +7665,7 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # LOGOUT BUTTON FIRST
-        if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
-            user_manager.logout(user['username'])
-            st.session_state.user = None
-            st.rerun()
-
-        # DISCLAIMER AFTER LOGOUT BUTTON - BETTER VISUAL PLACEMENT
-        st.markdown("---")
+        # DISCLAIMER BEFORE LOGOUT BUTTON - FOR LEGAL REASONS
         st.markdown("""
         <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
             <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
@@ -7680,6 +7673,14 @@ def render_user_dashboard():
             Only risk capital you can afford to lose. Past performance ≠ future results.</small>
         </div>
         """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
+        # LOGOUT BUTTON AFTER DISCLAIMER
+        if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
+            user_manager.logout(user['username'])
+            st.session_state.user = None
+            st.rerun()
 
     # Main dashboard content - READ ONLY for users but same layout as admin
     current_view = st.session_state.get('dashboard_view', 'main')
