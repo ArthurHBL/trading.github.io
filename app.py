@@ -8049,14 +8049,7 @@ import streamlit as st
 
 def render_image_uploader():
     """
-    UNIFIED IMAGE UPLOADER - Single source of truth
-    Handles:
-    - Multiple file upload
-    - Format detection & validation
-    - Base64 encoding for storage
-    - Strategy tagging
-    - Supabase integration with retry
-    - Comprehensive error handling
+    FIXED IMAGE UPLOADER - Handles missing bytes_b64 column
     """
     st.subheader("🖼️ Upload Trading Images")
     
@@ -8072,7 +8065,7 @@ def render_image_uploader():
         "Choose images to upload",
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_unified"
+        key="gallery_uploader_fixed"
     )
     
     # Image description
@@ -8080,7 +8073,7 @@ def render_image_uploader():
         "Image Description (Optional):",
         placeholder="Describe what this image shows...",
         height=100,
-        key="gallery_description_unified"
+        key="gallery_description_fixed"
     )
     
     # Strategy tagging
@@ -8088,24 +8081,21 @@ def render_image_uploader():
         "Tag Related Strategies (Optional):",
         available_strategies,
         default=[],
-        key="gallery_strategies_unified",
-        help="Select all strategies this image relates to"
+        key="gallery_strategies_fixed"
     )
     
-    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_unified"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_fixed"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
         
         if not supabase_client:
-            st.error("❌ [ERROR] Supabase client not initialized")
+            st.error("❌ Supabase client not available")
             return
         
         success_count = 0
         error_count = 0
-        prepared_records = []
         
-        # STEP 1: Validate and prepare all records
         for uf in uploaded_files:
             try:
                 # Read file bytes
@@ -8123,16 +8113,13 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # CRITICAL: Determine file format properly
+                # Determine file format
                 file_ext = uf.name.split('.')[-1].lower()
                 format_map = {
-                    'jpg': 'JPEG',
-                    'jpeg': 'JPEG',
-                    'png': 'PNG',
-                    'gif': 'GIF',
-                    'bmp': 'BMP'
+                    'jpg': 'JPEG', 'jpeg': 'JPEG', 'png': 'PNG', 
+                    'gif': 'GIF', 'bmp': 'BMP'
                 }
-                file_format = format_map.get(file_ext, 'PNG')  # Safe default to PNG
+                file_format = format_map.get(file_ext, 'PNG')
                 
                 # Create unique filename
                 unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uf.name}"
@@ -8141,88 +8128,51 @@ def render_image_uploader():
                 try:
                     bytes_b64 = base64.b64encode(file_bytes).decode('utf-8')
                 except Exception as e:
-                    st.error(f"❌ {uf.name}: Failed to encode - {str(e)[:50]}")
+                    st.error(f"❌ {uf.name}: Failed to encode - {str(e)}")
                     error_count += 1
                     continue
                 
-                # Create database record with ALL required fields
+                # Create database record
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
                     "description": image_description if image_description else None,
                     "strategies": selected_strategies if selected_strategies else [],
-                    "uploaded_by": (st.session_state.get('user') or {}).get('username', 'anonymous'),
+                    "uploaded_by": st.session_state.user['username'],
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "format": file_format,  # ✅ ALWAYS SET
-                    "file_format": file_format,  # ✅ ALWAYS SET (backup)
-                    "bytes_b64": bytes_b64,  # ✅ Base64 encoded bytes
-                    "likes": 0,
-                    "comments": []
+                    "format": file_format,
+                    "bytes_b64": bytes_b64,  # This is the critical field
+                    "likes": 0
                 }
                 
-                prepared_records.append(db_record)
+                # Insert into Supabase
+                response = supabase_client.table('gallery_images').insert(db_record).execute()
+                
+                if hasattr(response, 'error') and response.error:
+                    raise RuntimeError(f"Supabase error: {response.error}")
+                
+                st.success(f"✅ {uf.name} uploaded successfully!")
+                success_count += 1
                 
             except Exception as e:
-                st.error(f"❌ {uf.name}: Preparation failed - {str(e)[:60]}")
-                error_count += 1
-                continue
-        
-        if not prepared_records:
-            st.error("❌ No valid images to upload")
-            return
-        
-        # STEP 2: Upload to Supabase with retry
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        for idx, db_record in enumerate(prepared_records):
-            try:
-                status_text.text(f"⏳ Uploading {idx + 1}/{len(prepared_records)}: {db_record['name']}")
-                progress_bar.progress((idx + 1) / len(prepared_records))
-                
-                # Try to insert with retry
-                max_retries = 3
-                last_error = None
-                
-                for attempt in range(max_retries):
-                    try:
-                        response = supabase_client.table('gallery_images').insert(db_record).execute()
-                        
-                        if hasattr(response, 'error') and response.error:
-                            raise RuntimeError(f"Supabase error: {response.error}")
-                        
-                        st.success(f"✅ {db_record['name']} uploaded!")
-                        success_count += 1
-                        break  # Success, exit retry loop
-                        
-                    except Exception as e:
-                        last_error = e
-                        if attempt < max_retries - 1:
-                            time.sleep(0.5 * (2 ** attempt))  # Exponential backoff
-                            continue
-                        else:
-                            raise last_error
-                
-            except Exception as e:
-                st.error(f"❌ {db_record['name']}: Upload failed - {str(e)[:60]}")
+                error_msg = str(e)
+                st.error(f"❌ {uf.name}: Upload failed - {error_msg[:100]}")
                 error_count += 1
         
-        # STEP 3: Display summary
-        st.markdown("---")
-        
+        # Display summary
         if success_count > 0:
-            st.success(f"✅ Successfully uploaded {success_count}/{len(prepared_records)} image(s)")
+            st.success(f"✅ Successfully uploaded {success_count} image(s)!")
             
             if selected_strategies:
                 st.info(f"🏷️ Tagged with: {', '.join(selected_strategies)}")
             
-            # Update session state
+            # Refresh gallery data
             st.session_state.uploaded_images = load_gallery_images()
-            st.session_state.gallery_page = 0  # Reset to first page
+            st.session_state.gallery_page = 0
             
             st.balloons()
-            time.sleep(1)
+            time.sleep(2)
             st.rerun()
         
         if error_count > 0:
