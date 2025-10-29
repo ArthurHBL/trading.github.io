@@ -54,6 +54,7 @@ import plotly.express as px
 import requests
 import logging
 
+
 # -------------------------
 # SUPABASE SETUP - FIXED VERSION
 # -------------------------
@@ -8485,55 +8486,98 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 import streamlit as st
 
 def render_image_uploader():
-    """Supabase uploader for gallery images (admin-only, with strategy tagging)."""
-    import base64
-    from datetime import datetime
-
-    st.subheader("📤 Upload a New Image to the Gallery")
-
-    uploaded_file = st.file_uploader("Choose an image file", type=["png", "jpg", "jpeg"])
-    description = st.text_area("📝 Add a description (optional):")
-
-    # 🏷️ Strategy / Tag selector
-    STRATEGIES = st.session_state.get("STRATEGIES", {})
-    strategy_list = list(STRATEGIES.keys())
-    selected_strategy = st.selectbox(
-        "🏷️ Select Strategy / Tag:",
-        strategy_list,
-        index=0,
-        key="upload_strategy_tag"
+    """Upload images to Supabase Storage bucket"""
+    st.subheader("Upload Trading Images")
+    
+    uploaded_files = st.file_uploader(
+        "Choose images to upload",
+        type=['png','jpg','jpeg','gif','bmp'],
+        accept_multiple_files=True,
+        key="gallery_uploader_fixed"
     )
-
-    if uploaded_file and st.button("🚀 Upload to Gallery", use_container_width=True):
-        with st.spinner("Uploading to Supabase..."):
+    
+    image_description = st.text_area(
+        "Image Description (Optional):",
+        placeholder="Describe what this image shows...",
+        height=100,
+        key="gallery_description_fixed"
+    )
+    
+    if st.button("Upload to Gallery", use_container_width=True, key="upload_btn_fixed"):
+        if not uploaded_files:
+            st.warning("Select at least one image to upload.")
+            return
+        
+        if not supabase_client:
+            st.error("[ERROR] Supabase client not initialized")
+            return
+        
+        success_count = 0
+        error_count = 0
+        
+        for uf in uploaded_files:
             try:
-                # Build unique filename
-                file_bytes = uploaded_file.getvalue()
-                filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uploaded_file.name}"
-                storage_path = f"gallery_uploads/{filename}"
-
-                # Upload to Supabase Storage bucket
-                supabase_client.storage.from_("gallery_images").upload(storage_path, file_bytes)
-
-                # Get public URL for the file
-                public_url = supabase_client.storage.from_("gallery_images").get_public_url(storage_path)
-
-                # Insert record into gallery_images table
-                supabase_client.table("gallery_images").insert({
-                    "name": filename,
-                    "description": description,
-                    "uploaded_by": st.session_state.user.get("name", "Admin"),
+                # Read file bytes
+                file_bytes = uf.read()
+                
+                # Check file size
+                if len(file_bytes) > 10*1024*1024:  # 10MB limit
+                    st.error(f"[ERROR] {uf.name}: File too large (>10MB)")
+                    error_count += 1
+                    continue
+                
+                # Create unique filename with timestamp
+                file_ext = uf.name.split('.')[-1].lower()
+                unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uf.name}"
+                storage_path = f"images/{unique_name}"
+                
+                # Upload to Supabase Storage
+                st.info(f"Uploading {uf.name}...")
+                
+                response = supabase_client.storage.from_("gallery_images").upload(
+                    storage_path,
+                    file_bytes
+                )
+                
+                # Get public URL
+                public_url = supabase_client.storage.from_("gallery_images").get_public_url(
+                    storage_path
+                )
+                
+                # Insert metadata into database
+                db_record = {
+                    "name": uf.name,
+                    "filename": unique_name,
+                    "storage_path": storage_path,
+                    "public_url": public_url,
+                    "description": image_description,
+                    "uploaded_by": (st.session_state.get('user') or {}).get('username', 'anonymous'),
                     "timestamp": datetime.now().isoformat(),
-                    "likes": 0,
-                    "strategy": selected_strategy,
-                    "image_url": public_url
-                }).execute()
-
-                st.success("✅ Image uploaded successfully!")
-                st.session_state.gallery_page = 0
-                st.rerun()
+                    "file_size": len(file_bytes),
+                    "file_format": file_ext.upper(),
+                    "likes": 0
+                }
+                
+                supabase_client.table('gallery_images').insert(db_record).execute()
+                
+                st.success(f"[SUCCESS] {uf.name} uploaded!")
+                success_count += 1
+                
             except Exception as e:
-                st.error(f"❌ Upload failed: {e}")
+                error_msg = str(e)
+                st.error(f"[ERROR] {uf.name}: {error_msg[:100]}")
+                error_count += 1
+        
+        # Summary
+        st.markdown("---")
+        if success_count > 0:
+            st.success(f"Successfully uploaded {success_count} image(s)")
+        if error_count > 0:
+            st.error(f"Failed to upload {error_count} image(s)")
+        
+        if success_count > 0:
+            time.sleep(1)
+            st.rerun()
 
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display"""
