@@ -7826,93 +7826,114 @@ def get_gallery_images_count():
 import streamlit as st
 
 def render_image_card_paginated(img_data, page_num, index):
-    """Compact image card optimized for grid display - FIXED"""
-    with st.container():
-        # CRITICAL FIX: Safely get image bytes
-        image_bytes = img_data.get('bytes')
-        
-        if image_bytes is None:
-            # Try to decode from base64 if available
-            if 'bytes_b64' in img_data:
+    """Compact image card optimized for grid display - FIXED WITH NULL CHECKS"""
+    try:
+        with st.container():
+            # STEP 1: Safely retrieve image bytes
+            image_bytes = None
+            
+            # Try direct bytes first
+            if img_data.get('bytes'):
+                image_bytes = img_data['bytes']
+            # Try base64 decode
+            elif img_data.get('bytes_b64'):
                 try:
                     image_bytes = base64.b64decode(img_data['bytes_b64'])
                 except Exception as e:
-                    st.warning(f"⚠️ Image data corrupted: {str(e)[:50]}")
-                    return
-            elif 'encoded_data' in img_data and isinstance(img_data['encoded_data'], dict):
+                    logging.warning(f"Failed to decode bytes_b64: {e}")
+            # Try encoded_data dict
+            elif isinstance(img_data.get('encoded_data'), dict):
                 image_bytes = decode_image_from_storage(img_data['encoded_data'])
-                if image_bytes is None:
-                    st.warning("⚠️ Failed to decode image")
-                    return
-            else:
-                st.warning("⚠️ No image data available")
+            
+            # If we still don't have image bytes, show placeholder
+            if image_bytes is None:
+                st.warning(f"⚠️ Image data unavailable for {img_data.get('name', 'Unknown')}")
                 return
-        
-        # Display image safely
-        try:
-            st.image(image_bytes, use_container_width=True, caption=str(img_data.get('name','Unnamed'))[:25])
-        except Exception as e:
-            st.error(f"❌ Error displaying image: {str(e)[:50]}")
-            return
             
-        st.divider()
-        st.write(f"**{str(img_data.get('name','Image'))[:20]}**")
-        
-        # Description
-        desc = img_data.get('description', '')
-        if desc:
-            preview = desc[:60] + "..." if len(desc) > 60 else desc
-            st.caption(f"📝 {preview}")
+            # STEP 2: Display image safely
+            st.image(
+                image_bytes,
+                use_container_width=True,
+                caption=str(img_data.get('name', 'Unnamed'))[:25]
+            )
             
-        # Metadata
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption(f"👤 {img_data.get('uploaded_by', 'Unknown')}")
-        with col2:
-            try:
-                dt = datetime.fromisoformat(img_data.get('timestamp',''))
-                st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
-            except Exception:
-                st.caption("📅 Unknown date")
-                
-        st.divider()
-        
-        # Action buttons
-        action_col1, action_col2, action_col3 = st.columns(3)
-        unique_key = f"like_p{page_num}_{index}"
-        
-        with action_col1:
-            if st.button(f"❤️ {img_data.get('likes',0)}", key=f"like_{unique_key}", use_container_width=True):
-                img_data['likes'] = img_data.get('likes', 0) + 1
+            st.divider()
+            
+            # STEP 3: Display image info with null checks
+            st.write(f"**{str(img_data.get('name', 'Image'))[:20]}**")
+            
+            desc = img_data.get('description', '')
+            if desc:
+                preview = desc[:60] + "..." if len(desc) > 60 else desc
+                st.caption(f"📝 {preview}")
+            
+            # Metadata
+            col1, col2 = st.columns(2)
+            with col1:
+                uploaded_by = img_data.get('uploaded_by', 'Unknown')
+                st.caption(f"👤 {uploaded_by}")
+            with col2:
                 try:
-                    if supabase_client:
-                        supabase_client.table('gallery_images').update({'likes': img_data['likes']}).eq('id', img_data.get('id')).execute()
+                    timestamp = img_data.get('timestamp', '')
+                    if timestamp:
+                        dt = datetime.fromisoformat(timestamp)
+                        st.caption(f"📅 {dt.strftime('%m/%d/%y')}")
+                    else:
+                        st.caption("📅 Unknown date")
                 except Exception as e:
-                    logging.error(f"Failed to save like: {e}")
-                st.rerun()
-                
-        with action_col2:
-            if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
-                st.session_state.current_strategy_indicator_image = img_data
-                st.session_state.strategy_indicator_viewer_mode = True
-                st.rerun()
-                
-        with action_col3:
-            # FIXED: Safely generate download link
-            try:
-                if image_bytes:
-                    b64 = base64.b64encode(image_bytes).decode()
-                    img_format = (img_data.get('format') or 'png').lower().replace('jpeg', 'jpg')
-                    if not img_format:
-                        img_format = 'png'  # Safe default
-                    file_name = img_data.get('name', f'image_{index}')
-                    href = f'<a href="data:image/{img_format};base64,{b64}" download="{file_name}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px;">⬇️ Download</button></a>'
-                    st.markdown(href, unsafe_allow_html=True)
-                else:
+                    logging.warning(f"Timestamp parse error: {e}")
+                    st.caption("📅 Unknown date")
+            
+            st.divider()
+            
+            # STEP 4: Action buttons with unique keys
+            action_col1, action_col2, action_col3 = st.columns(3)
+            unique_key = f"like_p{page_num}_{index}"
+            
+            with action_col1:
+                likes = img_data.get('likes', 0)
+                if st.button(f"❤️ {likes}", key=f"like_{unique_key}", use_container_width=True):
+                    img_data['likes'] = likes + 1
+                    try:
+                        if supabase_client:
+                            supabase_client.table('gallery_images').update(
+                                {'likes': img_data['likes']}
+                            ).eq('id', img_data.get('id')).execute()
+                    except Exception as e:
+                        logging.error(f"Failed to save like: {e}")
+                    st.rerun()
+            
+            with action_col2:
+                if st.button("👁️ View", key=f"view_{unique_key}", use_container_width=True):
+                    st.session_state.current_strategy_indicator_image = img_data
+                    st.session_state.strategy_indicator_viewer_mode = True
+                    st.rerun()
+            
+            with action_col3:
+                # STEP 5: Safe download link generation
+                try:
+                    if image_bytes:
+                        # Get format safely
+                        img_format = img_data.get('format', 'png')
+                        if img_format is None:
+                            img_format = 'png'  # Safe default
+                        img_format = str(img_format).lower().replace('jpeg', 'jpg')
+                        
+                        file_name = img_data.get('name', f'image_{index}')
+                        file_name = str(file_name)[:50]  # Limit filename length
+                        
+                        b64_img = base64.b64encode(image_bytes).decode()
+                        href = f'<a href="data:image/{img_format};base64,{b64_img}" download="{file_name}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">⬇️ Download</button></a>'
+                        st.markdown(href, unsafe_allow_html=True)
+                    else:
+                        st.button("⬇️ Download", disabled=True, use_container_width=True)
+                except Exception as e:
+                    logging.error(f"Download button error: {e}")
                     st.button("⬇️ Download", disabled=True, use_container_width=True)
-            except Exception as e:
-                logging.error(f"Download button error: {e}")
-                st.button("⬇️ Download", disabled=True, use_container_width=True)
+    
+    except Exception as e:
+        st.error(f"❌ Error rendering image card: {str(e)[:100]}")
+        logging.error(f"render_image_card_paginated failed: {e}", exc_info=True)
 
 def render_admin_image_gallery_paginated():
     st.title("🖼️ Admin: Image Gallery Management")
@@ -7952,7 +7973,7 @@ def render_admin_image_gallery_paginated():
 @retry_with_backoff(max_retries=3, base_delay=0.5, exceptions=(Exception,))
 def get_gallery_images_paginated(page=0, per_page=15, sort_by="newest", 
                                   filter_author=None, filter_strategy=None):
-    """Paginated fetch with robust image reconstruction"""
+    """Paginated fetch with robust null checking"""
     try:
         if not supabase_client:
             return []
@@ -7960,21 +7981,23 @@ def get_gallery_images_paginated(page=0, per_page=15, sort_by="newest",
         offset = max(page, 0) * max(per_page, 1)
         query = supabase_client.table("gallery_images").select("*")
 
+        # Apply filters
         if filter_author and filter_author != "All Authors":
             query = query.eq("uploaded_by", filter_author)
         if filter_strategy and filter_strategy != "All Strategies":
             try:
                 query = query.contains("strategies", [filter_strategy])
             except:
-                query = query.eq("strategy", filter_strategy)
+                pass  # Array filtering might not be supported
 
+        # Apply sorting
         sort_field = "timestamp"
         sort_order = "desc" if sort_by != "oldest" else "asc"
         if sort_by == "most_liked":
             sort_field = "likes"
             sort_order = "desc"
             
-        query = query.order(sort_field, desc=(sort_order=="desc"))
+        query = query.order(sort_field, desc=(sort_order == "desc"))
         query = query.range(offset, offset + per_page - 1)
 
         resp = query.execute()
@@ -7984,27 +8007,45 @@ def get_gallery_images_paginated(page=0, per_page=15, sort_by="newest",
         imgs = []
         for row in resp.data:
             try:
+                # CRITICAL: Ensure format field exists
+                if not row.get('format'):
+                    # Try to infer from name
+                    name = row.get('name', '')
+                    if name:
+                        ext = name.split('.')[-1].lower() if '.' in name else 'png'
+                        row['format'] = ext.upper() if ext in ['jpg', 'jpeg', 'png', 'gif', 'bmp'] else 'PNG'
+                    else:
+                        row['format'] = 'PNG'  # Safe default
+                
                 # Reconstruct bytes from multiple possible sources
                 if isinstance(row.get('encoded_data'), dict):
                     row['bytes'] = decode_image_from_storage(row['encoded_data'])
-                elif 'bytes_b64' in row:
-                    row['bytes'] = base64.b64decode(row['bytes_b64'])
-                elif 'bytes' not in row:
+                elif row.get('bytes_b64'):
+                    try:
+                        row['bytes'] = base64.b64decode(row['bytes_b64'])
+                    except Exception as e:
+                        logging.warning(f"Failed to decode bytes_b64 for {row.get('name')}: {e}")
+                        row['bytes'] = None
+                elif not row.get('bytes'):
                     row['bytes'] = None
-                    
+                
+                # Ensure strategies field exists
                 row["strategies"] = row.get("strategies") or [row.get("strategy") or "Unspecified"]
                 row["likes"] = row.get("likes", 0)
+                
                 imgs.append(row)
+                
             except Exception as e:
                 logging.warning(f"Skipping corrupted image {row.get('name')}: {e}")
                 continue
-                
+        
         return imgs
+        
     except Exception as e:
-        st.error(f"⚠️ Failed to load images: {e}")
         logging.error(f"Gallery pagination error: {e}")
+        st.error(f"⚠️ Failed to load images: {e}")
         return []
-
+        
 def render_image_card_paginated(img_data, page_num, index):
     """Compact image card optimized for grid display"""
     with st.container():
