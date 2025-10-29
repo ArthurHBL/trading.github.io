@@ -5884,9 +5884,8 @@ def render_image_gallery():
     """Main gallery - now paginated"""
     import streamlit as st
     st.session_state.gallery_page = 0
+    st.title("📸 User Image Gallery (Paginated View)")
     render_image_gallery_paginated()
-
-_gallery_cache = {}
 
 def _cache_get(key, default=None):
     """Get value from cache"""
