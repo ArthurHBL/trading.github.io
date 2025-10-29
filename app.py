@@ -8065,7 +8065,7 @@ import streamlit as st
 
 def render_image_uploader():
     """
-    EXACT IMAGE UPLOADER - Matches your table columns exactly
+    MINIMAL IMAGE UPLOADER - Only uses columns visible in your table structure
     """
     st.subheader("🖼️ Upload Trading Images")
     
@@ -8081,7 +8081,7 @@ def render_image_uploader():
         "Choose images to upload",
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_exact"
+        key="gallery_uploader_minimal"
     )
     
     # Image description
@@ -8089,7 +8089,7 @@ def render_image_uploader():
         "Image Description (Optional):",
         placeholder="Describe what this image shows...",
         height=100,
-        key="gallery_description_exact"
+        key="gallery_description_minimal"
     )
     
     # Strategy tagging
@@ -8097,10 +8097,10 @@ def render_image_uploader():
         "Tag Related Strategies (Optional):",
         available_strategies,
         default=[],
-        key="gallery_strategies_exact"
+        key="gallery_strategies_minimal"
     )
     
-    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_exact"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_minimal"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
@@ -8149,22 +8149,23 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # Create EXACT database record matching your table columns
+                # MINIMAL record - ONLY columns we can see in your table
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
-                    "storage_path": f"gallery/{unique_name}",  # Required (NOT NULL)
-                    "public_url": f"https://example.com/gallery/{unique_name}",  # Required (NOT NULL)
+                    "storage_path": f"gallery/{unique_name}",
+                    "public_url": f"https://example.com/gallery/{unique_name}",
                     "description": image_description if image_description else "",
                     "uploaded_by": st.session_state.user['username'],
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "file_format": file_format,  # Note: This is file_format, not format!
+                    "file_format": file_format,
                     "likes": 0,
-                    "strategies": selected_strategies if selected_strategies else [],  # Array type
+                    "strategies": selected_strategies if selected_strategies else [],
                     "bytes_b64": bytes_b64,
-                    "comments": [],  # JSONB type
-                    "format": file_format  # This is the optional 'format' column
+                    "comments": []
+                    # NOTE: We're NOT including 'format', 'created_at', 'updated_at' 
+                    # since they either don't exist or cause errors
                 }
                 
                 # Insert the record
