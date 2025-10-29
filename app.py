@@ -5992,6 +5992,22 @@ def get_gallery_images_paginated(
         decode_errors = 0
         for item in (getattr(resp, 'data', None) or []):
             try:
+                # Handle strategies array - ensure it's a list
+                if 'strategies' in item:
+                    strategies = item.get('strategies')
+                    if isinstance(strategies, str):
+                        # If it's a JSON string, parse it
+                        try:
+                            import json
+                            item['strategies'] = json.loads(strategies)
+                        except:
+                            item['strategies'] = []
+                    elif not isinstance(strategies, list):
+                        item['strategies'] = []
+                else:
+                    item['strategies'] = []
+                
+                # Handle image bytes - try new and old formats
                 if isinstance(item.get('encoded_data'), dict):
                     decoded = decode_image_from_storage(item['encoded_data'])
                     if decoded:
@@ -6007,6 +6023,7 @@ def get_gallery_images_paginated(
                         logging.error(f"Legacy decode failed: {e}")
                         decode_errors += 1
                 else:
+                    # No image bytes found - skip this item
                     logging.warning(f"Image missing binary data: {item.get('name','unknown')}")
                     decode_errors += 1
             except Exception as e:
