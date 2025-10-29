@@ -2503,6 +2503,21 @@ def init_session():
     # --- Gallery pagination state (KAIO patch) ---
     import streamlit as st
     # NEW: Image viewer state
+    # Gallery pagination state - ADD THESE FOR USERS TOO
+    if 'gallery_page' not in st.session_state:
+        st.session_state.gallery_page = 0
+    if 'gallery_per_page' not in st.session_state:
+        st.session_state.gallery_per_page = 15
+    if 'gallery_total_count' not in st.session_state:
+        st.session_state.gallery_total_count = 0
+    if 'gallery_filter_active' not in st.session_state:
+        st.session_state.gallery_filter_active = False
+    if 'gallery_filter_author' not in st.session_state:
+        st.session_state.gallery_filter_author = "All Authors"
+    if 'gallery_filter_strategy' not in st.session_state:
+        st.session_state.gallery_filter_strategy = "All Strategies"
+    if 'gallery_sort_by' not in st.session_state:
+        st.session_state.gallery_sort_by = "Newest First"
     if 'current_image_index' not in st.session_state:
         st.session_state.current_image_index = 0
     if 'image_viewer_mode' not in st.session_state:
@@ -6007,7 +6022,7 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 # USER IMAGE GALLERY - VIEW ONLY VERSION
 # -------------------------
 def render_user_image_gallery():
-    """Image gallery for regular users - UPDATED WITH PAGINATION"""
+    """Image gallery for regular users - FIXED PAGINATION VERSION"""
 
     # If in image viewer mode, show the image viewer
     if st.session_state.image_viewer_mode:
@@ -6122,7 +6137,7 @@ def render_user_image_gallery():
     # Store current page images for viewer
     st.session_state.current_page_images = images
 
-    # Display images
+    # Display images using the paginated card function
     for i, img_data in enumerate(images):
         render_user_image_card_paginated(img_data, i)
 
@@ -6135,7 +6150,7 @@ def render_user_image_gallery():
     if total_pages > 1:
         st.write(f"**Page {current_page + 1} of {total_pages}**")
         
-        col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             if st.button("⏮️ First", use_container_width=True, disabled=current_page == 0, key="user_first"):
