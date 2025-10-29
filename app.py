@@ -6030,169 +6030,242 @@ def get_gallery_images_count_filtered(filter_author: str = None, filter_strategy
 # USER IMAGE GALLERY - VIEW ONLY VERSION
 # -------------------------
 def render_user_image_gallery():
-    """Image gallery for regular users - FIXED PAGINATION VERSION"""
+    """User image gallery with full database-backed pagination (FINAL)"""
+    import streamlit as st
 
-    # If in image viewer mode, show the image viewer
-    if st.session_state.image_viewer_mode:
-        render_image_viewer()
-        return
+    # ---------- SAFETY: ensure needed session keys exist ----------
+    if 'gallery_page' not in st.session_state:
+        st.session_state.gallery_page = 0
+    if 'gallery_per_page' not in st.session_state:
+        st.session_state.gallery_per_page = 15
+    if 'gallery_filter_author' not in st.session_state:
+        st.session_state.gallery_filter_author = "All Authors"
+    if 'gallery_filter_strategy' not in st.session_state:
+        st.session_state.gallery_filter_strategy = "All Strategies"
 
-    # Gallery header
-    st.title("🖼️ Trading Analysis Image Gallery")
+    # ---------- HEADER ----------
+    st.title("📸 Trading Analysis Image Gallery")
     st.markdown("View trading charts, analysis screenshots, and market insights shared by the community.")
-
-    # User-specific info
-    st.info(f"👤 **Viewing as:** {st.session_state.user['name']} | 📊 **Access:** View Only")
-
-    # Get paginated images
-    current_page = st.session_state.gallery_page
-    per_page = st.session_state.gallery_per_page
-    
-    # Apply filters for query
-    filter_author = st.session_state.gallery_filter_author if st.session_state.gallery_filter_author != "All Authors" else None
-    filter_strategy = st.session_state.gallery_filter_strategy if st.session_state.gallery_filter_strategy != "All Strategies" else None
-    
-    # Get total count and images for current page
-    total_images = get_gallery_images_count()
-    images = get_gallery_images_paginated(
-        page=current_page, 
-        per_page=per_page,
-        sort_by=st.session_state.gallery_sort_by,
-        filter_author=filter_author,
-        filter_strategy=filter_strategy
-    )
-
-    if not images and current_page == 0:
-        st.info("""
-        🖼️ **No images in the gallery yet!**
-
-        The gallery will show trading charts and analysis images once they are uploaded by administrators.
-        """)
-        return
-
-    # Gallery stats
-    filtered_count = get_gallery_images_count_filtered(
-        filter_author=filter_author,
-        filter_strategy=filter_strategy
-    )
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Images", total_images)
-    with col2:
-        your_images = len([img for img in images if img.get('uploaded_by') == st.session_state.user['username']])
-        st.metric("Your Images", your_images)
-    with col3:
-        total_likes = sum(img.get('likes', 0) for img in images)
-        st.metric("Page Likes", total_likes)
-
     st.markdown("---")
 
-    # Filter options
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        # Get unique authors from current page
-        authors = list(set(img.get('uploaded_by', 'Unknown') for img in images))
-        filter_author = st.selectbox(
-            "Filter by Author:",
-            ["All Authors"] + authors,
-            key="user_gallery_filter_author"
-        )
-    with col2:
-        filter_strategy = st.selectbox(
-            "Filter by Strategy:",
-            ["All Strategies"] + list(STRATEGIES.keys()),
-            key="user_gallery_filter_strategy"
-        )
-    with col3:
-        sort_by = st.selectbox(
-            "Sort by:",
-            ["Newest First", "Oldest First", "Most Liked"],
-            key="user_gallery_sort_by"
-        )
+    # Optional top tabs (Gallery / Statistics)
+    tab1, tab2 = st.tabs(["🖼️ Image Gallery", "📊 Statistics"])
+    with tab2:
+        try:
+            # Reuse your existing stats block
+            if 'render_gallery_statistics_paginated' in globals():
+                render_gallery_statistics_paginated()
+            else:
+                # Minimal stats fallback if function is not present
+                total_images = get_gallery_images_count_filtered()
+                st.metric("Total Images", total_images)
+        except Exception as e:
+            st.warning(f"Statistics unavailable: {e}")
 
-    # Update session state when filters change
-    if filter_author != st.session_state.gallery_filter_author:
-        st.session_state.gallery_filter_author = filter_author
-        st.session_state.gallery_page = 0
-        st.rerun()
+    with tab1:
+        # ---------- CONTROLS ----------
+        st.subheader("🔍 Gallery Controls")
+        c1, c2, c3, c4, c5 = st.columns(5)
 
-    if filter_strategy != st.session_state.gallery_filter_strategy:
-        st.session_state.gallery_filter_strategy = filter_strategy
-        st.session_state.gallery_page = 0
-        st.rerun()
+        with c1:
+            sort_by = st.selectbox(
+                "Sort by:",
+                ["newest", "oldest", "most_liked"],
+                key="user_gallery_sort"
+            )
 
-    if sort_by != st.session_state.gallery_sort_by:
-        st.session_state.gallery_sort_by = sort_by
-        st.session_state.gallery_page = 0
-        st.rerun()
+        with c2:
+            # Best-effort author list from any cached/known images in session
+            authors_set = set(
+                img.get('uploaded_by', 'Unknown')
+                for img in (st.session_state.get('uploaded_images', []))
+            )
+            author_choice = st.selectbox(
+                "Filter by Author:",
+                ["All Authors"] + sorted(list(authors_set)),
+                key="user_gallery_filter_author"
+            )
 
-    # Display gallery
-    if not images:
-        st.warning("No images match your current filters.")
-        if current_page > 0:
+        with c3:
+            # If you keep strategies in st.session_state.STRATEGIES (dict), reuse it
+            STRATEGIES = st.session_state.get('STRATEGIES', {})
+            strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
+            strategy_choice = st.selectbox(
+                "Filter by Strategy:",
+                ["All Strategies"] + strategies_list,
+                key="user_gallery_filter_strategy"
+            )
+
+        with c4:
+            per_page = st.selectbox(
+                "Per Page:",
+                [10, 15, 20, 30],
+                index=[10, 15, 20, 30].index(st.session_state.get("gallery_per_page", 15)) if st.session_state.get("gallery_per_page", 15) in [10, 15, 20, 30] else 1,
+                key="user_gallery_per_page"
+            )
+            # Persist per-page
+            st.session_state.gallery_per_page = per_page
+
+        with c5:
+            if st.button("🔄 Refresh", use_container_width=True, key="user_gallery_refresh"):
+                st.rerun()
+
+        # ---------- HANDLE FILTER CHANGES: reset to page 1 ----------
+        # (We only reset if user changed the selection in this render cycle)
+        if author_choice != st.session_state.get("_last_user_author_choice"):
             st.session_state.gallery_page = 0
+            st.session_state._last_user_author_choice = author_choice
             st.rerun()
-        return
+        if strategy_choice != st.session_state.get("_last_user_strategy_choice"):
+            st.session_state.gallery_page = 0
+            st.session_state._last_user_strategy_choice = strategy_choice
+            st.rerun()
 
-    # Display current page info
-    start_idx = current_page * per_page + 1
-    end_idx = min((current_page + 1) * per_page, filtered_count)
-    
-    st.markdown(f"**Displaying images {start_idx}-{end_idx} of {filtered_count}**")
-    st.markdown("---")
+        st.markdown("---")
 
-    # Store current page images for viewer
-    st.session_state.current_page_images = images
+        # ---------- TOTAL COUNT ----------
+        filter_author = None if author_choice == "All Authors" else author_choice
+        filter_strategy = None if strategy_choice == "All Strategies" else strategy_choice
 
-    # Display images using the paginated card function
-    for i, img_data in enumerate(images):
-        render_user_image_card_paginated(img_data, i)
+        with st.spinner("📊 Counting images..."):
+            total_images = get_gallery_images_count_filtered(
+                filter_author=filter_author,
+                filter_strategy=filter_strategy
+            )
 
-    # PAGINATION CONTROLS
-    st.markdown("---")
-    
-    # Calculate pagination
-    total_pages = max(1, (filtered_count + per_page - 1) // per_page)
-    
-    if total_pages > 1:
-        st.write(f"**Page {current_page + 1} of {total_pages}**")
-        
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        with col1:
-            if st.button("⏮️ First", use_container_width=True, disabled=current_page == 0, key="user_first"):
+        if total_images == 0:
+            st.warning("🖼️ **No images found** for the selected filters.")
+            return
+
+        total_pages = (total_images + per_page - 1) // per_page
+        current_page = min(st.session_state.gallery_page, max(0, total_pages - 1))
+
+        # ---------- STATS ----------
+        st.subheader("📈 Gallery Statistics")
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        with sc1: st.metric("Total Images", total_images)
+        with sc2: st.metric("Total Pages", total_pages)
+        with sc3: st.metric("Current Page", current_page + 1)
+        with sc4:
+            start_num = current_page * per_page + 1
+            end_num = min((current_page + 1) * per_page, total_images)
+            st.metric("Showing", f"{start_num}-{end_num}")
+
+        st.markdown("---")
+
+        # ---------- TOP NAV ----------
+        st.subheader("📄 Page Navigation")
+        n1, n2, n3, n4, n5 = st.columns(5)
+
+        with n1:
+            if st.button("⏮️ First Page", use_container_width=True, key="user_gallery_first_top"):
                 st.session_state.gallery_page = 0
                 st.rerun()
-                
-        with col2:
-            if st.button("◀️ Previous", use_container_width=True, disabled=current_page == 0, key="user_prev"):
-                st.session_state.gallery_page = max(0, current_page - 1)
+
+        with n2:
+            if current_page > 0:
+                if st.button("◀️ Previous", use_container_width=True, key="user_gallery_prev_top"):
+                    st.session_state.gallery_page = current_page - 1
+                    st.rerun()
+            else:
+                st.button("◀️ Previous", use_container_width=True, disabled=True, key="user_gallery_prev_top_disabled")
+
+        with n3:
+            jump_page = st.number_input(
+                "Go to Page:",
+                min_value=1,
+                max_value=max(1, total_pages),
+                value=current_page + 1,
+                key="user_gallery_jump"
+            ) - 1
+            if jump_page != current_page:
+                st.session_state.gallery_page = max(0, min(jump_page, total_pages - 1))
                 st.rerun()
-                
-        with col3:
-            # Page selector
-            page_options = list(range(1, total_pages + 1))
-            new_page = st.selectbox(
-                "Go to page:",
-                page_options,
-                index=current_page,
-                key="user_page_select",
-                label_visibility="collapsed"
-            )
-            if new_page - 1 != current_page:
-                st.session_state.gallery_page = new_page - 1
-                st.rerun()
-                
-        with col4:
-            if st.button("Next ▶️", use_container_width=True, disabled=current_page >= total_pages - 1, key="user_next"):
-                st.session_state.gallery_page = min(total_pages - 1, current_page + 1)
-                st.rerun()
-                
-        with col5:
-            if st.button("Last ⏭️", use_container_width=True, disabled=current_page >= total_pages - 1, key="user_last"):
+
+        with n4:
+            if current_page < total_pages - 1:
+                if st.button("Next ▶️", use_container_width=True, key="user_gallery_next_top"):
+                    st.session_state.gallery_page = current_page + 1
+                    st.rerun()
+            else:
+                st.button("Next ▶️", use_container_width=True, disabled=True, key="user_gallery_next_top_disabled")
+
+        with n5:
+            if st.button("⏭️ Last Page", use_container_width=True, key="user_gallery_last_top"):
                 st.session_state.gallery_page = total_pages - 1
                 st.rerun()
+
+        st.markdown("---")
+
+        # ---------- PAGE DATA ----------
+        with st.spinner("📥 Loading images..."):
+            page_images = get_gallery_images_paginated(
+                page=current_page,
+                per_page=per_page,
+                sort_by=sort_by,
+                filter_author=filter_author,
+                filter_strategy=filter_strategy
+            )
+
+        if not page_images:
+            st.warning("⚠️ Failed to load images for this page.")
+            if current_page > 0:
+                st.session_state.gallery_page = 0
+                st.rerun()
+            return
+
+        # Save current page images (if your viewer uses this)
+        st.session_state.current_page_images = page_images
+
+        # ---------- GRID ----------
+        st.subheader(f"📸 Page {current_page + 1} Images")
+        cols = st.columns(3)
+        for idx, img_data in enumerate(page_images):
+            col = cols[idx % 3]
+            with col:
+                # Use user card if you have one; otherwise reuse the generic card
+                if 'render_user_image_card_paginated' in globals():
+                    render_user_image_card_paginated(img_data, current_page, idx)
+                else:
+                    render_image_card_paginated(img_data, current_page, idx)
+
+        st.markdown("---")
+
+        # ---------- BOTTOM NAV ----------
+        st.subheader("📄 Bottom Navigation")
+        b1, b2, b3, b4, b5 = st.columns(5)
+
+        with b1:
+            if st.button("⏮️ First", use_container_width=True, key="user_gallery_first_bottom"):
+                st.session_state.gallery_page = 0
+                st.rerun()
+
+        with b2:
+            if current_page > 0:
+                if st.button("◀️ Prev", use_container_width=True, key="user_gallery_prev_bottom"):
+                    st.session_state.gallery_page = current_page - 1
+                    st.rerun()
+            else:
+                st.button("◀️ Prev", use_container_width=True, disabled=True, key="user_gallery_prev_bottom_disabled")
+
+        with b3:
+            st.write(f"**Page {current_page + 1}/{total_pages}**")
+
+        with b4:
+            if current_page < total_pages - 1:
+                if st.button("Next ▶️", use_container_width=True, key="user_gallery_next_bottom"):
+                    st.session_state.gallery_page = current_page + 1
+                    st.rerun()
+            else:
+                st.button("Next ▶️", use_container_width=True, disabled=True, key="user_gallery_next_bottom_disabled")
+
+        with b5:
+            if st.button("⏭️ Last", use_container_width=True, key="user_gallery_last_bottom"):
+                st.session_state.gallery_page = total_pages - 1
+                st.rerun()
+
+        st.markdown("---")
+        st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
 
 def render_user_image_card_paginated(img_data, index):
     """Render individual image card for users with pagination support"""
