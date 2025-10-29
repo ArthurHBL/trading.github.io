@@ -7918,8 +7918,7 @@ def get_gallery_images_paginated(
         return imgs
 
     except Exception as e:
-        st.error(f"⚠️ Failed to load images for this page.
-💡 Supabase error: {e}")
+        st.error(f"⚠️ Failed to load images for this page.💡 Supabase error: {e}")
         return []
 
 
