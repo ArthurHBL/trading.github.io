@@ -8065,7 +8065,7 @@ import streamlit as st
 
 def render_image_uploader():
     """
-    FIXED IMAGE UPLOADER - Handles missing format column gracefully
+    COMPLETE IMAGE UPLOADER - Handles all required columns
     """
     st.subheader("🖼️ Upload Trading Images")
     
@@ -8081,7 +8081,7 @@ def render_image_uploader():
         "Choose images to upload",
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_fixed_v2"
+        key="gallery_uploader_complete"
     )
     
     # Image description
@@ -8089,7 +8089,7 @@ def render_image_uploader():
         "Image Description (Optional):",
         placeholder="Describe what this image shows...",
         height=100,
-        key="gallery_description_fixed_v2"
+        key="gallery_description_complete"
     )
     
     # Strategy tagging
@@ -8097,10 +8097,10 @@ def render_image_uploader():
         "Tag Related Strategies (Optional):",
         available_strategies,
         default=[],
-        key="gallery_strategies_fixed_v2"
+        key="gallery_strategies_complete"
     )
     
-    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_fixed_v2"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_complete"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
@@ -8137,8 +8137,9 @@ def render_image_uploader():
                 }
                 file_format = format_map.get(file_ext, 'PNG')
                 
-                # Create unique filename
-                unique_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uf.name}"
+                # Create unique filename and paths
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                unique_name = f"{timestamp}_{uf.name}"
                 
                 # Encode to base64 for storage
                 try:
@@ -8148,42 +8149,56 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # Create database record - MINIMAL FIELDS to avoid column errors
+                # Create COMPLETE database record with ALL potential required fields
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
+                    "storage_path": f"gallery/{unique_name}",
+                    "public_url": f"https://example.com/gallery/{unique_name}",
                     "description": image_description if image_description else None,
                     "strategies": selected_strategies if selected_strategies else [],
                     "uploaded_by": st.session_state.user['username'],
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "format": file_format,  # This will work after you run the ALTER TABLE
+                    "format": file_format,
                     "bytes_b64": bytes_b64,
-                    "likes": 0
+                    "likes": 0,
+                    "comments": [],
+                    "created_at": datetime.now().isoformat(),
+                    "updated_at": datetime.now().isoformat()
                 }
                 
-                # Try to insert, but handle missing column gracefully
+                # Try the complete insert first
                 try:
                     response = supabase_client.table('gallery_images').insert(db_record).execute()
                     
                     if hasattr(response, 'error') and response.error:
-                        # If format column is missing, try without it
-                        if "format" in str(response.error).lower():
-                            st.warning(f"⚠️ {uf.name}: Format column missing, uploading without format...")
-                            del db_record['format']
-                            response = supabase_client.table('gallery_images').insert(db_record).execute()
+                        # If there are column errors, try a minimal approach
+                        error_msg = str(response.error)
+                        st.warning(f"⚠️ {uf.name}: Column issues detected, trying minimal upload...")
+                        
+                        # Minimal record with only the most essential fields
+                        minimal_record = {
+                            "name": uf.name,
+                            "filename": unique_name,
+                            "storage_path": "gallery/",
+                            "public_url": "https://example.com/default.jpg",
+                            "uploaded_by": st.session_state.user['username'],
+                            "timestamp": datetime.now().isoformat(),
+                            "bytes_b64": bytes_b64,
+                            "likes": 0
+                        }
+                        
+                        response = supabase_client.table('gallery_images').insert(minimal_record).execute()
                         
                         if hasattr(response, 'error') and response.error:
-                            raise RuntimeError(f"Supabase error: {response.error}")
+                            raise RuntimeError(f"Minimal upload failed: {response.error}")
                 
                 except Exception as e:
                     error_msg = str(e)
-                    if "format" in error_msg.lower():
-                        st.warning(f"⚠️ {uf.name}: Uploaded without format column")
-                    else:
-                        st.error(f"❌ {uf.name}: Upload failed - {error_msg[:100]}")
-                        error_count += 1
-                        continue
+                    st.error(f"❌ {uf.name}: Upload failed - {error_msg[:100]}")
+                    error_count += 1
+                    continue
                 
                 st.success(f"✅ {uf.name} uploaded successfully!")
                 success_count += 1
