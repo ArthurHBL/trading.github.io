@@ -4,7 +4,25 @@ import json
 import pandas as pd
 import uuid
 
+#
+
 # =====================================================
+# Hybrid Cache Layer (Legacy + Streamlit Session)
+# =====================================================
+_gallery_cache = {}
+
+def _cache_get(key, default=None):
+    import streamlit as st
+    # Try Streamlit session first, then fallback to legacy cache
+    return st.session_state.get(f"_cache_{key}", _gallery_cache.get(key, default))
+
+def _cache_set(key, value):
+    import streamlit as st
+    # Update both caches for safety
+    st.session_state[f"_cache_{key}"] = value
+    _gallery_cache[key] = value
+
+ =====================================================
 # Utility: Retry with exponential backoff
 # =====================================================
 def retry_with_backoff(max_retries=3, base_delay=0.5, exceptions=(Exception,)):
@@ -5887,14 +5905,6 @@ def render_image_gallery():
     st.title("📸 User Image Gallery (Paginated View)")
     render_image_gallery_paginated()
 
-def _cache_get(key, default=None):
-    """Get value from cache"""
-    return _gallery_cache.get(key, default)
-
-def _cache_set(key, value):
-    """Set value in cache"""
-    _gallery_cache[key] = value
-
 def decode_image_from_storage(item):
     """Decode image from storage format - placeholder implementation"""
     try:
@@ -10010,12 +10020,6 @@ import functools
 
 # Global in-memory "last good" caches (kept per-session)
 _cache = {}
-
-def _cache_get(key, default=None):
-    return _cache.get(key, default)
-
-def _cache_set(key, value):
-    _cache[key] = value
 
 def _is_transient_error(err):
     """Check if error is transient and worth retrying."""
