@@ -6268,7 +6268,7 @@ def render_user_image_gallery():
         st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
 
 def render_user_image_card_paginated(img_data, page_num, index):
-    """Render individual image card - CLEAN IMAGE-ONLY VERSION"""
+    """Render individual image card - CLEAN IMAGE ONLY WITH DOWNLOAD"""
     try:
         # Get image bytes
         image_bytes = None
@@ -6281,97 +6281,31 @@ def render_user_image_card_paginated(img_data, page_num, index):
             st.image(
                 image_bytes,
                 use_container_width=True,
-                caption=None  # No caption
+                caption=None
             )
         else:
             st.warning("🖼️ Image data not available")
     except Exception as e:
         st.error(f"❌ Error displaying image")
     
-    # MINIMAL action buttons - below image only
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("❤️", key=f"like_{page_num}_{index}", use_container_width=True, help="Like this image"):
-            st.info("Like functionality coming soon")
-    
-    with col2:
-        if st.button("🖼️", key=f"view_{page_num}_{index}", use_container_width=True, help="View fullscreen"):
-            st.session_state.current_image_index = index
-            st.session_state.image_viewer_mode = True
-            st.rerun()
-    
-    with col3:
-        try:
-            image_bytes = None
-            if 'bytes' in img_data:
-                image_bytes = img_data['bytes']
-            elif 'bytes_b64' in img_data:
-                image_bytes = base64.b64decode(img_data['bytes_b64'])
-            
-            if image_bytes:
-                b64_img = base64.b64encode(image_bytes).decode()
-                file_format = img_data.get('format', 'png').lower()
-                file_name = img_data.get('name', f'image_{index}')
-                href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px;">⬇️</button></a>'
-                st.markdown(href, unsafe_allow_html=True)
-        except Exception as e:
-            st.button("⬇️", disabled=True, use_container_width=True)
+    # ONLY download button below image
+    try:
+        image_bytes = None
+        if 'bytes' in img_data:
+            image_bytes = img_data['bytes']
+        elif 'bytes_b64' in img_data:
+            image_bytes = base64.b64decode(img_data['bytes_b64'])
+        
+        if image_bytes:
+            b64_img = base64.b64encode(image_bytes).decode()
+            file_format = img_data.get('format', 'png').lower()
+            file_name = img_data.get('name', f'image_{index}')
+            href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:10px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; font-weight:bold;">⬇️ Download</button></a>'
+            st.markdown(href, unsafe_allow_html=True)
+    except Exception as e:
+        st.button("⬇️ Download", disabled=True, use_container_width=True)
     
     st.divider()
-
-            # Metadata
-            st.caption(f"👤 By: **{img_data.get('uploaded_by', 'Unknown')}**")
-            timestamp = img_data.get('timestamp', '')
-            if timestamp:
-                try:
-                    upload_time = datetime.fromisoformat(timestamp).strftime("%m/%d/%Y %H:%M")
-                    st.caption(f"📅 {upload_time}")
-                except:
-                    st.caption(f"📅 {timestamp}")
-
-            st.divider()
-
-            # Interaction buttons
-            col_like, col_view = st.columns(2)
-
-            with col_like:
-                if st.button("❤️ Like", key=f"user_like_{page_num}_{index}_{img_data.get('id', index)}", use_container_width=True):
-                    st.info("Like functionality requires database update implementation")
-
-            with col_view:
-                if st.button("🖼️ Fullscreen", key=f"user_view_{page_num}_{index}_{img_data.get('id', index)}", use_container_width=True):
-                    st.session_state.current_image_index = index
-                    st.session_state.image_viewer_mode = True
-                    st.rerun()
-
-            # Like count and download
-            col_count, col_download = st.columns(2)
-            with col_count:
-                likes = img_data.get('likes', 0)
-                st.metric("Likes", likes, label_visibility="collapsed")
-
-            with col_download:
-                try:
-                    # Get image bytes for download
-                    image_bytes = None
-                    if 'bytes' in img_data:
-                        image_bytes = img_data['bytes']
-                    elif 'bytes_b64' in img_data:
-                        image_bytes = base64.b64decode(img_data['bytes_b64'])
-                    
-                    if image_bytes:
-                        b64_img = base64.b64encode(image_bytes).decode()
-                        file_format = img_data.get('format', 'png').lower()
-                        file_name = img_data.get('name', f'image_{index}')
-                        href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
-                        st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
-                    else:
-                        st.caption("Download unavailable")
-                except Exception as e:
-                    st.caption("Download unavailable")
-
-        st.markdown("---")
 
 def render_user_image_card(img_data, index):
     """Render individual image card for users - UPDATED FOR PAGINATION"""
