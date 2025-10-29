@@ -2905,8 +2905,7 @@ def load_gallery_images():
         return images
 
     except Exception as e:
-        st.error(f"⚠️ Failed to load images for this page.
-💡 Supabase error: {e}")
+        st.error(f"⚠️ Failed to load images for this page.💡 Supabase error: {e}")
         return []
 
 
