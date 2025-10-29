@@ -4,8 +4,24 @@ import json
 import pandas as pd
 import uuid
 
-#
-
+def get_image_format_safe(img_data):
+    """Safely get image format with fallbacks"""
+    # Try direct format field first
+    if img_data.get('format'):
+        return img_data['format']
+    
+    # Try to infer from filename
+    name = img_data.get('name', '')
+    if '.' in name:
+        ext = name.split('.')[-1].lower()
+        format_map = {
+            'jpg': 'JPEG', 'jpeg': 'JPEG', 'png': 'PNG', 
+            'gif': 'GIF', 'bmp': 'BMP'
+        }
+        return format_map.get(ext, 'PNG')
+    
+    # Default fallback
+    return 'PNG'
 # =====================================================
 # Hybrid Cache Layer (Legacy + Streamlit Session)
 # =====================================================
@@ -6298,7 +6314,7 @@ def render_user_image_card_paginated(img_data, page_num, index):
             
             if image_bytes:
                 b64_img = base64.b64encode(image_bytes).decode()
-                file_format = img_data.get('format', 'png').lower()
+                file_format = get_image_format_safe(img_data).lower()
                 file_name = img_data.get('name', f'image_{index}')
                 href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}"><button style="width:100%; padding:6px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer; font-size:12px; font-weight:bold;">⬇️ Download</button></a>'
                 st.markdown(href, unsafe_allow_html=True)
@@ -6405,7 +6421,7 @@ def render_user_image_card(img_data, index):
                     
                     if image_bytes:
                         b64_img = base64.b64encode(image_bytes).decode()
-                        file_format = img_data.get('format', 'png').lower()
+                        file_format = get_image_format_safe(img_data).lower()
                         file_name = img_data.get('name', f'image_{index}')
                         href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
                         st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 8px; text-align: center; text-decoration: none; display: inline-block; font-size: 12px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download</button></a>', unsafe_allow_html=True)
@@ -6524,7 +6540,7 @@ def render_image_viewer():
             
         if image_bytes:
             b64_img = base64.b64encode(image_bytes).decode()
-            file_format = img_data.get('format', 'png').lower()
+            file_format = get_image_format_safe(img_data).lower()
             file_name = img_data.get('name', f'image_{current_index}')
             href = f'<a href="data:image/{file_format};base64,{b64_img}" download="{file_name}.{file_format}" style="text-decoration: none;">'
             st.markdown(f'{href}<button style="background-color: #4CAF50; color: white; border: none; padding: 12px 24px; text-align: center; text-decoration: none; display: inline-block; font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 4px; width: 100%;">⬇️ Download Full Resolution Image</button></a>', unsafe_allow_html=True)
@@ -8049,7 +8065,7 @@ import streamlit as st
 
 def render_image_uploader():
     """
-    FIXED IMAGE UPLOADER - Handles missing bytes_b64 column
+    FIXED IMAGE UPLOADER - Handles missing format column gracefully
     """
     st.subheader("🖼️ Upload Trading Images")
     
@@ -8065,7 +8081,7 @@ def render_image_uploader():
         "Choose images to upload",
         type=['png', 'jpg', 'jpeg', 'gif', 'bmp'],
         accept_multiple_files=True,
-        key="gallery_uploader_fixed"
+        key="gallery_uploader_fixed_v2"
     )
     
     # Image description
@@ -8073,7 +8089,7 @@ def render_image_uploader():
         "Image Description (Optional):",
         placeholder="Describe what this image shows...",
         height=100,
-        key="gallery_description_fixed"
+        key="gallery_description_fixed_v2"
     )
     
     # Strategy tagging
@@ -8081,10 +8097,10 @@ def render_image_uploader():
         "Tag Related Strategies (Optional):",
         available_strategies,
         default=[],
-        key="gallery_strategies_fixed"
+        key="gallery_strategies_fixed_v2"
     )
     
-    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_fixed"):
+    if st.button("🚀 Upload to Gallery", use_container_width=True, key="upload_btn_fixed_v2"):
         if not uploaded_files:
             st.warning("Select at least one image to upload.")
             return
@@ -8113,8 +8129,8 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # Determine file format
-                file_ext = uf.name.split('.')[-1].lower()
+                # Determine file format from filename
+                file_ext = uf.name.split('.')[-1].lower() if '.' in uf.name else 'png'
                 format_map = {
                     'jpg': 'JPEG', 'jpeg': 'JPEG', 'png': 'PNG', 
                     'gif': 'GIF', 'bmp': 'BMP'
@@ -8132,7 +8148,7 @@ def render_image_uploader():
                     error_count += 1
                     continue
                 
-                # Create database record
+                # Create database record - MINIMAL FIELDS to avoid column errors
                 db_record = {
                     "name": uf.name,
                     "filename": unique_name,
@@ -8141,16 +8157,33 @@ def render_image_uploader():
                     "uploaded_by": st.session_state.user['username'],
                     "timestamp": datetime.now().isoformat(),
                     "file_size": len(file_bytes),
-                    "format": file_format,
-                    "bytes_b64": bytes_b64,  # This is the critical field
+                    "format": file_format,  # This will work after you run the ALTER TABLE
+                    "bytes_b64": bytes_b64,
                     "likes": 0
                 }
                 
-                # Insert into Supabase
-                response = supabase_client.table('gallery_images').insert(db_record).execute()
+                # Try to insert, but handle missing column gracefully
+                try:
+                    response = supabase_client.table('gallery_images').insert(db_record).execute()
+                    
+                    if hasattr(response, 'error') and response.error:
+                        # If format column is missing, try without it
+                        if "format" in str(response.error).lower():
+                            st.warning(f"⚠️ {uf.name}: Format column missing, uploading without format...")
+                            del db_record['format']
+                            response = supabase_client.table('gallery_images').insert(db_record).execute()
+                        
+                        if hasattr(response, 'error') and response.error:
+                            raise RuntimeError(f"Supabase error: {response.error}")
                 
-                if hasattr(response, 'error') and response.error:
-                    raise RuntimeError(f"Supabase error: {response.error}")
+                except Exception as e:
+                    error_msg = str(e)
+                    if "format" in error_msg.lower():
+                        st.warning(f"⚠️ {uf.name}: Uploaded without format column")
+                    else:
+                        st.error(f"❌ {uf.name}: Upload failed - {error_msg[:100]}")
+                        error_count += 1
+                        continue
                 
                 st.success(f"✅ {uf.name} uploaded successfully!")
                 success_count += 1
