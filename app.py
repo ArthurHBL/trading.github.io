@@ -5882,9 +5882,10 @@ def render_login():
 
 def render_image_gallery():
     """Main gallery - now paginated"""
+    import streamlit as st
+    st.session_state.gallery_page = 0
     render_image_gallery_paginated()
 
-# Simple in-memory cache for gallery data
 _gallery_cache = {}
 
 def _cache_get(key, default=None):
