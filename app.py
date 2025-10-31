@@ -5957,7 +5957,7 @@ def render_login():
                 new_password = st.text_input("Create Password*", type="password", help="Minimum 8 characters", key="register_password")
                 confirm_password = st.text_input("Confirm Password*", type="password", key="register_confirm_password")
 
-            st.markdown("**Required fields marked with ***")
+            st.markdown("Required fields marked with *")
 
             # Plan features - Display Trial features
             st.info(f"""
