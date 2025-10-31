@@ -5941,11 +5941,15 @@ def render_login():
             with col1:
                 new_username = st.text_input("Choose Username*", help="3-20 characters, letters and numbers only", key="register_username")
                 new_name = st.text_input("Full Name*", key="register_name")
-                plan_choice = st.selectbox(
+                
+                # FIXED: View-only plan selection - Always Trial
+                plan_choice = "trial"  # HARDCODED to trial
+                plan_info = Config.PLANS["trial"]
+                st.text_input(
                     "Subscription Plan*",
-                    list(Config.PLANS.keys()),
-                    format_func=lambda x: f"{Config.PLANS[x]['name']} - ${Config.PLANS[x]['price']}/month",
-                    key="register_plan"
+                    value=f"{plan_info['name']} - Free",
+                    disabled=True,
+                    key="register_plan_display"
                 )
 
             with col2:
@@ -5955,18 +5959,20 @@ def render_login():
 
             st.markdown("**Required fields marked with ***")
 
-            # Plan features
-            if plan_choice:
-                plan_info = Config.PLANS[plan_choice]
-                with st.expander(f"📋 {plan_info['name']} Features"):
-                    st.write(f"• {plan_info['strategies']} Trading Strategies")
-                    st.write(f"• {plan_info['max_sessions']} Concurrent Session(s)")
-                    st.write(f"• {plan_info['duration']}-day access")
-                    st.write(f"• Professional Analysis Tools")
-                    if plan_choice == "trial":
-                        st.info("🎁 Free trial - no payment required")
+            # Plan features - Display Trial features
+            st.info(f"""
+            ✅ **{plan_info['name']} Features (Free):**
+            • {plan_info['strategies']} Trading Strategies
+            • {plan_info['max_sessions']} Concurrent Session
+            • {plan_info['duration']}-day access
+            • Basic Signal Access
+            • View-Only Gallery
+            • KAI Analysis View
+            • No payment required
+            """)
 
-                        agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="register_agree")
+            # Terms agreement checkbox
+            agreed = st.checkbox("I agree to the Terms of Service and Privacy Policy*", key="register_agree")
 
             submitted = st.form_submit_button("🚀 Create Account", use_container_width=True)
 
