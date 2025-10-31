@@ -3881,17 +3881,17 @@ class Config:
     SUPPORT_EMAIL = "support@tradinganalysis.com"
     BUSINESS_NAME = "TradingAnalysis Inc."
 
-    # Updated Subscription Plans with new pricing
+    # Updated Subscription Plans
     PLANS = {
         "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
         "premium": {"name": "Premium Plan", "price": 19, "duration": 30, "strategies": 15, "max_sessions": 3}
     }
 
-    # Updated Stripe Payment Links with new pricing
-    STRIPE_PREMIUM_MONTHLY_LINK = "https://buy.stripe.com/your_19_monthly_link"
-    STRIPE_PREMIUM_QUARTERLY_LINK = "https://buy.stripe.com/your_49_quarterly_link"
-    STRIPE_PREMIUM_SEMI_ANNUAL_LINK = "https://buy.stripe.com/your_97_semi_annual_link"
-    STRIPE_PREMIUM_ANNUAL_LINK = "https://buy.stripe.com/your_179_annual_link"
+    # Ko-Fi Payment Links (replace with your actual Ko-Fi shop links)
+    KOFI_PREMIUM_MONTHLY_LINK = "https://ko-fi.com/s/39c3423f1d"
+    KOFI_PREMIUM_QUARTERLY_LINK = "https://ko-fi.com/s/9b73dfca2a"
+    KOFI_PREMIUM_SEMI_ANNUAL_LINK = "https://ko-fi.com/s/419cbf74f9"
+    KOFI_PREMIUM_ANNUAL_LINK = "https://ko-fi.com/s/bba601fa2b"
 
 # -------------------------
 # STRATEGIES DEFINITION (15 Strategies)
@@ -6949,7 +6949,7 @@ def render_premium_user_section():
     """)
 
 def render_become_member_section():
-    """Section for trial users to become premium members"""
+    """Section for trial users to become premium members - Ko-Fi Integration"""
     st.subheader("⭐ Become a Premium Member")
 
     st.success("""
@@ -6957,7 +6957,7 @@ def render_become_member_section():
     gallery uploads, and advanced KAI AI analysis.
     """)
 
-    # Updated payment options with all blue buttons
+    # Ko-Fi payment options with all blue buttons
     st.markdown("### 💳 Choose Your Plan")
 
     col1, col2, col3, col4 = st.columns(4)
@@ -6968,9 +6968,11 @@ def render_become_member_section():
         st.write("• Flexible billing")
         st.write("• Cancel anytime")
 
-        monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
-        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>',
-                   unsafe_allow_html=True)
+        kofi_monthly = Config.KOFI_PREMIUM_MONTHLY_LINK
+        st.markdown(
+            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col2:
         st.markdown("#### 3 Months")
@@ -6978,9 +6980,11 @@ def render_become_member_section():
         st.write("• 3 months access")
         st.write("• Best for short-term")
 
-        quarterly_link = Config.STRIPE_PREMIUM_QUARTERLY_LINK
-        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Subscribe Now</button></a>',
-                   unsafe_allow_html=True)
+        kofi_quarterly = Config.KOFI_PREMIUM_QUARTERLY_LINK
+        st.markdown(
+            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Subscribe Now</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col3:
         st.markdown("#### 6 Months")
@@ -6988,9 +6992,11 @@ def render_become_member_section():
         st.write("• 6 months access")
         st.write("• Extended access")
 
-        semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
-        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>',
-                   unsafe_allow_html=True)
+        kofi_semi_annual = Config.KOFI_PREMIUM_SEMI_ANNUAL_LINK
+        st.markdown(
+            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col4:
         st.markdown("#### 12 Months")
@@ -6998,16 +7004,18 @@ def render_become_member_section():
         st.write("• 12 months access")
         st.write("• Long-term value")
 
-        annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
-        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>',
-                   unsafe_allow_html=True)
+        kofi_annual = Config.KOFI_PREMIUM_ANNUAL_LINK
+        st.markdown(
+            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>',
+            unsafe_allow_html=True
+        )
 
     # Important information
     st.markdown("---")
     st.info("""
-    **🔒 Secure Payment Process:**
-    - You'll be redirected to Stripe's secure payment page
-    - Multiple payment methods accepted (credit card, Apple Pay, Google Pay)
+    **🔐 Secure Payment Process:**
+    - You'll be redirected to Ko-Fi's secure payment page
+    - Multiple payment methods accepted (credit card, PayPal, Apple Pay, Google Pay)
     - Instant access after successful payment
     - Email receipt provided
     """)
