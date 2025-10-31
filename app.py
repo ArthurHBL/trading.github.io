@@ -2758,32 +2758,29 @@ def setup_data_persistence():
     if current_time - st.session_state.last_save_time > 300:  # 5 minutes
         user_manager.save_users()
         user_manager.save_analytics()
-
+        
         # Save strategy analyses data - FIXED: Save from session state
         try:
             if hasattr(st.session_state, 'strategy_analyses_data'):
                 save_data(st.session_state.strategy_analyses_data)
         except Exception as e:
-            st.error(f"⚠️ Error saving strategy data: {e}")
-
-        # Save gallery images
-        try:
-            save_gallery_images(st.session_state.uploaded_images)
-        except Exception as e:
-            st.error(f"⚠️ Error saving gallery images: {e}")
-
+            logging.warning(f"⚠️ Error saving strategy data: {e}")
+        
+        # ❌ REMOVED: save_gallery_images() - paginated system saves directly to Supabase on upload
+        # Gallery images are now saved immediately when uploaded, not periodically
+        
         # Save signals data
         try:
             save_signals_data(st.session_state.active_signals)
         except Exception as e:
-            st.error(f"⚠️ Error saving signals data: {e}")
-
+            logging.warning(f"⚠️ Error saving signals data: {e}")
+        
         # Save strategy indicator images - FIXED: Now properly saves to Supabase
         try:
             save_strategy_indicator_images(st.session_state.strategy_indicator_images)
         except Exception as e:
-            st.error(f"⚠️ Error saving strategy indicator images: {e}")
-
+            logging.warning(f"⚠️ Error saving strategy indicator images: {e}")
+        
         st.session_state.last_save_time = current_time
 
 # -------------------------
