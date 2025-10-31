@@ -7032,7 +7032,7 @@ def render_become_member_section():
                 st.rerun()
 
 def render_renew_subscription_section():
-    """Updated renewal section with all blue buttons"""
+    """Updated renewal section with Ko-Fi buttons"""
     st.subheader("🔄 Renew Your Subscription")
 
     user = st.session_state.user
@@ -7045,52 +7045,52 @@ def render_renew_subscription_section():
     else:
         st.error("❌ Your subscription has expired. Renew to restore premium access.")
 
-    # Updated renewal options with all blue buttons
+    # Ko-Fi renewal options
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.markdown("#### 1 Month")
         st.write("**$19**")
-        monthly_link = Config.STRIPE_PREMIUM_MONTHLY_LINK
-        st.markdown(f'<a href="{monthly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
-                   unsafe_allow_html=True)
+        kofi_monthly = Config.KOFI_PREMIUM_MONTHLY_LINK
+        st.markdown(
+            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col2:
         st.markdown("#### 3 Months")
         st.write("**$49**")
-        quarterly_link = Config.STRIPE_PREMIUM_QUARTERLY_LINK
-        st.markdown(f'<a href="{quarterly_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
-                   unsafe_allow_html=True)
+        kofi_quarterly = Config.KOFI_PREMIUM_QUARTERLY_LINK
+        st.markdown(
+            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col3:
         st.markdown("#### 6 Months")
         st.write("**$97**")
-        semi_annual_link = Config.STRIPE_PREMIUM_SEMI_ANNUAL_LINK
-        st.markdown(f'<a href="{semi_annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
-                   unsafe_allow_html=True)
+        kofi_semi_annual = Config.KOFI_PREMIUM_SEMI_ANNUAL_LINK
+        st.markdown(
+            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            unsafe_allow_html=True
+        )
 
     with col4:
         st.markdown("#### 12 Months")
         st.write("**$179**")
-        annual_link = Config.STRIPE_PREMIUM_ANNUAL_LINK
-        st.markdown(f'<a href="{annual_link}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
-                   unsafe_allow_html=True)
+        kofi_annual = Config.KOFI_PREMIUM_ANNUAL_LINK
+        st.markdown(
+            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            unsafe_allow_html=True
+        )
 
-    # Auto-renewal settings
     st.markdown("---")
     st.subheader("⚙️ Subscription Settings")
-
     col5, col6 = st.columns(2)
-
     with col5:
-        auto_renew = st.checkbox("Enable Auto-Renewal", value=True,
-                                help="Automatically renew your subscription before it expires")
-        if st.button("💾 Save Settings", use_container_width=True):
-            st.success("✅ Auto-renewal settings saved!")
-
+        st.info("💡 Ko-Fi handles automatic renewals. Check your Ko-Fi dashboard for subscription settings.")
     with col6:
-        if st.button("📧 Update Billing Info", use_container_width=True):
-            st.info("Billing portal coming soon! Contact support for billing changes.")
+        st.info("📧 You'll receive renewal reminders via email before expiry.")
 
 # -------------------------
 # ENHANCED PREMIUM SIGNAL DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
