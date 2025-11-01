@@ -7745,14 +7745,13 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     st.markdown("---")
 
     # ADDED: Green Buy Strategy button for users - same as admin
-    col_header1, col_header2 = st.columns([3, 1])
+    col_header1, col_header2, col_header3 = st.columns([2, 1, 1])  # CHANGED: 3 columns instead of 2
     with col_header1:
-        st.subheader(f"🔍 {selected_strategy} Analysis")
+        st.subheader(f"Signal Analysis - {selected_strategy}")
     with col_header2:
-        st.button("📊 BUY Strategy",
-                 use_container_width=True,
-                 key=f"user_buy_bundle_{selected_strategy}",
-                 help="Purchase to use in TradingView")
+        st.markdown("**[Buy This Strategy](https://ko-fi.com/s/c2d66d197b)**", unsafe_allow_html=True)
+    with col_header3:
+        st.markdown("**[Buy All 15 Strategies](https://ko-fi.com/s/218558f1c9)**", unsafe_allow_html=True)
 
     # Display existing analysis
     strategy_data = st.session_state.strategy_analyses_data
