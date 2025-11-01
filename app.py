@@ -7751,7 +7751,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     with col_header2:
         st.markdown(
             f'<a href="https://ko-fi.com/s/c2d66d197b" target="_blank">'
-            f'<button style="background-color: #10B981; color: white; border: none; padding: 10px 16px; '
+            f'<button style="background-color: #059669; color: white; border: none; padding: 10px 16px; '
             f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
             f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
             f'📊 BUY This Strategy</button></a>',
@@ -7760,7 +7760,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     with col_header3:
         st.markdown(
             f'<a href="https://ko-fi.com/s/218558f1c9" target="_blank">'
-            f'<button style="background-color: #059669; color: white; border: none; padding: 10px 16px; '
+            f'<button style="background-color: #10B981; color: white; border: none; padding: 10px 16px; '
             f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
             f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
             f'🚀 BUY All 15 Strategies</button></a>',
