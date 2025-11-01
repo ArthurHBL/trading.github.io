@@ -7744,14 +7744,28 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
 
     st.markdown("---")
 
-    # ADDED: Green Buy Strategy button for users - same as admin
-    col_header1, col_header2, col_header3 = st.columns([2, 1, 1])  # CHANGED: 3 columns instead of 2
+    # ENHANCED: Green Buy Strategy buttons like admin dashboard
+    col_header1, col_header2, col_header3 = st.columns([2, 1, 1])
     with col_header1:
         st.subheader(f"Signal Analysis - {selected_strategy}")
     with col_header2:
-        st.markdown("**[Buy This Strategy](https://ko-fi.com/s/c2d66d197b)**", unsafe_allow_html=True)
+        st.markdown(
+            f'<a href="https://ko-fi.com/s/c2d66d197b" target="_blank">'
+            f'<button style="background-color: #10B981; color: white; border: none; padding: 10px 16px; '
+            f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
+            f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
+            f'📊 BUY This Strategy</button></a>',
+            unsafe_allow_html=True
+        )
     with col_header3:
-        st.markdown("**[Buy All 15 Strategies](https://ko-fi.com/s/218558f1c9)**", unsafe_allow_html=True)
+        st.markdown(
+            f'<a href="https://ko-fi.com/s/218558f1c9" target="_blank">'
+            f'<button style="background-color: #059669; color: white; border: none; padding: 10px 16px; '
+            f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
+            f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
+            f'🚀 BUY All 15 Strategies</button></a>',
+            unsafe_allow_html=True
+        )
 
     # Display existing analysis
     strategy_data = st.session_state.strategy_analyses_data
