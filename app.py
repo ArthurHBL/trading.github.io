@@ -7749,7 +7749,7 @@ def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analy
     with col_header1:
         st.subheader(f"🔍 {selected_strategy} Analysis")
     with col_header2:
-        st.button("🟢 BUY Strategy",
+        st.button("📊 BUY Strategy",
                  use_container_width=True,
                  key=f"user_buy_bundle_{selected_strategy}",
                  help="Purchase to use in TradingView")
