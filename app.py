@@ -6960,7 +6960,7 @@ def render_become_member_section():
     gallery uploads, and advanced KAI AI analysis.
     """)
 
-    # Ko-Fi payment options with all blue buttons
+    # Ko-Fi payment options with GREEN buttons
     st.markdown("### 💳 Choose Your Plan")
 
     col1, col2, col3, col4 = st.columns(4)
@@ -6973,7 +6973,7 @@ def render_become_member_section():
 
         kofi_monthly = Config.KOFI_PREMIUM_MONTHLY_LINK
         st.markdown(
-            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>',
+            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💳 Subscribe Now</button></a>',
             unsafe_allow_html=True
         )
 
@@ -6985,7 +6985,7 @@ def render_become_member_section():
 
         kofi_quarterly = Config.KOFI_PREMIUM_QUARTERLY_LINK
         st.markdown(
-            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Subscribe Now</button></a>',
+            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">💎 Subscribe Now</button></a>',
             unsafe_allow_html=True
         )
 
@@ -6997,7 +6997,7 @@ def render_become_member_section():
 
         kofi_semi_annual = Config.KOFI_PREMIUM_SEMI_ANNUAL_LINK
         st.markdown(
-            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>',
+            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🚀 Subscribe Now</button></a>',
             unsafe_allow_html=True
         )
 
@@ -7009,7 +7009,7 @@ def render_become_member_section():
 
         kofi_annual = Config.KOFI_PREMIUM_ANNUAL_LINK
         st.markdown(
-            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>',
+            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🏆 Subscribe Now</button></a>',
             unsafe_allow_html=True
         )
 
@@ -7048,7 +7048,7 @@ def render_renew_subscription_section():
     else:
         st.error("❌ Your subscription has expired. Renew to restore premium access.")
 
-    # Ko-Fi renewal options
+    # Ko-Fi renewal options with GREEN buttons
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -7056,7 +7056,7 @@ def render_renew_subscription_section():
         st.write("**$19**")
         kofi_monthly = Config.KOFI_PREMIUM_MONTHLY_LINK
         st.markdown(
-            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            f'<a href="{kofi_monthly}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
             unsafe_allow_html=True
         )
 
@@ -7065,7 +7065,7 @@ def render_renew_subscription_section():
         st.write("**$49**")
         kofi_quarterly = Config.KOFI_PREMIUM_QUARTERLY_LINK
         st.markdown(
-            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            f'<a href="{kofi_quarterly}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
             unsafe_allow_html=True
         )
 
@@ -7074,7 +7074,7 @@ def render_renew_subscription_section():
         st.write("**$97**")
         kofi_semi_annual = Config.KOFI_PREMIUM_SEMI_ANNUAL_LINK
         st.markdown(
-            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            f'<a href="{kofi_semi_annual}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
             unsafe_allow_html=True
         )
 
@@ -7083,7 +7083,7 @@ def render_renew_subscription_section():
         st.write("**$179**")
         kofi_annual = Config.KOFI_PREMIUM_ANNUAL_LINK
         st.markdown(
-            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
+            f'<a href="{kofi_annual}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%;">🔄 Renew</button></a>',
             unsafe_allow_html=True
         )
 
