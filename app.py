@@ -9012,18 +9012,21 @@ def render_admin_management_dashboard():
     """Admin dashboard with simple tracking"""
     st.title("🛠️ Admin Management Dashboard")
 
-    # Add simple tracking metric
-    col1, col2, col3, col4, col5 = st.columns(5)
+    # Key metrics - SAFE VERSION
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
-        st.metric("Total Users", len(user_manager.users))
+        st.metric("Total Users", metrics.get("total_users", 0))
     with col2:
-        st.metric("Online Now", user_manager.get_business_metrics()["online_users"])
+        st.metric("Active Users", metrics.get("active_users", 0))
     with col3:
-        st.metric("Signals Access", len(st.session_state.signals_access_tracking))
+        st.metric("Online Now", metrics.get("online_users", 0))
     with col4:
-        st.metric("Verified Users", metrics["verified_users"])
+        st.metric("Verified Users", metrics.get("verified_users", 0))
     with col5:
-        st.metric("Unverified Users", metrics["unverified_users"])
+        st.metric("Unverified Users", metrics.get("unverified_users", 0))
+    with col6:
+        revoked_count = len(st.session_state.signals_access_tracking)
+        st.metric("Signals Access", len(st.session_state.signals_access_tracking))
 
     st.markdown("---")
 
