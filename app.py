@@ -2310,12 +2310,13 @@ def load_signals_access_tracking():
     """Load access tracking from Supabase - FIXED VERSION"""
     try:
         if not supabase_client:
+            logging.warning("⚠️ Supabase client not available")
             return []
         
         response = supabase_client.table('signals_access_tracking').select('*').execute()
         
         if hasattr(response, 'error') and response.error:
-            logging.error(f"Database error: {response.error}")
+            logging.warning(f"⚠️ Database load error (may be normal): {response.error}")
             return []
         
         data = response.data if hasattr(response, 'data') else []
@@ -2323,7 +2324,7 @@ def load_signals_access_tracking():
         return data or []
         
     except Exception as e:
-        logging.error(f"❌ Error loading access tracking: {e}")
+        logging.warning(f"⚠️ Error loading access tracking (may be normal): {e}")
         return []
         
 def save_signals_access_tracking(tracking_data):
@@ -2333,50 +2334,67 @@ def save_signals_access_tracking(tracking_data):
             logging.warning("⚠️ Supabase client not available")
             return False
         
-        if not tracking_data:
-            # Clear all
-            response = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
-            logging.info("✅ Cleared all access tracking")
+        # Clear existing tracking data first
+        try:
+            delete_response = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+            if hasattr(delete_response, 'error') and delete_response.error:
+                logging.warning(f"⚠️ Could not clear existing tracking (may be normal): {delete_response.error}")
+        except Exception as delete_error:
+            logging.warning(f"⚠️ Clear operation failed (may be normal): {delete_error}")
+        
+        # If we have tracking data to save
+        if tracking_data:
+            # Ensure each record has required fields
+            cleaned_data = []
+            for track in tracking_data:
+                cleaned_track = {
+                    'username': track.get('username', 'unknown'),
+                    'first_access': track.get('first_access', datetime.now().isoformat()),
+                    'last_access': track.get('last_access', datetime.now().isoformat()),
+                    'access_count': track.get('access_count', 1)
+                }
+                cleaned_data.append(cleaned_track)
+            
+            # Insert the cleaned data
+            insert_response = supabase_client.table('signals_access_tracking').insert(cleaned_data).execute()
+            
+            if hasattr(insert_response, 'error') and insert_response.error:
+                logging.error(f"❌ Database insert error: {insert_response.error}")
+                return False
+            
+            logging.info(f"✅ Saved {len(cleaned_data)} access tracking records")
             return True
-        
-        # Delete existing and insert new (simpler than upserting)
-        delete_resp = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
-        
-        insert_resp = supabase_client.table('signals_access_tracking').insert(tracking_data).execute()
-        
-        if hasattr(insert_resp, 'error') and insert_resp.error:
-            logging.error(f"Database error: {insert_resp.error}")
-            return False
-        
-        logging.info(f"✅ Saved {len(tracking_data)} access tracking records")
-        return True
+        else:
+            # No data to save is still successful
+            logging.info("✅ Cleared all access tracking (no data to save)")
+            return True
         
     except Exception as e:
         logging.error(f"❌ Error saving access tracking: {e}")
-
+        return False
+        
 # SIMPLE TRACKING FUNCTION
 def track_signals_access(username):
     """Track when user accesses Signals Room - FIXED VERSION"""
     try:
-        # CRITICAL: Ensure tracking list exists
+        # CRITICAL: Ensure tracking list exists in session state
         if 'signals_access_tracking' not in st.session_state:
             st.session_state.signals_access_tracking = []
         
         tracking = st.session_state.signals_access_tracking
         current_time = datetime.now().isoformat()
         
-        # Find user or create new
-        user_tracked = None
+        # Find existing user entry
+        user_found = False
         for i, track in enumerate(tracking):
             if track['username'] == username:
-                user_tracked = i
+                # Update existing entry
+                tracking[i]['last_access'] = current_time
+                tracking[i]['access_count'] = tracking[i].get('access_count', 0) + 1
+                user_found = True
                 break
         
-        if user_tracked is not None:
-            # Update existing entry
-            tracking[user_tracked]['last_access'] = current_time
-            tracking[user_tracked]['access_count'] = tracking[user_tracked].get('access_count', 0) + 1
-        else:
+        if not user_found:
             # Add new user entry
             tracking.append({
                 'username': username,
@@ -2388,17 +2406,19 @@ def track_signals_access(username):
         # CRITICAL: Update session state
         st.session_state.signals_access_tracking = tracking
         
-        # CRITICAL: Save to Supabase immediately
-        save_success = save_signals_access_tracking(tracking)
-        
-        if not save_success:
-            st.warning("⚠️ Failed to save access tracking to database")
+        # Try to save to Supabase, but don't block access if it fails
+        try:
+            save_success = save_signals_access_tracking(tracking)
+            if not save_success:
+                logging.warning("⚠️ Failed to save access tracking to database - continuing anyway")
+        except Exception as save_error:
+            logging.warning(f"⚠️ Save tracking failed but continuing: {save_error}")
         
         logging.info(f"✅ Tracked access for user: {username}")
         
     except Exception as e:
         logging.error(f"❌ Error tracking signals access: {e}")
-        st.warning(f"⚠️ Error tracking access: {e}")
+        # Don't show warning to user - tracking failure shouldn't block access
         
 def supabase_save_trading_signals(signals):
     """Save trading signals to Supabase - FIXED VERSION"""
