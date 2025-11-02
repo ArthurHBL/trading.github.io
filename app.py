@@ -9012,7 +9012,17 @@ def render_admin_management_dashboard():
     """Admin dashboard with simple tracking"""
     st.title("🛠️ Admin Management Dashboard")
 
-    # Key metrics - SAFE VERSION
+    # Get business metrics safely
+    try:
+        metrics = user_manager.get_business_metrics()
+    except:
+        metrics = {}
+    
+    # Ensure metrics is a dictionary
+    if not isinstance(metrics, dict):
+        metrics = {}
+
+    # Key metrics - ULTRA SAFE VERSION
     col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("Total Users", metrics.get("total_users", 0))
@@ -9025,8 +9035,8 @@ def render_admin_management_dashboard():
     with col5:
         st.metric("Unverified Users", metrics.get("unverified_users", 0))
     with col6:
-        revoked_count = len(st.session_state.signals_access_tracking)
-        st.metric("Signals Access", len(st.session_state.signals_access_tracking))
+        signals_count = len(st.session_state.get('signals_access_tracking', []))
+        st.metric("Signals Access", signals_count)
 
     st.markdown("---")
 
