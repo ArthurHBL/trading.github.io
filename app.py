@@ -2279,6 +2279,70 @@ def supabase_get_trading_signals():
         st.error(f"Error getting trading signals: {e}")
         return []
 
+# SIMPLE DATABASE FUNCTIONS
+def supabase_get_signals_access_tracking():
+    """Simple: Get who accessed signals room"""
+    if not supabase_client:
+        return []
+    try:
+        response = supabase_client.table('signals_access_tracking').select('*').execute()
+        if hasattr(response, 'error') and response.error:
+            return []
+        return response.data
+    except Exception:
+        return []
+
+def supabase_save_signals_access_tracking(tracking_data):
+    """Simple: Save access tracking"""
+    if not supabase_client:
+        return False
+    try:
+        # Clear and replace (simple approach)
+        delete_response = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+        
+        if tracking_data:
+            response = supabase_client.table('signals_access_tracking').insert(tracking_data).execute()
+        return True
+    except Exception:
+        return False
+
+def load_signals_access_tracking():
+    """Load access tracking"""
+    return supabase_get_signals_access_tracking()
+
+def save_signals_access_tracking(tracking_data):
+    """Save access tracking"""
+    return supabase_save_signals_access_tracking(tracking_data)
+
+# SIMPLE TRACKING FUNCTION
+def track_signals_access(username):
+    """Simple: Track when user accesses Signals Room"""
+    tracking = st.session_state.signals_access_tracking
+    current_time = datetime.now().isoformat()
+    
+    # Find user or create new
+    user_tracked = None
+    for track in tracking:
+        if track['username'] == username:
+            user_tracked = track
+            break
+    
+    if user_tracked:
+        # Update existing
+        user_tracked['last_access'] = current_time
+        user_tracked['access_count'] = user_tracked.get('access_count', 0) + 1
+    else:
+        # Add new user
+        tracking.append({
+            'username': username,
+            'first_access': current_time,
+            'last_access': current_time,
+            'access_count': 1
+        })
+    
+    # Save to database
+    save_signals_access_tracking(tracking)
+
 def supabase_save_trading_signals(signals):
     """Save trading signals to Supabase - FIXED VERSION"""
     if not supabase_client:
@@ -2640,6 +2704,8 @@ def init_session():
         st.session_state.signals_room_view = 'active_signals'
     if 'active_signals' not in st.session_state:
         st.session_state.active_signals = load_signals_data()
+    if 'signals_access_tracking' not in st.session_state:
+        st.session_state.signals_access_tracking = load_signals_access_tracking()
     if 'signal_creation_mode' not in st.session_state:
         st.session_state.signal_creation_mode = 'quick'
     if 'signal_to_confirm' not in st.session_state:
@@ -5383,51 +5449,37 @@ def render_trading_signals_room():
     else:
         render_user_signals_room()
 
+# SIMPLE ACCESS CONTROL IN PASSWORD GATE
 def render_signals_room_password_gate():
-    """Password gate for Trading Signals Room"""
+    """Password gate with simple tracking"""
     st.title("🔒 Trading Signals Room - Secure Access")
     st.markdown("---")
 
-    st.warning("""
-    ⚠️ **SECURE ACCESS REQUIRED**
-
-    The Trading Signals Room contains sensitive trading information and strategies.
-    Please enter the password to continue.
-    """)
+    st.warning("⚠️ **SECURE ACCESS REQUIRED** - Enter password to continue.")
 
     with st.form("signals_room_password_form"):
         password_input = st.text_input(
             "🔑 Enter Signals Room Password:",
             type="password",
-            placeholder="Enter password to access trading signals...",
-            value=st.session_state.signals_password_input,
+            placeholder="Enter password...",
             key="signals_room_password_input"
         )
 
         submitted = st.form_submit_button("🚀 Access Trading Signals Room", use_container_width=True)
 
         if submitted:
-            if not password_input:
-                st.session_state.signals_password_error = "❌ Please enter the password"
-                st.rerun()
-            elif password_input == st.session_state.signals_room_password:
+            if password_input == st.session_state.signals_room_password:
+                current_username = st.session_state.user['username']
+                
+                # SIMPLE: Track access
+                track_signals_access(current_username)
+                
                 st.session_state.signals_room_access_granted = True
-                st.session_state.signals_password_error = ""
-                st.success("✅ Access granted! Loading Trading Signals Room...")
+                st.success("✅ Access granted!")
                 time.sleep(1)
                 st.rerun()
             else:
-                st.session_state.signals_password_error = "❌ Incorrect password. Please try again."
-                st.rerun()
-
-    # Display error message if any
-    if st.session_state.signals_password_error:
-        st.error(st.session_state.signals_password_error)
-
-    # Admin hint
-    if st.session_state.user['plan'] == 'admin':
-        st.markdown("---")
-        st.info("💡 **Admin Note:** You can change the Signals Room password in Admin Settings.")
+                st.error("❌ Incorrect password")
 
 def render_admin_signals_room():
     """Admin Trading Signals Room with full workflow"""
@@ -8850,6 +8902,10 @@ def render_admin_sidebar_options():
         st.session_state.admin_view = "revenue"
         st.rerun()
 
+    if st.button("📊 Signals Access Tracking", use_container_width=True):
+        st.session_state.admin_view = "signals_tracking"
+        st.rerun()
+
     # NEW: KAI AI Agent access
     if st.button("🧠 KAI AI Agent", use_container_width=True, key="sidebar_kai_agent_btn"):
         st.session_state.admin_view = "kai_agent"
@@ -8951,21 +9007,19 @@ def render_admin_dashboard_selection():
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
+# ADD SIMPLE TRACKING TO ADMIN DASHBOARD
 def render_admin_management_dashboard():
-    """Complete admin management dashboard with all rich features"""
+    """Admin dashboard with simple tracking"""
     st.title("🛠️ Admin Management Dashboard")
 
-    # Get business metrics
-    metrics = user_manager.get_business_metrics()
-
-    # Key metrics
+    # Add simple tracking metric
     col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
-        st.metric("Total Users", metrics["total_users"])
+        st.metric("Total Users", len(user_manager.users))
     with col2:
-        st.metric("Active Users", metrics["active_users"])
+        st.metric("Online Now", user_manager.get_business_metrics()["online_users"])
     with col3:
-        st.metric("Online Now", metrics["online_users"])
+        st.metric("Signals Access", len(st.session_state.signals_access_tracking))
     with col4:
         st.metric("Verified Users", metrics["verified_users"])
     with col5:
@@ -9001,6 +9055,8 @@ def render_admin_management_dashboard():
         render_email_verification_interface()
     elif current_view == 'revenue':
         render_admin_revenue()
+    elif current_view == 'signals_tracking':
+        render_simple_signals_tracking()
     elif current_view == 'kai_agent':
         render_kai_agent()  # NEW: KAI AI Agent integration
     else:
@@ -9250,6 +9306,68 @@ def render_admin_user_management():
     # Render the user credentials interface if activated
     if st.session_state.show_user_credentials:
         render_user_credentials_display()
+
+# SIMPLE ADMIN VIEW
+def render_simple_signals_tracking():
+    """Simple: Show who accessed Signals Room"""
+    st.subheader("👥 Signals Room Access Tracking")
+    
+    tracking_data = st.session_state.signals_access_tracking
+    
+    if not tracking_data:
+        st.info("No one has accessed Signals Room yet.")
+        return
+    
+    # Simple display
+    st.write(f"**Total Users with Access: {len(tracking_data)}**")
+    
+    for track in tracking_data:
+        with st.container():
+            col1, col2, col3 = st.columns([2, 2, 1])
+            
+            with col1:
+                st.write(f"**{track['username']}**")
+            
+            with col2:
+                last_access = track['last_access'][:16]  # Just show date and time
+                st.write(f"Last: {last_access}")
+                st.caption(f"Access count: {track.get('access_count', 1)}")
+            
+            with col3:
+                if st.button("🚫 Revoke", key=f"revoke_{track['username']}"):
+                    # Simple revocation - just remove from tracking
+                    st.session_state.signals_access_tracking = [
+                        t for t in tracking_data if t['username'] != track['username']
+                    ]
+                    save_signals_access_tracking(st.session_state.signals_access_tracking)
+                    st.success(f"Revoked {track['username']}")
+                    st.rerun()
+            
+            st.markdown("---")
+    
+    # Simple actions
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 Refresh List", use_container_width=True):
+            st.session_state.signals_access_tracking = load_signals_access_tracking()
+            st.rerun()
+    
+    with col2:
+        if st.button("📊 Export CSV", use_container_width=True):
+            export_simple_tracking_csv()
+
+def export_simple_tracking_csv():
+    """Simple CSV export"""
+    tracking_data = st.session_state.signals_access_tracking
+    if tracking_data:
+        df = pd.DataFrame(tracking_data)
+        csv = df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Access Report",
+            data=csv,
+            file_name="signals_access_report.csv",
+            mime="text/csv"
+        )
 
 def render_admin_password_change():
     """Admin password change interface - FIXED VERSION"""
