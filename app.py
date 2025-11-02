@@ -2307,42 +2307,99 @@ def supabase_save_signals_access_tracking(tracking_data):
         return False
 
 def load_signals_access_tracking():
-    """Load access tracking"""
-    return supabase_get_signals_access_tracking()
-
+    """Load access tracking from Supabase - FIXED VERSION"""
+    try:
+        if not supabase_client:
+            return []
+        
+        response = supabase_client.table('signals_access_tracking').select('*').execute()
+        
+        if hasattr(response, 'error') and response.error:
+            logging.error(f"Database error: {response.error}")
+            return []
+        
+        data = response.data if hasattr(response, 'data') else []
+        logging.info(f"✅ Loaded {len(data)} access tracking records")
+        return data or []
+        
+    except Exception as e:
+        logging.error(f"❌ Error loading access tracking: {e}")
+        return []
+        
 def save_signals_access_tracking(tracking_data):
-    """Save access tracking"""
-    return supabase_save_signals_access_tracking(tracking_data)
+    """Save access tracking to Supabase - FIXED VERSION"""
+    try:
+        if not supabase_client:
+            logging.warning("⚠️ Supabase client not available")
+            return False
+        
+        if not tracking_data:
+            # Clear all
+            response = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+            logging.info("✅ Cleared all access tracking")
+            return True
+        
+        # Delete existing and insert new (simpler than upserting)
+        delete_resp = supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+        
+        insert_resp = supabase_client.table('signals_access_tracking').insert(tracking_data).execute()
+        
+        if hasattr(insert_resp, 'error') and insert_resp.error:
+            logging.error(f"Database error: {insert_resp.error}")
+            return False
+        
+        logging.info(f"✅ Saved {len(tracking_data)} access tracking records")
+        return True
+        
+    except Exception as e:
+        logging.error(f"❌ Error saving access tracking: {e}")
 
 # SIMPLE TRACKING FUNCTION
 def track_signals_access(username):
-    """Simple: Track when user accesses Signals Room"""
-    tracking = st.session_state.signals_access_tracking
-    current_time = datetime.now().isoformat()
-    
-    # Find user or create new
-    user_tracked = None
-    for track in tracking:
-        if track['username'] == username:
-            user_tracked = track
-            break
-    
-    if user_tracked:
-        # Update existing
-        user_tracked['last_access'] = current_time
-        user_tracked['access_count'] = user_tracked.get('access_count', 0) + 1
-    else:
-        # Add new user
-        tracking.append({
-            'username': username,
-            'first_access': current_time,
-            'last_access': current_time,
-            'access_count': 1
-        })
-    
-    # Save to database
-    save_signals_access_tracking(tracking)
-
+    """Track when user accesses Signals Room - FIXED VERSION"""
+    try:
+        # CRITICAL: Ensure tracking list exists
+        if 'signals_access_tracking' not in st.session_state:
+            st.session_state.signals_access_tracking = []
+        
+        tracking = st.session_state.signals_access_tracking
+        current_time = datetime.now().isoformat()
+        
+        # Find user or create new
+        user_tracked = None
+        for i, track in enumerate(tracking):
+            if track['username'] == username:
+                user_tracked = i
+                break
+        
+        if user_tracked is not None:
+            # Update existing entry
+            tracking[user_tracked]['last_access'] = current_time
+            tracking[user_tracked]['access_count'] = tracking[user_tracked].get('access_count', 0) + 1
+        else:
+            # Add new user entry
+            tracking.append({
+                'username': username,
+                'first_access': current_time,
+                'last_access': current_time,
+                'access_count': 1
+            })
+        
+        # CRITICAL: Update session state
+        st.session_state.signals_access_tracking = tracking
+        
+        # CRITICAL: Save to Supabase immediately
+        save_success = save_signals_access_tracking(tracking)
+        
+        if not save_success:
+            st.warning("⚠️ Failed to save access tracking to database")
+        
+        logging.info(f"✅ Tracked access for user: {username}")
+        
+    except Exception as e:
+        logging.error(f"❌ Error tracking signals access: {e}")
+        st.warning(f"⚠️ Error tracking access: {e}")
+        
 def supabase_save_trading_signals(signals):
     """Save trading signals to Supabase - FIXED VERSION"""
     if not supabase_client:
@@ -2596,11 +2653,14 @@ def supabase_clear_all_kai_analyses():
 # -------------------------
 # SESSION MANAGEMENT - UPDATED WITH ENHANCED KAI
 # -------------------------
+# =====================================================================
+# COMPLETE: init_session() - Copy and Replace the Entire Function
+# =====================================================================
+
 def init_session():
-    # --- Gallery pagination state (KAIO patch) ---
-    import streamlit as st
-    # NEW: Image viewer state
-    # Gallery pagination state - ADD THESE FOR USERS TOO
+    """Initialize all session state variables - COMPLETE VERSION WITH TRACKING FIX"""
+    
+    # --- Gallery pagination state ---
     if 'gallery_page' not in st.session_state:
         st.session_state.gallery_page = 0
     if 'gallery_per_page' not in st.session_state:
@@ -2619,109 +2679,137 @@ def init_session():
         st.session_state.current_image_index = 0
     if 'image_viewer_mode' not in st.session_state:
         st.session_state.image_viewer_mode = False
-    # ADD THIS LINE for pagination support:
     if 'current_page_images' not in st.session_state:
         st.session_state.current_page_images = []
-    if 'gallery_page' not in st.session_state:
-        st.session_state.gallery_page = 0
-    if 'gallery_per_page' not in st.session_state:
-        st.session_state.gallery_per_page = 15
-    if 'gallery_total_count' not in st.session_state:
-        st.session_state.gallery_total_count = 0
-    if 'gallery_filter_active' not in st.session_state:
-        st.session_state.gallery_filter_active = False
-    """Initialize session state variables"""
+
+    # --- Core authentication state ---
     if 'user' not in st.session_state:
         st.session_state.user = None
     if 'user_data' not in st.session_state:
         st.session_state.user_data = {}
     if 'app_started' not in st.session_state:
         st.session_state.app_started = True
+
+    # --- User deletion/management modals ---
     if 'show_delete_confirmation' not in st.session_state:
         st.session_state.show_delete_confirmation = False
     if 'user_to_delete' not in st.session_state:
         st.session_state.user_to_delete = None
     if 'show_bulk_delete' not in st.session_state:
         st.session_state.show_bulk_delete = False
+
+    # --- Admin dashboard navigation ---
     if 'admin_view' not in st.session_state:
         st.session_state.admin_view = 'overview'
     if 'manage_user_plan' not in st.session_state:
         st.session_state.manage_user_plan = None
     if 'show_password_change' not in st.session_state:
         st.session_state.show_password_change = False
+
+    # --- User dashboard navigation ---
     if 'dashboard_view' not in st.session_state:
         st.session_state.dashboard_view = 'main'
     if 'show_settings' not in st.session_state:
         st.session_state.show_settings = False
     if 'show_upgrade' not in st.session_state:
         st.session_state.show_upgrade = False
+
+    # --- Strategy selection state ---
     if 'selected_strategy' not in st.session_state:
         st.session_state.selected_strategy = None
     if 'analysis_date' not in st.session_state:
         st.session_state.analysis_date = date.today()
+    if 'last_analysis_date' not in st.session_state:
+        st.session_state.last_analysis_date = None
+
+    # --- Data persistence tracking ---
     if 'last_save_time' not in st.session_state:
         st.session_state.last_save_time = time.time()
+
+    # --- User credential display ---
     if 'show_user_credentials' not in st.session_state:
         st.session_state.show_user_credentials = False
     if 'user_to_manage' not in st.session_state:
         st.session_state.user_to_manage = None
+
+    # --- Email verification state ---
     if 'admin_email_verification_view' not in st.session_state:
         st.session_state.admin_email_verification_view = 'pending'
+
+    # --- Admin dashboard mode selection ---
     if 'admin_dashboard_mode' not in st.session_state:
         st.session_state.admin_dashboard_mode = None
-    # ENHANCED: Image gallery session state
+
+    # --- Image gallery state ---
     if 'uploaded_images' not in st.session_state:
-        # Load images from Supabase on session init
         st.session_state.uploaded_images = load_gallery_images()
     if 'current_gallery_view' not in st.session_state:
         st.session_state.current_gallery_view = 'gallery'
     if 'selected_image' not in st.session_state:
         st.session_state.selected_image = None
-    # NEW: Gallery clearance confirmation
+
+    # --- Gallery clearance confirmation ---
     if 'show_clear_gallery_confirmation' not in st.session_state:
         st.session_state.show_clear_gallery_confirmation = False
     if 'clear_gallery_password' not in st.session_state:
         st.session_state.clear_gallery_password = ""
     if 'clear_gallery_error' not in st.session_state:
         st.session_state.clear_gallery_error = ""
-    # NEW: Image viewer state
+
+    # --- Image viewer state ---
     if 'current_image_index' not in st.session_state:
         st.session_state.current_image_index = 0
     if 'image_viewer_mode' not in st.session_state:
         st.session_state.image_viewer_mode = False
-    # NEW: Gallery filter and sort state
+
+    # --- Gallery filter and sort state ---
     if 'gallery_filter_author' not in st.session_state:
         st.session_state.gallery_filter_author = "All Authors"
     if 'gallery_filter_strategy' not in st.session_state:
         st.session_state.gallery_filter_strategy = "All Strategies"
     if 'gallery_sort_by' not in st.session_state:
         st.session_state.gallery_sort_by = "Newest First"
-    # NEW: User navigation mode
+
+    # --- User navigation mode ---
     if 'user_navigation_mode' not in st.session_state:
         st.session_state.user_navigation_mode = "📊 Trading Dashboard"
-    # NEW: Trading Signals Room state - SIMPLIFIED
+
+    # --- Trading Signals Room state ---
     if 'signals_room_view' not in st.session_state:
         st.session_state.signals_room_view = 'active_signals'
     if 'active_signals' not in st.session_state:
         st.session_state.active_signals = load_signals_data()
+    
+    # 🔧 FIX: Initialize signals_access_tracking PROPERLY
     if 'signals_access_tracking' not in st.session_state:
+        st.session_state.signals_access_tracking = []
+    # Then load from database
+    try:
         st.session_state.signals_access_tracking = load_signals_access_tracking()
+    except Exception as e:
+        logging.warning(f"Could not load access tracking: {e}")
+        st.session_state.signals_access_tracking = []
+    
     if 'signal_creation_mode' not in st.session_state:
         st.session_state.signal_creation_mode = 'quick'
     if 'signal_to_confirm' not in st.session_state:
         st.session_state.signal_to_confirm = None
     if 'signal_confirmation_step' not in st.session_state:
         st.session_state.signal_confirmation_step = 1
-    # NEW: Strategy indicator images state - UPDATED LOADING
+
+    # --- Strategy indicator images state ---
     if 'strategy_indicator_images' not in st.session_state:
         st.session_state.strategy_indicator_images = load_strategy_indicator_images()
-    # NEW: Strategy indicator viewer state
+
+    # --- Strategy indicator viewer state ---
     if 'strategy_indicator_viewer_mode' not in st.session_state:
         st.session_state.strategy_indicator_viewer_mode = False
     if 'current_strategy_indicator_image' not in st.session_state:
         st.session_state.current_strategy_indicator_image = None
     if 'current_strategy_indicator' not in st.session_state:
         st.session_state.current_strategy_indicator = None
+
+    # --- Strategy list ---
     if "STRATEGIES" not in st.session_state:
         st.session_state.STRATEGIES = {
             "Premium Stoch": "",
@@ -2740,10 +2828,12 @@ def init_session():
             "Point and Figure": "",
             "Rational Strategy LT": ""
         }
-    # NEW: Strategy analyses data state - CRITICAL FIX
+
+    # --- Strategy analyses data state ---
     if 'strategy_analyses_data' not in st.session_state:
         st.session_state.strategy_analyses_data = load_data()
-    # NEW: Signals Room Password Protection - LOAD FROM SUPABASE
+
+    # --- Signals Room Password Protection ---
     if 'signals_room_password' not in st.session_state:
         app_settings = load_app_settings()
         st.session_state.signals_room_password = app_settings.get('signals_room_password', 'trading123')
@@ -2753,33 +2843,48 @@ def init_session():
         st.session_state.signals_password_input = ""
     if 'signals_password_error' not in st.session_state:
         st.session_state.signals_password_error = ""
-    # NEW: Signals Room Password Change
+
+    # --- Signals Room Password Change ---
     if 'show_signals_password_change' not in st.session_state:
         st.session_state.show_signals_password_change = False
-    # NEW: Manage User Plan Modal
+
+    # --- Manage User Plan Modal ---
     if 'show_manage_user_plan' not in st.session_state:
         st.session_state.show_manage_user_plan = False
-    # NEW: User password change state
+
+    # --- User password change state ---
     if 'show_user_password_change' not in st.session_state:
         st.session_state.show_user_password_change = False
-    # NEW: Enhanced KAI AI Agent state - COMPREHENSIVE ARCHIVE
+
+    # --- Enhanced KAI AI Agent state ---
     if 'kai_analyses' not in st.session_state:
         st.session_state.kai_analyses = load_kai_analyses()
     if 'current_kai_analysis' not in st.session_state:
         st.session_state.current_kai_analysis = None
     if 'kai_analysis_view' not in st.session_state:
-        st.session_state.kai_analysis_view = 'latest'  # 'latest', 'archive', 'view_analysis'
+        st.session_state.kai_analysis_view = 'latest'
     if 'selected_kai_analysis_id' not in st.session_state:
         st.session_state.selected_kai_analysis_id = None
     if 'kai_analysis_filter' not in st.session_state:
-        st.session_state.kai_analysis_filter = 'all'  # 'all', 'enhanced', 'standard'
+        st.session_state.kai_analysis_filter = 'all'
     if 'kai_analysis_sort' not in st.session_state:
-        st.session_state.kai_analysis_sort = 'newest'  # 'newest', 'oldest', 'confidence'
-    # NEW: DeepSeek API configuration
+        st.session_state.kai_analysis_sort = 'newest'
+
+    # --- DeepSeek API configuration ---
     if 'use_deepseek' not in st.session_state:
         st.session_state.use_deepseek = True
     if 'deepseek_api_key' not in st.session_state:
         st.session_state.deepseek_api_key = DEEPSEEK_API_KEY
+
+    # --- Additional gallery states ---
+    if '_last_user_author_choice' not in st.session_state:
+        st.session_state._last_user_author_choice = "All Authors"
+    if '_last_user_strategy_choice' not in st.session_state:
+        st.session_state._last_user_strategy_choice = "All Strategies"
+    if 'show_gallery_stats' not in st.session_state:
+        st.session_state.show_gallery_stats = False
+    if 'confirm_clear_tracking' not in st.session_state:
+        st.session_state.confirm_clear_tracking = False
 
 # -------------------------
 # APP SETTINGS PERSISTENCE (FOR SIGNALS ROOM PASSWORD)
@@ -5451,7 +5556,7 @@ def render_trading_signals_room():
 
 # SIMPLE ACCESS CONTROL IN PASSWORD GATE
 def render_signals_room_password_gate():
-    """Password gate with simple tracking"""
+    """Password gate with proper tracking - FIXED VERSION"""
     st.title("🔒 Trading Signals Room - Secure Access")
     st.markdown("---")
 
@@ -5471,11 +5576,14 @@ def render_signals_room_password_gate():
             if password_input == st.session_state.signals_room_password:
                 current_username = st.session_state.user['username']
                 
-                # SIMPLE: Track access
+                # CRITICAL: Track access BEFORE granting permission
                 track_signals_access(current_username)
                 
+                # THEN grant access
                 st.session_state.signals_room_access_granted = True
                 st.success("✅ Access granted!")
+                
+                # FORCE a rerun to show the signals room
                 time.sleep(1)
                 st.rerun()
             else:
@@ -9322,52 +9430,115 @@ def render_admin_user_management():
 
 # SIMPLE ADMIN VIEW
 def render_simple_signals_tracking():
-    """Simple: Show who accessed Signals Room"""
+    """Simple: Show who accessed Signals Room - FIXED VERSION"""
     st.subheader("👥 Signals Room Access Tracking")
     
-    tracking_data = st.session_state.signals_access_tracking
+    # CRITICAL: Load fresh data from Supabase
+    tracking_data = load_signals_access_tracking()
     
-    if not tracking_data:
-        st.info("No one has accessed Signals Room yet.")
+    if not tracking_data or len(tracking_data) == 0:
+        st.info("📊 No one has accessed Signals Room yet. Access will be tracked here.")
+        
+        # Show how to test
+        st.markdown("---")
+        st.subheader("🧪 How to Test Access Tracking:")
+        st.markdown("""
+        1. Go to **Trading Signals** menu
+        2. Enter the Signals Room password
+        3. Access will be automatically tracked
+        4. Refresh this page to see the tracking update
+        """)
         return
     
-    # Simple display
-    st.write(f"**Total Users with Access: {len(tracking_data)}**")
+    st.success(f"✅ **Total Users with Access: {len(tracking_data)}**")
+    st.markdown("---")
+    
+    # Display access data in a table
+    tracking_df = pd.DataFrame(tracking_data)
+    tracking_df['first_access'] = pd.to_datetime(tracking_df['first_access']).dt.strftime('%Y-%m-%d %H:%M')
+    tracking_df['last_access'] = pd.to_datetime(tracking_df['last_access']).dt.strftime('%Y-%m-%d %H:%M')
+    
+    st.dataframe(
+        tracking_df[['username', 'first_access', 'last_access', 'access_count']],
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    st.markdown("---")
+    st.subheader("📊 Access Statistics")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        total_users = len(tracking_data)
+        st.metric("Total Users", total_users)
+    with col2:
+        total_accesses = sum(t.get('access_count', 1) for t in tracking_data)
+        st.metric("Total Accesses", total_accesses)
+    with col3:
+        if total_users > 0:
+            avg_accesses = total_accesses / total_users
+            st.metric("Avg per User", f"{avg_accesses:.1f}")
+    
+    st.markdown("---")
+    
+    # Individual user details
+    st.subheader("📋 Detailed Access Log")
     
     for track in tracking_data:
         with st.container():
-            col1, col2, col3 = st.columns([2, 2, 1])
+            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             
             with col1:
-                st.write(f"**{track['username']}**")
+                st.write(f"**👤 {track['username']}**")
             
             with col2:
-                last_access = track['last_access'][:16]  # Just show date and time
-                st.write(f"Last: {last_access}")
-                st.caption(f"Access count: {track.get('access_count', 1)}")
+                first = datetime.fromisoformat(track['first_access']).strftime('%Y-%m-%d %H:%M')
+                last = datetime.fromisoformat(track['last_access']).strftime('%Y-%m-%d %H:%M')
+                st.write(f"First: {first}")
+                st.caption(f"Last: {last}")
             
             with col3:
-                if st.button("🚫 Revoke", key=f"revoke_{track['username']}"):
-                    # Simple revocation - just remove from tracking
-                    st.session_state.signals_access_tracking = [
-                        t for t in tracking_data if t['username'] != track['username']
-                    ]
-                    save_signals_access_tracking(st.session_state.signals_access_tracking)
-                    st.success(f"Revoked {track['username']}")
+                count = track.get('access_count', 1)
+                st.metric("Accesses", count, label_visibility="collapsed")
+            
+            with col4:
+                if st.button("🗑️ Remove", key=f"remove_track_{track['username']}", use_container_width=True):
+                    # Remove from tracking
+                    new_tracking = [t for t in tracking_data if t['username'] != track['username']]
+                    save_signals_access_tracking(new_tracking)
+                    st.success(f"✅ Removed {track['username']}")
                     st.rerun()
             
-            st.markdown("---")
+            st.divider()
     
-    # Simple actions
-    col1, col2 = st.columns(2)
+    # Action buttons
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
-        if st.button("🔄 Refresh List", use_container_width=True):
-            st.session_state.signals_access_tracking = load_signals_access_tracking()
+        if st.button("🔄 Refresh Data", use_container_width=True, key="refresh_signals_tracking"):
             st.rerun()
     
     with col2:
-        if st.button("📊 Export CSV", use_container_width=True):
-            export_simple_tracking_csv()
+        if st.button("📥 Export CSV", use_container_width=True, key="export_signals_tracking"):
+            csv_data = tracking_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv_data,
+                file_name=f"signals_access_tracking_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+    
+    with col3:
+        if st.button("🗑️ Clear All", use_container_width=True, key="clear_all_tracking"):
+            if st.session_state.get('confirm_clear_tracking'):
+                save_signals_access_tracking([])
+                st.success("✅ All tracking cleared")
+                st.rerun()
+            else:
+                st.session_state.confirm_clear_tracking = True
+                st.warning("⚠️ Click again to confirm clearing all tracking data")
 
 def export_simple_tracking_csv():
     """Simple CSV export"""
