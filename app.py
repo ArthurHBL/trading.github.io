@@ -2373,29 +2373,29 @@ def save_signals_access_tracking(tracking_data):
         logging.error(f"❌ Error saving access tracking: {e}")
         return False
         
-# SIMPLE TRACKING FUNCTION
 def track_signals_access(username):
-    """Track when user accesses Signals Room - FIXED VERSION"""
+    """Track signals access - FIXED VERSION"""
     try:
-        # CRITICAL: Ensure tracking list exists in session state
+        # Initialize if needed
         if 'signals_access_tracking' not in st.session_state:
-            st.session_state.signals_access_tracking = []
+            st.session_state.signals_access_tracking = load_signals_access_tracking()
         
         tracking = st.session_state.signals_access_tracking
         current_time = datetime.now().isoformat()
         
-        # Find existing user entry
-        user_found = False
-        for i, track in enumerate(tracking):
-            if track['username'] == username:
-                # Update existing entry
-                tracking[i]['last_access'] = current_time
-                tracking[i]['access_count'] = tracking[i].get('access_count', 0) + 1
-                user_found = True
+        # Find or create user entry
+        user_entry = None
+        for entry in tracking:
+            if entry.get('username') == username:
+                user_entry = entry
                 break
         
-        if not user_found:
-            # Add new user entry
+        if user_entry:
+            # Update existing
+            user_entry['last_access'] = current_time
+            user_entry['access_count'] = user_entry.get('access_count', 1) + 1
+        else:
+            # Create new
             tracking.append({
                 'username': username,
                 'first_access': current_time,
@@ -2403,22 +2403,24 @@ def track_signals_access(username):
                 'access_count': 1
             })
         
-        # CRITICAL: Update session state
+        # Always update session state
         st.session_state.signals_access_tracking = tracking
         
-        # Try to save to Supabase, but don't block access if it fails
+        # Try to save to DB (don't block if fails)
         try:
-            save_success = save_signals_access_tracking(tracking)
-            if not save_success:
-                logging.warning("⚠️ Failed to save access tracking to database - continuing anyway")
-        except Exception as save_error:
-            logging.warning(f"⚠️ Save tracking failed but continuing: {save_error}")
+            if supabase_client:
+                # Clear old data first
+                supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+                # Insert new data
+                if tracking:
+                    supabase_client.table('signals_access_tracking').insert(tracking).execute()
+        except Exception as db_error:
+            logging.warning(f"⚠️ DB save failed but continuing: {db_error}")
         
-        logging.info(f"✅ Tracked access for user: {username}")
+        logging.info(f"✅ Tracked access for: {username}")
         
     except Exception as e:
-        logging.error(f"❌ Error tracking signals access: {e}")
-        # Don't show warning to user - tracking failure shouldn't block access
+        logging.error(f"❌ Track access failed: {e}")
         
 def supabase_save_trading_signals(signals):
     """Save trading signals to Supabase - FIXED VERSION"""
@@ -9149,9 +9151,8 @@ def render_admin_dashboard_selection():
     st.markdown("---")
     st.info("💡 **Tip:** Use different dashboards for different management tasks.")
 
-# ADD SIMPLE TRACKING TO ADMIN DASHBOARD
 def render_admin_management_dashboard():
-    """Admin dashboard with simple tracking"""
+    """Admin dashboard with simple tracking and maintenance panel"""
     st.title("🛠️ Admin Management Dashboard")
 
     # Get business metrics safely
@@ -9179,6 +9180,93 @@ def render_admin_management_dashboard():
     with col6:
         signals_count = len(st.session_state.get('signals_access_tracking', []))
         st.metric("Signals Access", signals_count)
+
+    st.markdown("---")
+
+    # 🔧 DATABASE MAINTENANCE SECTION
+    st.subheader("🔧 Database Maintenance Panel")
+    
+    col_m1, col_m2, col_m3 = st.columns(3)
+    
+    with col_m1:
+        if st.button("🔄 Reset Access Tracking", use_container_width=True, key="reset_tracking_btn"):
+            st.session_state.signals_access_tracking = []
+            if supabase_client:
+                try:
+                    supabase_client.table('signals_access_tracking').delete().neq('id', 0).execute()
+                    st.success("✅ Access tracking reset successfully!")
+                    st.info("All tracking data cleared from database")
+                except Exception as e:
+                    st.error(f"❌ Error clearing data: {e}")
+            else:
+                st.warning("⚠️ Supabase not connected, only cleared session data")
+            time.sleep(1)
+            st.rerun()
+    
+    with col_m2:
+        if st.button("📊 Verify Table Structure", use_container_width=True, key="verify_table_btn"):
+            if supabase_client:
+                try:
+                    resp = supabase_client.table('signals_access_tracking').select('*').limit(1).execute()
+                    st.success("✅ Table exists and is accessible!")
+                    st.info(f"Table currently has {len(resp.data or [])} records")
+                    
+                    # Show table structure info
+                    st.write("**Expected columns:**")
+                    st.write("- id (bigint, primary key)")
+                    st.write("- username (text)")
+                    st.write("- first_access (timestamp)")
+                    st.write("- last_access (timestamp)")
+                    st.write("- access_count (integer)")
+                    
+                except Exception as e:
+                    st.error("❌ Table verification failed!")
+                    st.error(f"Error: {str(e)[:200]}")
+                    st.warning("**Solution:** Run the CREATE TABLE SQL in Supabase SQL Editor")
+            else:
+                st.error("❌ Supabase client not connected")
+    
+    with col_m3:
+        if st.button("🔍 Run Full Diagnostics", use_container_width=True, key="diagnostics_btn"):
+            st.write("**📊 Diagnostic Report:**")
+            st.markdown("---")
+            
+            # Session state info
+            st.write("**Session State:**")
+            tracking_sess = st.session_state.get('signals_access_tracking', [])
+            st.write(f"✓ Items in session: {len(tracking_sess)}")
+            if tracking_sess:
+                st.write(f"  - Last user: {tracking_sess[-1].get('username', 'unknown')}")
+                st.write(f"  - Last access: {tracking_sess[-1].get('last_access', 'unknown')[:16]}")
+            
+            st.markdown("---")
+            
+            # Database info
+            st.write("**Database Status:**")
+            if supabase_client:
+                try:
+                    resp = supabase_client.table('signals_access_tracking').select('*').execute()
+                    records = resp.data or []
+                    st.write(f"✓ Items in DB: {len(records)}")
+                    
+                    if records:
+                        st.write("**Sample records (first 3):**")
+                        for i, record in enumerate(records[:3], 1):
+                            st.write(f"  {i}. {record.get('username')} - Access count: {record.get('access_count', 1)}")
+                    else:
+                        st.info("Table is empty (no access records yet)")
+                        
+                except Exception as e:
+                    st.error(f"❌ Database query failed: {str(e)[:150]}")
+                    st.error("**Possible causes:**")
+                    st.write("- Table doesn't exist")
+                    st.write("- RLS policies not configured")
+                    st.write("- Connection issue")
+            else:
+                st.error("❌ Supabase client not initialized")
+            
+            st.markdown("---")
+            st.success("Diagnostics complete")
 
     st.markdown("---")
 
@@ -9213,7 +9301,7 @@ def render_admin_management_dashboard():
     elif current_view == 'signals_tracking':
         render_simple_signals_tracking()
     elif current_view == 'kai_agent':
-        render_kai_agent()  # NEW: KAI AI Agent integration
+        render_kai_agent()
     else:
         render_admin_overview()
 
