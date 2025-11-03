@@ -4073,8 +4073,41 @@ class Config:
 
     # Updated Subscription Plans
     PLANS = {
-        "trial": {"name": "7-Day Trial", "price": 0, "duration": 7, "strategies": 3, "max_sessions": 1},
-        "premium": {"name": "Premium Plan", "price": 19, "duration": 30, "strategies": 15, "max_sessions": 3}
+        "trial": {
+            "name": "7-Day Trial",
+            "price": 0,
+            "duration": 7,
+            "strategies": 3,
+            "max_sessions": 1
+        },
+        "premium": {
+            "name": "Premium Plan",
+            "price": 19,
+            "duration": 30,
+            "strategies": 15,
+            "max_sessions": 3
+        },
+        "premium_3month": {
+            "name": "3-Month Premium",
+            "price": 49,
+            "duration": 90,
+            "strategies": 15,
+            "max_sessions": 3
+        },
+        "premium_6month": {
+            "name": "6-Month Premium",
+            "price": 97,
+            "duration": 180,
+            "strategies": 15,
+            "max_sessions": 3
+        },
+        "premium_12month": {
+            "name": "12-Month Premium",
+            "price": 179,
+            "duration": 365,
+            "strategies": 15,
+            "max_sessions": 3
+        }
     }
 
     # Ko-Fi Payment Links (replace with your actual Ko-Fi shop links)
@@ -4947,6 +4980,59 @@ class UserManager:
 # Initialize user manager
 user_manager = UserManager()
 
+def upgrade_user_to_premium_tier(self, username, plan_key, duration_days, admin_username):
+        """
+        Upgrade a user to a specific premium tier
+        
+        Args:
+            username: The username to upgrade
+            plan_key: The plan key (e.g., 'premium', 'premium_3month', 'premium_6month', 'premium_12month')
+            duration_days: Number of days for this tier
+            admin_username: The admin performing the upgrade
+        
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            if username not in self.users:
+                return False, "User not found"
+
+            user_data = self.users[username]
+            old_plan = user_data.get('plan', 'unknown')
+            
+            # Calculate new expiry date
+            new_expiry = (datetime.now() + timedelta(days=duration_days)).strftime("%Y-%m-%d")
+            
+            # Update user data
+            user_data['plan'] = plan_key
+            user_data['expires'] = new_expiry
+            user_data['max_sessions'] = Config.PLANS.get(plan_key, {}).get('max_sessions', 3)
+            
+            # Update analytics
+            if 'plan_changes' not in self.analytics:
+                self.analytics['plan_changes'] = []
+
+            plan_name = Config.PLANS.get(plan_key, {}).get('name', plan_key)
+            old_plan_name = Config.PLANS.get(old_plan, {}).get('name', old_plan)
+            
+            self.analytics['plan_changes'].append({
+                "username": username,
+                "old_plan": old_plan,
+                "new_plan": plan_key,
+                "timestamp": datetime.now().isoformat(),
+                "admin": admin_username,
+                "duration_days": duration_days
+            })
+
+            # Save changes
+            if self.save_users() and self.save_analytics():
+                return True, f"{username} upgraded from {old_plan_name} to {plan_name} ({duration_days} days)"
+            else:
+                return False, "Error saving upgrade to database"
+                
+        except Exception as e:
+            return False, f"Error during upgrade: {str(e)}"
+
 # -------------------------
 # FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION WITH BACK BUTTON
 # -------------------------
@@ -5131,7 +5217,7 @@ def render_bulk_delete_inactive():
 # FIXED: MANAGE USER PLAN INTERFACE - WORKING VERSION WITH BACK BUTTON
 # -------------------------
 def render_manage_user_plan():
-    """Render the manage user plan interface - FIXED WORKING VERSION WITH BACK BUTTON"""
+    """Render the manage user plan interface with manual upgrade options"""
     if not st.session_state.manage_user_plan:
         return
 
@@ -5145,59 +5231,45 @@ def render_manage_user_plan():
         st.rerun()
         return
 
-    # ADDED: Back button at the top
-    if st.button("🔙 Back to User Management", key="manage_user_back_top"):
+    # Back button at the top
+    if st.button("Back to User Management", key="manage_user_back_top"):
         st.session_state.manage_user_plan = None
         st.session_state.show_manage_user_plan = False
         st.rerun()
 
-    st.subheader(f"⚙️ Manage User: {username}")
+    st.subheader(f"Manage User: {username}")
 
     # Main form for user details
     with st.form(f"manage_user_{username}"):
         col1, col2 = st.columns(2)
 
         with col1:
-            # User information (read-only)
             st.write("**User Information:**")
             st.text_input("Name", value=user_data.get('name', ''), disabled=True, key=f"name_{username}")
             st.text_input("Email", value=user_data.get('email', ''), disabled=True, key=f"email_{username}")
             st.text_input("Created", value=user_data.get('created', '')[:10], disabled=True, key=f"created_{username}")
 
-            # Email verification status
             email_verified = user_data.get('email_verified', False)
-            verification_status = "✅ Verified" if email_verified else "❌ Unverified"
+            verification_status = "Verified" if email_verified else "Unverified"
             st.text_input("Email Status", value=verification_status, disabled=True, key=f"email_status_{username}")
 
         with col2:
-            # Plan management
             st.write("**Plan Management:**")
             current_plan = user_data.get('plan', 'trial')
-            available_plans = list(Config.PLANS.keys()) + ['admin']
-            index = available_plans.index(current_plan) if current_plan in available_plans else 0
-            new_plan = st.selectbox(
-                "Change Plan:",
-                available_plans,
-                index=index,
-                key=f"plan_select_{username}"
-            )
+            st.text_input("Current Plan", value=Config.PLANS.get(current_plan, {}).get('name', current_plan), disabled=True, key=f"current_plan_{username}")
 
-            # Expiry date
             current_expiry = user_data.get('expires', '')
-            new_expiry = st.date_input(
-                "Expiry Date:",
-                value=datetime.strptime(current_expiry, "%Y-%m-%d").date() if current_expiry else datetime.now().date() + timedelta(days=30),
-                key=f"expiry_{username}"
-            )
+            st.text_input("Current Expiry", value=current_expiry, disabled=True, key=f"current_expiry_{username}")
 
-            # Active status
+            days_left = (datetime.strptime(current_expiry, "%Y-%m-%d").date() - date.today()).days if current_expiry else 0
+            st.text_input("Days Remaining", value=str(days_left), disabled=True, key=f"days_left_{username}")
+
             is_active = st.checkbox(
                 "Account Active",
                 value=user_data.get('is_active', True),
                 key=f"active_{username}"
             )
 
-            # Max sessions
             max_sessions = st.number_input(
                 "Max Concurrent Sessions",
                 min_value=1,
@@ -5210,30 +5282,26 @@ def render_manage_user_plan():
         col_b1, col_b2, col_b3 = st.columns(3)
 
         with col_b1:
-            save_changes = st.form_submit_button("💾 Save Changes", use_container_width=True, type="primary")
+            save_changes = st.form_submit_button("Save Changes", use_container_width=True, type="primary")
 
         with col_b2:
-            delete_user = st.form_submit_button("🗑️ Delete User", use_container_width=True, type="secondary")
+            delete_user = st.form_submit_button("Delete User", use_container_width=True, type="secondary")
 
         with col_b3:
-            cancel = st.form_submit_button("🔙 Cancel", use_container_width=True)
+            cancel = st.form_submit_button("Cancel", use_container_width=True)
 
         if save_changes:
-            # Update user data
-            user_data['plan'] = new_plan
-            user_data['expires'] = new_expiry.strftime("%Y-%m-%d")
             user_data['is_active'] = is_active
             user_data['max_sessions'] = max_sessions
 
-            # Save changes
             if user_manager.save_users():
-                st.success("✅ User settings updated successfully!")
+                st.success("User settings updated successfully!")
                 time.sleep(2)
                 st.session_state.manage_user_plan = None
                 st.session_state.show_manage_user_plan = False
                 st.rerun()
             else:
-                st.error("❌ Error saving user settings")
+                st.error("Error saving user settings")
 
         if delete_user:
             st.session_state.user_to_delete = username
@@ -5245,16 +5313,87 @@ def render_manage_user_plan():
             st.session_state.show_manage_user_plan = False
             st.rerun()
 
-    # Email verification and password reset outside the main form
     st.markdown("---")
+
+    # Premium Tier Upgrade Section
+    st.subheader("Manual Premium Upgrade")
+    st.info("Select a premium tier to manually upgrade this user. Their subscription will be extended accordingly.")
+
+    # Display current plan tier
+    current_plan = user_data.get('plan', 'trial')
+    if current_plan.startswith('premium'):
+        plan_name = Config.PLANS.get(current_plan, {}).get('name', current_plan)
+        st.success(f"Current Premium Tier: **{plan_name}**")
+    else:
+        st.warning(f"Current Plan: **{Config.PLANS.get(current_plan, {}).get('name', current_plan)}**")
+
+    st.markdown("---")
+
+    # Premium tier options in columns
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.markdown("### 1 Month")
+        st.write("**$19**")
+        st.write("30 days")
+        if st.button("Upgrade", key=f"upgrade_1m_{username}", use_container_width=True):
+            success, message = user_manager.upgrade_user_to_premium_tier(username, "premium", 30, st.session_state.user['username'])
+            if success:
+                st.success(message)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(message)
+
+    with col2:
+        st.markdown("### 3 Months")
+        st.write("**$49**")
+        st.write("90 days")
+        if st.button("Upgrade", key=f"upgrade_3m_{username}", use_container_width=True):
+            success, message = user_manager.upgrade_user_to_premium_tier(username, "premium_3month", 90, st.session_state.user['username'])
+            if success:
+                st.success(message)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(message)
+
+    with col3:
+        st.markdown("### 6 Months")
+        st.write("**$97**")
+        st.write("180 days")
+        if st.button("Upgrade", key=f"upgrade_6m_{username}", use_container_width=True):
+            success, message = user_manager.upgrade_user_to_premium_tier(username, "premium_6month", 180, st.session_state.user['username'])
+            if success:
+                st.success(message)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(message)
+
+    with col4:
+        st.markdown("### 12 Months")
+        st.write("**$179**")
+        st.write("365 days")
+        if st.button("Upgrade", key=f"upgrade_12m_{username}", use_container_width=True):
+            success, message = user_manager.upgrade_user_to_premium_tier(username, "premium_12month", 365, st.session_state.user['username'])
+            if success:
+                st.success(message)
+                time.sleep(2)
+                st.rerun()
+            else:
+                st.error(message)
+
+    st.markdown("---")
+
+    # Email verification and password reset
     st.write("**Email Verification & Password Reset:**")
     col_v1, col_v2 = st.columns(2)
 
     with col_v1:
-        # Email verification form
         with st.form(f"verify_email_{username}"):
-            if not email_verified:
-                if st.form_submit_button("✅ Verify Email", use_container_width=True, key=f"verify_email_btn_{username}"):
+            if not user_data.get('email_verified', False):
+                if st.form_submit_button("Verify Email", use_container_width=True, key=f"verify_email_btn_{username}"):
                     success, message = user_manager.verify_user_email(username, st.session_state.user['username'], "Manually verified by admin")
                     if success:
                         st.success(message)
@@ -5263,7 +5402,7 @@ def render_manage_user_plan():
                     else:
                         st.error(message)
             else:
-                if st.form_submit_button("❌ Revoke Verification", use_container_width=True, key=f"revoke_email_btn_{username}"):
+                if st.form_submit_button("Revoke Verification", use_container_width=True, key=f"revoke_email_btn_{username}"):
                     success, message = user_manager.revoke_email_verification(username, st.session_state.user['username'], "Revoked by admin")
                     if success:
                         st.success(message)
@@ -5273,14 +5412,13 @@ def render_manage_user_plan():
                         st.error(message)
 
     with col_v2:
-        # Password reset form
         with st.form(f"reset_password_{username}"):
-            if st.form_submit_button("🔑 Reset Password", use_container_width=True, key=f"reset_password_btn_{username}"):
+            if st.form_submit_button("Reset Password", use_container_width=True, key=f"reset_password_btn_{username}"):
                 new_password = f"TempPass{int(time.time()) % 10000}"
                 success, message = user_manager.change_user_password(username, new_password, st.session_state.user['username'])
                 if success:
-                    st.success(f"✅ Password reset! New temporary password: {new_password}")
-                    st.info("🔒 User should change this password immediately after login.")
+                    st.success(f"Password reset! New temporary password: {new_password}")
+                    st.info("User should change this password immediately after login.")
                 else:
                     st.error(message)
 
