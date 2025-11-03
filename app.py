@@ -5574,10 +5574,24 @@ def render_trading_signals_room():
     else:
         render_user_signals_room()
 
-# SIMPLE ACCESS CONTROL IN PASSWORD GATE
 def render_signals_room_password_gate():
     """Password gate with proper tracking - FIXED VERSION"""
     st.title("🔒 Trading Signals Room - Secure Access")
+    
+    # NEW: "Get Access Now" button at the top right
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.markdown("")  # Empty space for alignment
+    with col2:
+        st.markdown(
+            f'<a href="https://ko-fi.com/s/a6da7eb515" target="_blank">'
+            f'<button style="background-color: #10B981; color: white; border: none; padding: 10px 16px; '
+            f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
+            f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
+            f'🚀 Get Access Now</button></a>',
+            unsafe_allow_html=True
+        )
+    
     st.markdown("---")
 
     st.warning("⚠️ **SECURE ACCESS REQUIRED** - Enter password to continue.")
