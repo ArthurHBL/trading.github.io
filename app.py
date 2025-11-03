@@ -2373,51 +2373,51 @@ def save_signals_access_tracking(tracking_data):
         logging.error(f"❌ Error saving access tracking: {e}")
         return False
         
+# SIMPLE TRACKING FUNCTION
 def track_signals_access(username):
-    """Track when user accesses Signals Room - FIXED VERSION WITH PROPER DB SYNC"""
+    """Track when user accesses Signals Room - FIXED VERSION"""
     try:
-        # STEP 1: Load fresh data from Supabase to ensure we have latest
-        current_tracking = load_signals_access_tracking()
-        if not isinstance(current_tracking, list):
-            current_tracking = []
+        # CRITICAL: Ensure tracking list exists in session state
+        if 'signals_access_tracking' not in st.session_state:
+            st.session_state.signals_access_tracking = []
         
+        tracking = st.session_state.signals_access_tracking
         current_time = datetime.now().isoformat()
         
-        # STEP 2: Find existing user entry
+        # Find existing user entry
         user_found = False
-        for track in current_tracking:
-            if track.get('username') == username:
+        for i, track in enumerate(tracking):
+            if track['username'] == username:
                 # Update existing entry
-                track['last_access'] = current_time
-                track['access_count'] = track.get('access_count', 1) + 1
+                tracking[i]['last_access'] = current_time
+                tracking[i]['access_count'] = tracking[i].get('access_count', 0) + 1
                 user_found = True
-                logging.info(f"Updated access for {username}: count={track['access_count']}")
                 break
         
-        # STEP 3: If user not found, add new entry
         if not user_found:
-            current_tracking.append({
+            # Add new user entry
+            tracking.append({
                 'username': username,
                 'first_access': current_time,
                 'last_access': current_time,
                 'access_count': 1
             })
-            logging.info(f"New tracking entry for {username}")
         
-        # STEP 4: Save to Supabase immediately
-        save_success = save_signals_access_tracking(current_tracking)
-        if not save_success:
-            logging.warning(f"Failed to save tracking to Supabase for {username}")
-        else:
-            logging.info(f"Tracking saved to Supabase for {username}")
+        # CRITICAL: Update session state
+        st.session_state.signals_access_tracking = tracking
         
-        # STEP 5: Also update session state
-        st.session_state.signals_access_tracking = current_tracking
+        # Try to save to Supabase, but don't block access if it fails
+        try:
+            save_success = save_signals_access_tracking(tracking)
+            if not save_success:
+                logging.warning("⚠️ Failed to save access tracking to database - continuing anyway")
+        except Exception as save_error:
+            logging.warning(f"⚠️ Save tracking failed but continuing: {save_error}")
         
-        logging.info(f"Successfully tracked access for user: {username}")
+        logging.info(f"✅ Tracked access for user: {username}")
         
     except Exception as e:
-        logging.error(f"Error tracking signals access: {e}")
+        logging.error(f"❌ Error tracking signals access: {e}")
         # Don't show warning to user - tracking failure shouldn't block access
         
 def supabase_save_trading_signals(signals):
@@ -9462,8 +9462,9 @@ def render_admin_user_management():
     if st.session_state.show_user_credentials:
         render_user_credentials_display()
 
+# SIMPLE ADMIN VIEW
 def render_simple_signals_tracking():
-    """Simple: Show who accessed Signals Room - FIXED VERSION WITH DEDUPLICATION"""
+    """Simple: Show who accessed Signals Room - FIXED VERSION"""
     st.subheader("👥 Signals Room Access Tracking")
     
     # CRITICAL: Load fresh data from Supabase
@@ -9483,43 +9484,19 @@ def render_simple_signals_tracking():
         """)
         return
     
-    # DEDUPLICATE: Group by username (keep only the most recent entry)
-    deduplicated = {}
-    for track in tracking_data:
-        username = track.get('username')
-        if username:
-            # Keep the entry with the latest last_access time
-            if username not in deduplicated:
-                deduplicated[username] = track
-            else:
-                # Compare last_access times and keep the newer one
-                try:
-                    existing_time = datetime.fromisoformat(deduplicated[username].get('last_access', ''))
-                    new_time = datetime.fromisoformat(track.get('last_access', ''))
-                    if new_time > existing_time:
-                        deduplicated[username] = track
-                except:
-                    pass  # Keep existing if time parsing fails
-    
-    # Convert back to list
-    tracking_data = list(deduplicated.values())
-    
     st.success(f"✅ **Total Users with Access: {len(tracking_data)}**")
     st.markdown("---")
     
     # Display access data in a table
-    try:
-        tracking_df = pd.DataFrame(tracking_data)
-        tracking_df['first_access'] = pd.to_datetime(tracking_df['first_access']).dt.strftime('%Y-%m-%d %H:%M')
-        tracking_df['last_access'] = pd.to_datetime(tracking_df['last_access']).dt.strftime('%Y-%m-%d %H:%M')
-        
-        st.dataframe(
-            tracking_df[['username', 'first_access', 'last_access', 'access_count']],
-            use_container_width=True,
-            hide_index=True
-        )
-    except Exception as e:
-        st.error(f"Error displaying table: {e}")
+    tracking_df = pd.DataFrame(tracking_data)
+    tracking_df['first_access'] = pd.to_datetime(tracking_df['first_access']).dt.strftime('%Y-%m-%d %H:%M')
+    tracking_df['last_access'] = pd.to_datetime(tracking_df['last_access']).dt.strftime('%Y-%m-%d %H:%M')
+    
+    st.dataframe(
+        tracking_df[['username', 'first_access', 'last_access', 'access_count']],
+        use_container_width=True,
+        hide_index=True
+    )
     
     st.markdown("---")
     st.subheader("📊 Access Statistics")
@@ -9538,10 +9515,10 @@ def render_simple_signals_tracking():
     
     st.markdown("---")
     
-    # Individual user details with UNIQUE keys
+    # Individual user details
     st.subheader("📋 Detailed Access Log")
     
-    for idx, track in enumerate(tracking_data):
+    for track in tracking_data:
         with st.container():
             col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
             
@@ -9549,22 +9526,17 @@ def render_simple_signals_tracking():
                 st.write(f"**👤 {track['username']}**")
             
             with col2:
-                try:
-                    first = datetime.fromisoformat(track['first_access']).strftime('%Y-%m-%d %H:%M')
-                    last = datetime.fromisoformat(track['last_access']).strftime('%Y-%m-%d %H:%M')
-                    st.write(f"First: {first}")
-                    st.caption(f"Last: {last}")
-                except:
-                    st.write("Date: Unable to parse")
+                first = datetime.fromisoformat(track['first_access']).strftime('%Y-%m-%d %H:%M')
+                last = datetime.fromisoformat(track['last_access']).strftime('%Y-%m-%d %H:%M')
+                st.write(f"First: {first}")
+                st.caption(f"Last: {last}")
             
             with col3:
                 count = track.get('access_count', 1)
                 st.metric("Accesses", count, label_visibility="collapsed")
             
             with col4:
-                # FIX: Use index-based unique key to avoid duplicates
-                unique_key = f"remove_track_{track['username']}_{idx}_{id(track)}"
-                if st.button("🗑️ Remove", key=unique_key, use_container_width=True):
+                if st.button("🗑️ Remove", key=f"remove_track_{track['username']}", use_container_width=True):
                     # Remove from tracking
                     new_tracking = [t for t in tracking_data if t['username'] != track['username']]
                     save_signals_access_tracking(new_tracking)
@@ -9573,35 +9545,30 @@ def render_simple_signals_tracking():
             
             st.divider()
     
-    # Action buttons with unique keys
+    # Action buttons
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🔄 Refresh Data", use_container_width=True, key="refresh_signals_tracking_main"):
+        if st.button("🔄 Refresh Data", use_container_width=True, key="refresh_signals_tracking"):
             st.rerun()
     
     with col2:
-        try:
-            tracking_df = pd.DataFrame(tracking_data)
+        if st.button("📥 Export CSV", use_container_width=True, key="export_signals_tracking"):
             csv_data = tracking_df.to_csv(index=False)
             st.download_button(
-                label="📥 Export CSV",
+                label="📥 Download CSV",
                 data=csv_data,
                 file_name=f"signals_access_tracking_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                 mime="text/csv",
-                use_container_width=True,
-                key="export_signals_tracking_csv"
+                use_container_width=True
             )
-        except Exception as e:
-            st.error(f"Export error: {e}")
     
     with col3:
-        if st.button("🗑️ Clear All", use_container_width=True, key="clear_all_tracking_main"):
+        if st.button("🗑️ Clear All", use_container_width=True, key="clear_all_tracking"):
             if st.session_state.get('confirm_clear_tracking'):
                 save_signals_access_tracking([])
                 st.success("✅ All tracking cleared")
-                st.session_state.confirm_clear_tracking = False
                 st.rerun()
             else:
                 st.session_state.confirm_clear_tracking = True
