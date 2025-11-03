@@ -5582,7 +5582,7 @@ def render_signals_room_password_gate():
     col1, col2 = st.columns([1, 3])  # Changed order - left column is smaller for button
     with col1:
         st.markdown(
-            f'<a href="https://ko-fi.com/s/your-product-link" target="_blank">'
+            f'<a href="https://ko-fi.com/s/a6da7eb515" target="_blank">'
             f'<button style="background-color: #10B981; color: white; border: none; padding: 10px 16px; '
             f'text-align: center; text-decoration: none; display: inline-block; font-size: 14px; '
             f'cursor: pointer; border-radius: 6px; width: 100%; font-weight: bold;">'
