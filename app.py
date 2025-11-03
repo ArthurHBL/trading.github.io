@@ -4885,6 +4885,59 @@ class UserManager:
 
         return inactive_users
 
+    def upgrade_user_to_premium_tier(self, username, plan_key, duration_days, admin_username):
+        """
+        Upgrade a user to a specific premium tier
+        
+        Args:
+            username: The username to upgrade
+            plan_key: The plan key (e.g., 'premium', 'premium_3month', 'premium_6month', 'premium_12month')
+            duration_days: Number of days for this tier
+            admin_username: The admin performing the upgrade
+        
+        Returns:
+            (success: bool, message: str)
+        """
+        try:
+            if username not in self.users:
+                return False, "User not found"
+
+            user_data = self.users[username]
+            old_plan = user_data.get('plan', 'unknown')
+            
+            # Calculate new expiry date
+            new_expiry = (datetime.now() + timedelta(days=duration_days)).strftime("%Y-%m-%d")
+            
+            # Update user data
+            user_data['plan'] = plan_key
+            user_data['expires'] = new_expiry
+            user_data['max_sessions'] = Config.PLANS.get(plan_key, {}).get('max_sessions', 3)
+            
+            # Update analytics
+            if 'plan_changes' not in self.analytics:
+                self.analytics['plan_changes'] = []
+
+            plan_name = Config.PLANS.get(plan_key, {}).get('name', plan_key)
+            old_plan_name = Config.PLANS.get(old_plan, {}).get('name', old_plan)
+            
+            self.analytics['plan_changes'].append({
+                "username": username,
+                "old_plan": old_plan,
+                "new_plan": plan_key,
+                "timestamp": datetime.now().isoformat(),
+                "admin": admin_username,
+                "duration_days": duration_days
+            })
+
+            # Save changes
+            if self.save_users() and self.save_analytics():
+                return True, f"{username} upgraded from {old_plan_name} to {plan_name} ({duration_days} days)"
+            else:
+                return False, "Error saving upgrade to database"
+                
+        except Exception as e:
+            return False, f"Error during upgrade: {str(e)}"
+
     # NEW FUNCTION: Bulk delete inactive users - FIXED VERSION
     def bulk_delete_inactive_users(self, usernames):
         """Bulk delete specified users - FIXED VERSION"""
@@ -4979,59 +5032,6 @@ class UserManager:
 
 # Initialize user manager
 user_manager = UserManager()
-
-def upgrade_user_to_premium_tier(self, username, plan_key, duration_days, admin_username):
-        """
-        Upgrade a user to a specific premium tier
-        
-        Args:
-            username: The username to upgrade
-            plan_key: The plan key (e.g., 'premium', 'premium_3month', 'premium_6month', 'premium_12month')
-            duration_days: Number of days for this tier
-            admin_username: The admin performing the upgrade
-        
-        Returns:
-            (success: bool, message: str)
-        """
-        try:
-            if username not in self.users:
-                return False, "User not found"
-
-            user_data = self.users[username]
-            old_plan = user_data.get('plan', 'unknown')
-            
-            # Calculate new expiry date
-            new_expiry = (datetime.now() + timedelta(days=duration_days)).strftime("%Y-%m-%d")
-            
-            # Update user data
-            user_data['plan'] = plan_key
-            user_data['expires'] = new_expiry
-            user_data['max_sessions'] = Config.PLANS.get(plan_key, {}).get('max_sessions', 3)
-            
-            # Update analytics
-            if 'plan_changes' not in self.analytics:
-                self.analytics['plan_changes'] = []
-
-            plan_name = Config.PLANS.get(plan_key, {}).get('name', plan_key)
-            old_plan_name = Config.PLANS.get(old_plan, {}).get('name', old_plan)
-            
-            self.analytics['plan_changes'].append({
-                "username": username,
-                "old_plan": old_plan,
-                "new_plan": plan_key,
-                "timestamp": datetime.now().isoformat(),
-                "admin": admin_username,
-                "duration_days": duration_days
-            })
-
-            # Save changes
-            if self.save_users() and self.save_analytics():
-                return True, f"{username} upgraded from {old_plan_name} to {plan_name} ({duration_days} days)"
-            else:
-                return False, "Error saving upgrade to database"
-                
-        except Exception as e:
-            return False, f"Error during upgrade: {str(e)}"
 
 # -------------------------
 # FIXED: DELETE USER CONFIRMATION DIALOG - WORKING VERSION WITH BACK BUTTON
