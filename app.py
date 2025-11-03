@@ -2373,51 +2373,51 @@ def save_signals_access_tracking(tracking_data):
         logging.error(f"❌ Error saving access tracking: {e}")
         return False
         
-# SIMPLE TRACKING FUNCTION
 def track_signals_access(username):
-    """Track when user accesses Signals Room - FIXED VERSION"""
+    """Track when user accesses Signals Room - FIXED VERSION WITH PROPER DB SYNC"""
     try:
-        # CRITICAL: Ensure tracking list exists in session state
-        if 'signals_access_tracking' not in st.session_state:
-            st.session_state.signals_access_tracking = []
+        # STEP 1: Load fresh data from Supabase to ensure we have latest
+        current_tracking = load_signals_access_tracking()
+        if not isinstance(current_tracking, list):
+            current_tracking = []
         
-        tracking = st.session_state.signals_access_tracking
         current_time = datetime.now().isoformat()
         
-        # Find existing user entry
+        # STEP 2: Find existing user entry
         user_found = False
-        for i, track in enumerate(tracking):
-            if track['username'] == username:
+        for track in current_tracking:
+            if track.get('username') == username:
                 # Update existing entry
-                tracking[i]['last_access'] = current_time
-                tracking[i]['access_count'] = tracking[i].get('access_count', 0) + 1
+                track['last_access'] = current_time
+                track['access_count'] = track.get('access_count', 1) + 1
                 user_found = True
+                logging.info(f"Updated access for {username}: count={track['access_count']}")
                 break
         
+        # STEP 3: If user not found, add new entry
         if not user_found:
-            # Add new user entry
-            tracking.append({
+            current_tracking.append({
                 'username': username,
                 'first_access': current_time,
                 'last_access': current_time,
                 'access_count': 1
             })
+            logging.info(f"New tracking entry for {username}")
         
-        # CRITICAL: Update session state
-        st.session_state.signals_access_tracking = tracking
+        # STEP 4: Save to Supabase immediately
+        save_success = save_signals_access_tracking(current_tracking)
+        if not save_success:
+            logging.warning(f"Failed to save tracking to Supabase for {username}")
+        else:
+            logging.info(f"Tracking saved to Supabase for {username}")
         
-        # Try to save to Supabase, but don't block access if it fails
-        try:
-            save_success = save_signals_access_tracking(tracking)
-            if not save_success:
-                logging.warning("⚠️ Failed to save access tracking to database - continuing anyway")
-        except Exception as save_error:
-            logging.warning(f"⚠️ Save tracking failed but continuing: {save_error}")
+        # STEP 5: Also update session state
+        st.session_state.signals_access_tracking = current_tracking
         
-        logging.info(f"✅ Tracked access for user: {username}")
+        logging.info(f"Successfully tracked access for user: {username}")
         
     except Exception as e:
-        logging.error(f"❌ Error tracking signals access: {e}")
+        logging.error(f"Error tracking signals access: {e}")
         # Don't show warning to user - tracking failure shouldn't block access
         
 def supabase_save_trading_signals(signals):
