@@ -2686,7 +2686,7 @@ def init_session():
         init_purchase_verification_session_state()
     except Exception:
         pass
-"""Initialize all session state variables - COMPLETE VERSION WITH TRACKING FIX"""
+    """Initialize all session state variables - COMPLETE VERSION WITH TRACKING FIX"""
     
     # --- Gallery pagination state ---
     if 'gallery_page' not in st.session_state:
