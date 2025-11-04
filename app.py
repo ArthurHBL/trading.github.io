@@ -9775,17 +9775,11 @@ def render_gallery_statistics_paginated():
         st.error(f"⚠️ Stats Error: {e}")
 
 def render_admin_dashboard():
-
     """Professional admin dashboard with dual mode selection"""
 
     # If admin hasn't chosen a dashboard mode, show selection
     if st.session_state.get('admin_dashboard_mode') is None:
         render_admin_dashboard_selection()
-        return
-
-    # Check if we're in strategy indicator image viewer mode
-    if hasattr(st.session_state, 'strategy_indicator_viewer_mode') and st.session_state.strategy_indicator_viewer_mode:
-        render_strategy_indicator_image_viewer()
         return
 
     # Always render the sidebar first, regardless of current view
@@ -9812,8 +9806,8 @@ def render_admin_dashboard():
         st.markdown("---")
         st.subheader("Dashboard Mode")
         st.markdown("---")
-        st.subheader("Dashboard Mode")
-        col1, col2, col3, col4, col5 = st.columns(5)  # CHANGED: 5 columns now
+        
+        col1, col2, col3, col4, col5 = st.columns(5)  # 5 columns for the sidebar buttons
         with col1:
             if st.button("🛠️ Admin", use_container_width=True,
                         type="primary" if current_mode == "admin" else "secondary",
@@ -9838,11 +9832,9 @@ def render_admin_dashboard():
                         key="sidebar_signals_btn"):
                 st.session_state.admin_dashboard_mode = "signals_room"
                 st.rerun()
-        with col5:  # ADDED: KAI Agent button
-            if st.button("🧠 KAI Agent", use_container_width=True,
-                        type="primary" if current_mode == "kai_agent" else "secondary",
-                        key="sidebar_kai_btn"):
-                st.session_state.admin_dashboard_mode = "kai_agent"
+        with col5:  # Ko-Fi Verification button
+            if st.button("💳 Ko-Fi Purchase Verification", use_container_width=True, key="sidebar_kofi_verification_btn"):
+                st.session_state.admin_dashboard_mode = "purchase_verification"
                 st.rerun()
 
         st.markdown("---")
@@ -9875,13 +9867,11 @@ def render_admin_dashboard():
             if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
                 st.session_state.signals_room_view = 'active_signals'
                 st.rerun()
-        elif current_mode == "kai_agent":  # ADDED: KAI Agent sidebar options
+        elif current_mode == "kai_agent":  # KAI Agent sidebar options
             st.subheader("KAI Agent Actions")
             if st.button("📊 Upload CSV Analysis", use_container_width=True, key="sidebar_kai_upload"):
-                # This will trigger the CSV upload in the KAI interface
                 st.rerun()
             if st.button("📜 View Analysis History", use_container_width=True, key="sidebar_kai_history"):
-                # This will show the analysis history
                 st.rerun()
         else:
             # Gallery mode
@@ -9910,13 +9900,13 @@ def render_admin_dashboard():
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
 
-    elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":  # New section for Ko-Fi verification
-        st.markdown("## 💳 Ko-Fi Purchase Verification")
-        render_admin_purchase_verification_panel()  # This renders the Ko-Fi verification section
-
     elif st.session_state.get('admin_dashboard_mode') == "kai_agent":
         render_kai_agent()
-
+    
+    elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":  # New section for Ko-Fi Verification
+        st.markdown("## 💳 Ko-Fi Purchase Verification")
+        render_admin_purchase_verification_panel()  # This renders the Ko-Fi verification section
+    
     else:
         render_image_gallery_paginated()
 
