@@ -2117,45 +2117,77 @@ def supabase_get_analytics():
         st.error(f"Error getting analytics: {e}")
         return {}
 
+
 def supabase_save_analytics(data: dict):
-    """
-    Safely upserts analytics data to Supabase.
-    Filters out any fields not defined in the 'analytics' table schema.
-    Prevents PGRST204 ('column not found') errors.
-    """
+    """Fully integrated with DB: sanitize and upsert into public.analytics (singleton id=1)."""
+    client = _init_supabase_hardened()
+    if not client:
+        print("⚠️ Supabase client not initialized.")
+        return None
+
+
+def record_successful_login(username: str):
+    """Update users table and analytics login_history/total_logins."""
+    client = _init_supabase_hardened()
+    if not client:
+        try:
+            import streamlit as st
+            st.error("Supabase unavailable")
+        except Exception:
+            pass
+        return
+    # Update users table
     try:
-        client = _init_supabase_hardened()
-        if not client:
-            print("⚠️ Supabase client not initialized.")
-            return None
+        u = client.table("users").select("login_count").eq("username", username).single().execute()
+        current = 0
+        if hasattr(u, "data") and u.data and isinstance(u.data, dict):
+            current = u.data.get("login_count", 0) or 0
+        client.table("users").update({
+            "last_login": datetime.now().isoformat(),
+            "login_count": int(current) + 1
+        }).eq("username", username).execute()
+    except Exception as e:
+        print(f"⚠️ Could not update users login_count: {e}")
+    # Update analytics singleton
+    try:
+        a = client.table("analytics").select("login_history,total_logins").eq("id", 1).single().execute()
+        login_history = []
+        total_logins = 0
+        if hasattr(a, "data") and a.data and isinstance(a.data, dict):
+            login_history = a.data.get("login_history", []) or []
+            total_logins = a.data.get("total_logins", 0) or 0
+        login_entry = {"username": username, "timestamp": datetime.now().isoformat()}
+        login_history.append(login_entry)
+        payload = {"id": 1, "login_history": login_history, "total_logins": int(total_logins) + 1}
+        client.table("analytics").upsert(payload, on_conflict="id").execute()
+    except Exception as e:
+        try:
+            import streamlit as st
+            st.error(f"❌ Error saving login data: {e}")
+        except Exception:
+            print(f"❌ Error saving login data: {e}")
 
-        if not data or not isinstance(data, dict):
-            print("⚠️ No analytics data to save.")
-            return None
+    # Ensure row id=1 exists
+    try:
+        client.table("analytics").select("id").eq("id", 1).single().execute()
+    except Exception as _seed_chk:
+        try:
+            client.table("analytics").insert({"id": 1}).execute()
+        except Exception as e:
+            print(f"❌ Could not seed analytics row: {e}")
 
-        # 🧠 Filter out invalid keys — prevent schema mismatch
-        exclude_keys = ["purchase_verifications", "purchase_history"]
-        safe_data = {k: v for k, v in data.items() if k not in exclude_keys}
-
-        if not safe_data:
-            print("⚠️ No valid analytics fields to save.")
-            return None
-
-        # ✅ Upsert (update or insert) analytics into Supabase
-        resp = client.table("analytics").upsert(safe_data).execute()
-
-        # Log for debugging (optional)
+    safe = _sanitize_analytics_payload(data if isinstance(data, dict) else {})
+    try:
+        resp = client.table("analytics").upsert(safe, on_conflict="id").execute()
         if hasattr(resp, "error") and resp.error:
-            print(f"❌ Supabase error during analytics save: {resp.error}")
+            print(f"❌ Supabase analytics upsert error: {resp.error}")
         else:
-            print("✅ Analytics saved successfully.")
+            print("✅ Analytics saved.")
         return resp
-
     except Exception as e:
         print(f"❌ Error saving analytics: {e}")
         return None
 
-# Strategy analyses table functions - FIXED VERSION
 def supabase_get_strategy_analyses():
     """Get strategy analyses from Supabase - FIXED"""
     if not supabase_client:
@@ -4372,23 +4404,15 @@ class UserManager:
         return supabase_save_users(self.users)
 
     def save_analytics(self):
-        """
-        Save analytics safely to Supabase
-        Filters out fields not in the 'analytics' table schema (e.g. purchase_verifications).
-        """
-        if not hasattr(self, "analytics"):
+
+        """Save analytics to Supabase using strict schema guard."""
+        if not hasattr(self, "analytics") or not self.analytics:
             return
+        cleaned = {k: v for k, v in self.analytics.items() if k in ANALYTICS_ALLOWED_COLS}
+        cleaned["id"] = 1
+        supabase_save_analytics(cleaned)
 
-        # 🧠 Filter out non-database keys
-        safe_analytics = {
-            k: v for k, v in self.analytics.items()
-            if k not in ["purchase_verifications", "purchase_history"]
-        }
 
-        try:
-            supabase_save_analytics(safe_analytics)
-        except Exception as e:
-            print(f"⚠️ Skipped invalid analytics key: {e}")
 
     def periodic_cleanup(self):
         """Periodic cleanup that doesn't delete user data"""
@@ -10941,6 +10965,60 @@ def _is_transient_error(err):
     return any(frag in msg for frag in transient_fragments)
 
 def _init_supabase_hardened():
+
+
+# ---- ANALYTICS SCHEMA GUARD ----
+ANALYTICS_ALLOWED_COLS = {
+    "id",
+    "total_logins",
+    "active_users",
+    "revenue_today",
+    "user_registrations",
+    "login_history",
+    "deleted_users",
+    "plan_changes",
+    "password_changes",
+    "email_verifications",
+}
+
+def _sanitize_analytics_payload(data: dict) -> dict:
+    """Keep only columns that exist in public.analytics and coerce JSONB-friendly types."""
+    if not isinstance(data, dict):
+        return {"id": 1}
+    safe = {k: v for k, v in data.items() if k in ANALYTICS_ALLOWED_COLS}
+    # Ensure the single-row key exists
+    safe["id"] = 1
+    # Ensure JSONB fields are lists (or [] when missing)
+    for jsonb_key in [
+        "user_registrations",
+        "login_history",
+        "deleted_users",
+        "plan_changes",
+        "password_changes",
+        "email_verifications",
+    ]:
+        val = safe.get(jsonb_key, [])
+        if val is None or isinstance(val, (str, int, float, bool)):
+            val = []
+        if isinstance(val, dict):
+            val = [val]
+        if not isinstance(val, list):
+            val = []
+        safe[jsonb_key] = val
+    # numeric defaults
+    try:
+        safe["total_logins"] = int(safe.get("total_logins", 0) or 0)
+    except Exception:
+        safe["total_logins"] = 0
+    try:
+        safe["active_users"] = int(safe.get("active_users", 0) or 0)
+    except Exception:
+        safe["active_users"] = 0
+    # revenue_today default
+    if "revenue_today" not in safe or safe["revenue_today"] is None:
+        safe["revenue_today"] = 0
+    return safe
+
     if '___supabase_ok___' in st.session_state:
         return supabase_client  # already initialized by the main code
     tries = 0
