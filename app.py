@@ -7918,6 +7918,20 @@ def render_admin_account_settings():
             user_manager.load_data()
             st.rerun()
 
+def get_user_pending_verification(username: str) -> dict | None:
+    """
+    Get the user's pending verification request if it exists
+    """
+    try:
+        pending_requests = [
+            req for req in user_manager.analytics.get('purchase_verifications', [])
+            if req['username'] == username and req['status'] == 'pending'
+        ]
+        return pending_requests[0] if pending_requests else None
+    except Exception as e:
+        st.error(f"Error fetching verification: {e}")
+        return None
+        
 # USER DASHBOARD INTEGRATION - Add to Sidebar
 def render_user_purchase_button():
     """
@@ -11030,20 +11044,6 @@ def submit_purchase_verification(username: str, email: str, plan: str = "premium
     except Exception as e:
         st.error(f"Error submitting verification: {e}")
         return False
-
-def get_user_pending_verification(username: str) -> dict | None:
-    """
-    Get the user's pending verification request if it exists
-    """
-    try:
-        pending_requests = [
-            req for req in user_manager.analytics.get('purchase_verifications', [])
-            if req['username'] == username and req['status'] == 'pending'
-        ]
-        return pending_requests[0] if pending_requests else None
-    except Exception as e:
-        st.error(f"Error fetching verification: {e}")
-        return None
 
 def get_user_verification_history(username: str) -> list:
     """
