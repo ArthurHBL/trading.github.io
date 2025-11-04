@@ -8473,6 +8473,35 @@ def render_verification_analytics_admin(all_verifications):
         st.metric("Total Revenue", f"${len([v for v in all_verifications if v['status'] == 'approved']) * 19}")
     with col3:
         st.metric("Avg Approval Time", avg_approval_time)
+
+def submit_purchase_verification(username: str, email: str, plan: str = "premium") -> bool:
+    """
+    Submit a purchase verification request to the database
+    """
+    try:
+        # Create the request
+        verification_request = create_purchase_verification_request(username, email, plan)
+        if not verification_request:
+            return False
+        
+        # Check for duplicate pending requests
+        existing_pending = any(
+            req['username'] == username and req['status'] == 'pending' 
+            for req in user_manager.analytics.get('purchase_verifications', [])
+        )
+        
+        if existing_pending:
+            st.warning("⚠️ You already have a pending verification request. Please wait for it to be processed.")
+            return False
+        
+        # Add to analytics
+        user_manager.analytics['purchase_verifications'].append(verification_request)
+        user_manager.save_analytics()
+        
+        return True
+    except Exception as e:
+        st.error(f"Error submitting verification: {e}")
+        return False
         
 # -------------------------
 # ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
@@ -11015,35 +11044,6 @@ def create_purchase_verification_request(username: str, email: str, plan: str = 
     except Exception as e:
         st.error(f"Error creating verification request: {e}")
         return None
-
-def submit_purchase_verification(username: str, email: str, plan: str = "premium") -> bool:
-    """
-    Submit a purchase verification request to the database
-    """
-    try:
-        # Create the request
-        verification_request = create_purchase_verification_request(username, email, plan)
-        if not verification_request:
-            return False
-        
-        # Check for duplicate pending requests
-        existing_pending = any(
-            req['username'] == username and req['status'] == 'pending' 
-            for req in user_manager.analytics.get('purchase_verifications', [])
-        )
-        
-        if existing_pending:
-            st.warning("⚠️ You already have a pending verification request. Please wait for it to be processed.")
-            return False
-        
-        # Add to analytics
-        user_manager.analytics['purchase_verifications'].append(verification_request)
-        user_manager.save_analytics()
-        
-        return True
-    except Exception as e:
-        st.error(f"Error submitting verification: {e}")
-        return False
 
 def get_user_verification_history(username: str) -> list:
     """
