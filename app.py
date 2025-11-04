@@ -10955,7 +10955,7 @@ def _init_supabase_hardened():
         except Exception as e:
             # If this fails in weird ways, keep retrying briefly.
             pass
-        time.sleep(0.25 * (2 ** tries))
+        time.sleep(0.25 * (2 ** tries))  # REMOVE THE EXTRA ) AT THE END
         tries += 1
     return supabase_client  # may be None; downstream code is guarded
 
