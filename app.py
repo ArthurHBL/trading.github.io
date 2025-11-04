@@ -101,6 +101,753 @@ def init_supabase():
 
 supabase_client = init_supabase()
 
+
+# =====================================================================
+# >>> KO-FI PURCHASE VERIFICATION SYSTEM (Supabase Tables)  <<<
+# Added by KAIO merge on demand
+# =====================================================================
+import logging
+import time
+from datetime import datetime, date, timedelta
+import pandas as pd
+
+# -----------------------
+# Supabase Table Helpers
+# -----------------------
+
+def supabase_get_purchase_verifications() -> list:
+    """Get all purchase verifications from Supabase"""
+    try:
+        if not supabase_client:
+            return []
+    except NameError:
+        return []
+    try:
+        response = supabase_client.table('purchase_verifications').select('*').order('submitted_at', desc=True).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error getting verifications: {response.error}")
+            return []
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        st.error(f"Error getting purchase verifications: {e}")
+        return []
+
+def supabase_get_pending_verifications() -> list:
+    """Get all pending purchase verifications"""
+    try:
+        if not supabase_client:
+            return []
+    except NameError:
+        return []
+    try:
+        response = supabase_client.table('purchase_verifications').select('*').eq('status', 'pending').order('submitted_at', desc=True).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return []
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        st.error(f"Error getting pending verifications: {e}")
+        return []
+
+def supabase_get_user_pending_verification(username: str):
+    """Get user's pending verification if exists"""
+    try:
+        if not supabase_client:
+            return None
+    except NameError:
+        return None
+    try:
+        response = supabase_client.table('purchase_verifications').select('*').eq('username', username).eq('status', 'pending').single().execute()
+        if hasattr(response, 'error') and response.error:
+            return None
+        return response.data if hasattr(response, 'data') else None
+    except Exception as e:
+        logging.warning(f"No pending verification for {username}: {e}")
+        return None
+
+def supabase_get_user_verification_history(username: str) -> list:
+    """Get all verifications for a user"""
+    try:
+        if not supabase_client:
+            return []
+    except NameError:
+        return []
+    try:
+        response = supabase_client.table('purchase_verifications').select('*').eq('username', username).order('submitted_at', desc=True).execute()
+        if hasattr(response, 'error') and response.error:
+            return []
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        st.error(f"Error getting verification history: {e}")
+        return []
+
+def supabase_create_purchase_verification(username: str, email: str, plan: str = "premium"):
+    """Create a new purchase verification in database"""
+    try:
+        if not supabase_client:
+            return None
+    except NameError:
+        return None
+    try:
+        import uuid
+        verification_id = str(uuid.uuid4())[:8]
+        record = {
+            'verification_id': verification_id,
+            'username': username,
+            'email': email.strip().lower(),
+            'plan': plan,
+            'status': 'pending',
+            'submitted_at': datetime.now().isoformat(),
+            'verified_by': None,
+            'verified_at': None,
+            'notes': '',
+            'purchase_proof': None,
+            'auto_approved': False,
+        }
+        response = supabase_client.table('purchase_verifications').insert(record).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return None
+        return response.data[0] if hasattr(response, 'data') and response.data else record
+    except Exception as e:
+        st.error(f"Error creating verification: {e}")
+        return None
+
+def supabase_update_verification_approved(verification_id: str, admin_username: str) -> bool:
+    """Mark verification as approved"""
+    try:
+        if not supabase_client:
+            return False
+    except NameError:
+        return False
+    try:
+        response = supabase_client.table('purchase_verifications').update({
+            'status': 'approved',
+            'verified_by': admin_username,
+            'verified_at': datetime.now().isoformat(),
+            'updated_at': datetime.now().isoformat()
+        }).eq('verification_id', verification_id).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error updating verification: {e}")
+        return False
+
+def supabase_update_verification_rejected(verification_id: str, admin_username: str, reason: str = "") -> bool:
+    """Mark verification as rejected"""
+    try:
+        if not supabase_client:
+            return False
+    except NameError:
+        return False
+    try:
+        response = supabase_client.table('purchase_verifications').update({
+            'status': 'rejected',
+            'verified_by': admin_username,
+            'verified_at': datetime.now().isoformat(),
+            'notes': reason,
+            'updated_at': datetime.now().isoformat()
+        }).eq('verification_id', verification_id).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error rejecting verification: {e}")
+        return False
+
+def supabase_delete_verification(verification_id: str) -> bool:
+    """Delete a verification request"""
+    try:
+        if not supabase_client:
+            return False
+    except NameError:
+        return False
+    try:
+        response = supabase_client.table('purchase_verifications').delete().eq('verification_id', verification_id).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error deleting verification: {e}")
+        return False
+
+# -----------------------
+# Purchase History Table
+# -----------------------
+
+def supabase_create_purchase_history(username: str, plan: str, verification_id: str, 
+                                    purchase_email: str, approved_by: str, 
+                                    kofi_order_id: str = None, amount: float = None) -> bool:
+    """Record approved purchase in history"""
+    try:
+        if not supabase_client:
+            return False
+    except NameError:
+        return False
+    try:
+        expiry_days = {
+            'premium': 30,
+            'premium_3month': 90,
+            'premium_6month': 180,
+            'premium_12month': 365,
+        }
+        days = expiry_days.get(plan, 30)
+        plan_expires = (datetime.now() + timedelta(days=days)).isoformat()
+
+        record = {
+            'username': username,
+            'plan': plan,
+            'verification_id': verification_id,
+            'purchase_email': purchase_email,
+            'approved_by': approved_by,
+            'approved_at': datetime.now().isoformat(),
+            'plan_expires': plan_expires,
+            'kofi_order_id': kofi_order_id,
+            'amount': amount,
+            'currency': 'USD',
+            'notes': 'Approved via Ko-Fi verification'
+        }
+        response = supabase_client.table('purchase_history').insert(record).execute()
+        if hasattr(response, 'error') and response.error:
+            st.error(f"Supabase error: {response.error}")
+            return False
+        return True
+    except Exception as e:
+        st.error(f"Error creating purchase history: {e}")
+        return False
+
+def supabase_get_purchase_history(username: str = None) -> list:
+    """Get purchase history"""
+    try:
+        if not supabase_client:
+            return []
+    except NameError:
+        return []
+    try:
+        query = supabase_client.table('purchase_history').select('*').order('approved_at', desc=True)
+        if username:
+            query = query.eq('username', username)
+        response = query.execute()
+        if hasattr(response, 'error') and response.error:
+            return []
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        st.error(f"Error getting purchase history: {e}")
+        return []
+
+# -----------------------
+# Business Logic
+# -----------------------
+
+def submit_purchase_verification(username: str, email: str, plan: str = "premium") -> bool:
+    """Submit a purchase verification request to the database"""
+    try:
+        # Check for duplicate pending requests
+        pending = supabase_get_user_pending_verification(username)
+        if pending:
+            st.warning("⚠️ You already have a pending verification request. Please wait for it to be processed.")
+            return False
+        # Create new verification
+        result = supabase_create_purchase_verification(username, email, plan)
+        if result:
+            st.success("✅ Verification request submitted!")
+            return True
+        else:
+            st.error("❌ Failed to submit verification")
+            return False
+    except Exception as e:
+        st.error(f"Error submitting verification: {e}")
+        return False
+
+def approve_purchase_verification(verification_id: str, admin_username: str) -> bool:
+    """Approve a verification and upgrade user to premium"""
+    try:
+        all_verifications = supabase_get_purchase_verifications()
+        verification = next((v for v in all_verifications if v['verification_id'] == verification_id), None)
+        if not verification:
+            st.error("Verification not found")
+            return False
+        username = verification['username']
+        plan = verification['plan']
+
+        # user_manager and Config are expected to exist in the host app
+        try:
+            success, message = user_manager.change_user_plan(username, plan)
+        except Exception as e:
+            st.error(f"user_manager.change_user_plan failed: {e}")
+            return False
+
+        if not success:
+            st.error(f"Failed to upgrade user: {message}")
+            return False
+
+        if not supabase_update_verification_approved(verification_id, admin_username):
+            return False
+
+        try:
+            amount = Config.PLANS.get(plan, {}).get('price', 0)
+        except Exception:
+            amount = 0
+
+        supabase_create_purchase_history(
+            username=username,
+            plan=plan,
+            verification_id=verification_id,
+            purchase_email=verification['email'],
+            approved_by=admin_username,
+            kofi_order_id=None,
+            amount=amount
+        )
+        st.success(f"✅ {username} upgraded to {plan}!")
+        return True
+    except Exception as e:
+        st.error(f"Error approving verification: {e}")
+        return False
+
+def reject_purchase_verification(verification_id: str, admin_username: str, reason: str = "") -> bool:
+    """Reject a verification request"""
+    try:
+        if not supabase_update_verification_rejected(verification_id, admin_username, reason):
+            return False
+        st.success("✅ Verification rejected")
+        return True
+    except Exception as e:
+        st.error(f"Error rejecting verification: {e}")
+        return False
+
+# -----------------------
+# User Sidebar Button + Modal
+# -----------------------
+
+def render_user_purchase_button():
+    """Add a purchase confirmation button to the user sidebar"""
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("💳 Upgrade Account")
+
+    user = st.session_state.get('user', {})
+    current_plan = user.get('plan', 'trial')
+
+    pending = supabase_get_user_pending_verification(user.get('username', ''))
+    if pending:
+        st.sidebar.warning(f"⏳ Verification pending since {pending['submitted_at'][:10]}")
+        if st.sidebar.button("📋 View Verification Status", use_container_width=True, key="view_verification_status"):
+            st.session_state.show_purchase_verification = True
+            st.rerun()
+    elif current_plan == 'trial':
+        st.sidebar.info("Ready to upgrade? Confirm your Ko-Fi purchase here!")
+        if st.sidebar.button("💳 Confirm Ko-Fi Purchase", use_container_width=True, key="confirm_kofi_purchase_sidebar"):
+            st.session_state.show_purchase_verification = True
+            st.rerun()
+    else:
+        if st.sidebar.button("📋 Subscription Status", use_container_width=True, key="view_subscription_status"):
+            st.session_state.show_purchase_verification = True
+            st.rerun()
+
+def render_purchase_verification_modal():
+    """Main purchase verification interface for users"""
+    user = st.session_state.get('user', {})
+    current_plan = user.get('plan', 'trial')
+
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        st.title("💳 Ko-Fi Purchase Verification")
+    with col2:
+        if st.button("✕ Close", use_container_width=True, key="close_purchase_modal"):
+            st.session_state.show_purchase_verification = False
+            st.rerun()
+
+    st.markdown("---")
+    pending = supabase_get_user_pending_verification(user.get('username', ''))
+
+    if pending:
+        render_pending_verification_view(user, pending)
+    elif current_plan == 'trial':
+        render_new_purchase_submission(user)
+    else:
+        render_subscription_status_view(user)
+
+def render_pending_verification_view(user, pending):
+    """Show pending verification status and history"""
+    st.subheader("⏳ Verification Status")
+
+    col1, col2, col3 = st.columns([2, 2, 2])
+    with col1:
+        st.info("**Request Status**")
+        st.write("Status: **PENDING**")
+        st.write(f"Plan: **{pending['plan'].replace('_', ' ').title()}**")
+    with col2:
+        st.info("**Submitted**")
+        submit_dt = datetime.fromisoformat(pending['submitted_at'])
+        st.write(f"Date: **{submit_dt.strftime('%b %d, %Y')}**")
+        st.write(f"Time: **{submit_dt.strftime('%I:%M %p')}**")
+    with col3:
+        st.info("**Your Email**")
+        st.write(f"Email: **{pending['email']}**")
+        st.write("Verified: **No**")
+
+    st.markdown("---")
+    st.subheader("📋 What Happens Next?")
+    st.markdown("""
+1. **We verify your Ko-Fi purchase** using your email address  
+2. **Your premium access is activated**  
+3. **You receive confirmation** via email  
+4. **Timeline**: Usually 1-24 hours
+> 💡 **Tip:** Check your email (including spam folder) for updates
+""")
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔄 Refresh Status", use_container_width=True, key="refresh_pending_status"):
+            st.rerun()
+    with col2:
+        if st.button("📧 Resend Confirmation", use_container_width=True, key="resend_confirmation"):
+            st.success("✅ Confirmation email sent!")
+    with col3:
+        if st.button("❌ Cancel Request", use_container_width=True, key="cancel_verification"):
+            if supabase_delete_verification(pending['verification_id']):
+                st.success("✅ Request cancelled")
+                time.sleep(1)
+                st.rerun()
+
+    st.markdown("---")
+    st.subheader("📜 Your Verification History")
+    history = supabase_get_user_verification_history(user.get('username', ''))
+    if len(history) > 1:
+        past = [h for h in history if h['verification_id'] != pending['verification_id']]
+        for past_req in past[:5]:
+            with st.expander(f"{past_req['status'].upper()} - {past_req['submitted_at'][:10]}"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Plan:** {past_req['plan'].replace('_', ' ').title()}")
+                    st.write(f"**Email:** {past_req['email']}")
+                with col2:
+                    st.write(f"**Status:** {past_req['status'].upper()}")
+                    if past_req.get('verified_at'):
+                        st.write(f"**Processed:** {past_req['verified_at'][:10]}")
+    else:
+        st.caption("No previous verification requests")
+
+def render_new_purchase_submission(user):
+    """Form for new purchase verification submission"""
+    st.subheader("✅ Confirm Your Ko-Fi Purchase")
+    st.info("""
+**How it works:**
+1. You've purchased a premium plan on Ko-Fi  
+2. Enter the email you used for payment  
+3. We'll verify your purchase  
+4. Your premium access activates automatically
+""")
+    st.markdown("---")
+    st.subheader("📋 Purchase Details")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**Which plan did you purchase?**")
+        plan_choice = st.radio(
+            "Select your plan:",
+            [
+                ("1 Month - $19", "premium"),
+                ("3 Months - $49", "premium_3month"),
+                ("6 Months - $97", "premium_6month"),
+                ("12 Months - $179", "premium_12month"),
+            ],
+            format_func=lambda x: x[0],
+            key="plan_selection"
+        )
+        selected_plan = plan_choice[1]
+    with col2:
+        st.markdown("**Ko-Fi Purchase Email**")
+        purchase_email = st.text_input(
+            "Enter the email you used on Ko-Fi",
+            placeholder="your-email@example.com",
+            key="kofi_email_input",
+            help="Must match your Ko-Fi account email"
+        )
+
+    st.markdown("---")
+    st.subheader("✅ Verify Your Information")
+    email_confirmed = st.checkbox("✓ I confirm this is the email I used to purchase on Ko-Fi", key="email_confirmed_checkbox")
+    terms_agreed = st.checkbox("✓ I agree that this email will be used to verify my purchase", key="terms_agreed_checkbox")
+
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        if st.button("🚀 Submit for Verification", use_container_width=True, type="primary", key="submit_purchase_verification"):
+            if not purchase_email:
+                st.error("❌ Please enter your Ko-Fi email address")
+            elif not email_confirmed or not terms_agreed:
+                st.error("❌ Please confirm the information above")
+            elif "@" not in purchase_email or "." not in purchase_email:
+                st.error("❌ Please enter a valid email address")
+            else:
+                if submit_purchase_verification(user.get('username', ''), purchase_email, selected_plan):
+                    st.success("""✅ **Verification Submitted Successfully!**  
+We'll now verify your Ko-Fi purchase using the email address you provided.  
+You'll receive an email confirmation once we've verified your purchase.
+⏱️ **Expected time:** 1-24 hours  •  📧 **Check your email** for updates""")
+                    st.balloons()
+                    time.sleep(2)
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to submit verification. Please try again.")
+    with col2:
+        if st.button("❌ Cancel", use_container_width=True, key="cancel_submission"):
+            st.session_state.show_purchase_verification = False
+            st.rerun()
+    with col3:
+        st.caption("We verify all Ko-Fi purchases manually to prevent fraud")
+
+    st.markdown("---")
+    st.subheader("❓ Frequently Asked Questions")
+    for q, a in [
+        ("How long does verification take?", "Usually 1-24 hours, but can be instant during business hours"),
+        ("What if I used a different email?", "Contact support with your Ko-Fi order ID"),
+        ("Can I update my email?", "Cancel this request and submit with the correct email"),
+        ("What if verification fails?", "We'll notify you why and how to resolve it"),
+    ]:
+        with st.expander(q):
+            st.write(a)
+
+def render_subscription_status_view(user):
+    """Show current subscription status for premium users"""
+    st.subheader("✅ Active Subscription")
+
+    current_plan = user.get('plan', 'trial')
+    try:
+        plan_name = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+    except Exception:
+        plan_name = current_plan.title()
+    expires = user.get('expires', 'Unknown')
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Current Plan", plan_name)
+    with col2:
+        try:
+            days_left = (datetime.strptime(expires, "%Y-%m-%d").date() - date.today()).days
+            st.metric("Days Remaining", days_left)
+        except Exception:
+            st.metric("Days Remaining", "N/A")
+    with col3:
+        st.metric("Status", "✅ Active")
+
+    st.markdown("---")
+    st.subheader("📋 Subscription Details")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Plan:** {plan_name}")
+        st.write(f"**Expires:** {expires}")
+        created = user.get('created', 'Unknown')
+        st.write(f"**Since:** {created[:10] if isinstance(created, str) else created}")
+    with col2:
+        st.write("**Status:** Active ✅")
+        st.write("**Auto-Renew:** Configured")
+        st.write("**Support:** 24/7 Available")
+
+    st.markdown("---")
+    st.subheader("🔄 Renew or Upgrade")
+    st.markdown("**Ready to renew or upgrade?** Click one of the buttons below to continue on Ko-Fi:")
+
+    try:
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f'<a href="{Config.KOFI_PREMIUM_MONTHLY_LINK}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">1 Month - $19</button></a>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<a href="{Config.KOFI_PREMIUM_QUARTERLY_LINK}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">3 Months - $49</button></a>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<a href="{Config.KOFI_PREMIUM_SEMI_ANNUAL_LINK}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">6 Months - $97</button></a>', unsafe_allow_html=True)
+        with col4:
+            st.markdown(f'<a href="{Config.KOFI_PREMIUM_ANNUAL_LINK}" target="_blank"><button style="background-color: #10B981; color: white; padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold;">12 Months - $179</button></a>', unsafe_allow_html=True)
+    except Exception:
+        st.info("Ko-Fi links not configured in Config.")
+
+# -----------------------
+# Admin Panel
+# -----------------------
+import plotly.express as px
+
+def render_admin_purchase_verification_panel():
+    """Admin interface to review and approve/reject purchase verifications"""
+    st.subheader("💳 Ko-Fi Purchase Verification Panel")
+
+    all_verifications = supabase_get_purchase_verifications()
+    pending = [v for v in all_verifications if v.get('status') == 'pending']
+    approved = [v for v in all_verifications if v.get('status') == 'approved']
+    rejected = [v for v in all_verifications if v.get('status') == 'rejected']
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1: st.metric("Total Requests", len(all_verifications))
+    with col2: st.metric("⏳ Pending", len(pending), delta_color="off")
+    with col3: st.metric("✅ Approved", len(approved))
+    with col4: st.metric("❌ Rejected", len(rejected))
+
+    st.markdown("---")
+    tab1, tab2, tab3, tab4 = st.tabs(["⏳ Pending", "✅ Approved", "❌ Rejected", "📊 Analytics"])
+    with tab1: render_pending_verifications_admin(pending)
+    with tab2: render_approved_verifications_admin(approved)
+    with tab3: render_rejected_verifications_admin(rejected)
+    with tab4: render_verification_analytics_admin(all_verifications)
+
+def render_pending_verifications_admin(pending_list):
+    """Admin view for pending verifications"""
+    if not pending_list:
+        st.success("🎉 No pending verifications!")
+        return
+    st.write(f"**{len(pending_list)} pending verification(s)**")
+    st.markdown("---")
+
+    for verification in pending_list:
+        with st.container():
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 1, 1])
+            with col1:
+                st.write(f"**{verification['username']}**")
+                st.caption(verification['email'])
+            with col2:
+                st.write(f"Plan: **{verification['plan'].replace('_', ' ').title()}**")
+                submit_dt = datetime.fromisoformat(verification['submitted_at'])
+                st.caption(f"Submitted: {submit_dt.strftime('%m/%d/%Y %H:%M')}")
+            with col3:
+                try:
+                    user_data = user_manager.users.get(verification['username'])
+                except Exception:
+                    user_data = None
+                if user_data:
+                    current_plan = user_data.get('plan', 'trial')
+                    try:
+                        plan_name = Config.PLANS.get(current_plan, {}).get('name', current_plan.title())
+                    except Exception:
+                        plan_name = current_plan.title()
+                    st.write(f"Current: **{plan_name}**")
+                else:
+                    st.error("User not found")
+            with col4:
+                if st.button("✅ Approve", key=f"approve_{verification['verification_id']}", use_container_width=True):
+                    if approve_purchase_verification(verification['verification_id'], st.session_state.get('user', {}).get('username', 'admin')):
+                        st.success("✅ Approved!")
+                        time.sleep(1)
+                        st.rerun()
+            with col5:
+                if st.button("❌ Reject", key=f"reject_{verification['verification_id']}", use_container_width=True):
+                    st.session_state.show_reject_reason = verification['verification_id']
+
+            if st.session_state.get('show_reject_reason') == verification['verification_id']:
+                st.markdown("**Rejection reason (optional):**")
+                reject_reason = st.text_input("Why are you rejecting this?", key=f"reject_reason_{verification['verification_id']}")
+                col_r1, col_r2 = st.columns(2)
+                with col_r1:
+                    if st.button("Confirm Rejection", key=f"confirm_reject_{verification['verification_id']}", use_container_width=True):
+                        if reject_purchase_verification(verification['verification_id'], st.session_state.get('user', {}).get('username', 'admin'), reject_reason):
+                            st.success("✅ Rejected!")
+                            time.sleep(1)
+                            st.rerun()
+                with col_r2:
+                    if st.button("Cancel", key=f"cancel_reject_{verification['verification_id']}", use_container_width=True):
+                        st.session_state.show_reject_reason = None
+                        st.rerun()
+            st.markdown("---")
+
+def render_approved_verifications_admin(approved_list):
+    """Admin view for approved verifications"""
+    if not approved_list:
+        st.info("No approved verifications yet")
+        return
+    df = pd.DataFrame([
+        {
+            "Username": v['username'],
+            "Email": v['email'],
+            "Plan": v['plan'].replace('_', ' ').title(),
+            "Approved By": v.get('verified_by'),
+            "Date": datetime.fromisoformat(v['verified_at']).strftime('%m/%d/%Y') if v.get('verified_at') else 'N/A'
+        }
+        for v in approved_list
+    ])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+def render_rejected_verifications_admin(rejected_list):
+    """Admin view for rejected verifications"""
+    if not rejected_list:
+        st.info("No rejected verifications")
+        return
+    df = pd.DataFrame([
+        {
+            "Username": v['username'],
+            "Email": v['email'],
+            "Plan": v['plan'].replace('_', ' ').title(),
+            "Rejected By": v.get('verified_by'),
+            "Reason": v.get('notes', 'No reason provided'),
+            "Date": datetime.fromisoformat(v['verified_at']).strftime('%m/%d/%Y') if v.get('verified_at') else 'N/A'
+        }
+        for v in rejected_list
+    ])
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+def render_verification_analytics_admin(all_verifications):
+    """Analytics for purchase verifications"""
+    if not all_verifications:
+        st.info("No verification data yet")
+        return
+    status_counts = {}
+    for v in all_verifications:
+        status = v.get('status')
+        status_counts[status] = status_counts.get(status, 0) + 1
+
+    plan_counts = {}
+    for v in all_verifications:
+        plan = v.get('plan')
+        plan_counts[plan] = plan_counts.get(plan, 0) + 1
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Status Distribution")
+        fig = px.pie(values=list(status_counts.values()), names=list(status_counts.keys()), title="Verification Status Distribution")
+        st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        st.subheader("Plan Distribution")
+        fig = px.bar(x=list(plan_counts.keys()), y=list(plan_counts.values()), title="Verifications by Plan", labels={"x": "Plan", "y": "Count"})
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("📊 Summary Statistics")
+    total = len(all_verifications)
+    approved = len([v for v in all_verifications if v.get('status') == 'approved'])
+    approval_rate = (approved / total * 100) if total else 0
+    try:
+        total_revenue = sum([Config.PLANS.get(v.get('plan'), {}).get('price', 0) for v in all_verifications if v.get('status') == 'approved'])
+    except Exception:
+        total_revenue = 0
+
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Approval Rate", f"{approval_rate:.1f}%")
+    with col2: st.metric("Total Revenue", f"${total_revenue}")
+    with col3: st.metric("Total Requests", total)
+
+# -----------------------
+# Session State Init Hook
+# -----------------------
+
+def init_purchase_verification_session_state():
+    """Initialize purchase verification session state"""
+    if 'show_purchase_verification' not in st.session_state:
+        st.session_state.show_purchase_verification = False
+    if 'show_reject_reason' not in st.session_state:
+        st.session_state.show_reject_reason = None
+
+# -----------------------
+# Backward-compat wrappers (avoid NameError in old calls)
+# -----------------------
+def get_user_pending_verification(username: str):
+    return supabase_get_user_pending_verification(username)
+# =====================================================================
+# <<< END KO-FI PURCHASE VERIFICATION SYSTEM >>> 
+# =====================================================================
+
+
+
 # -------------------------
 # DEEPSEEK API CONFIGURATION
 # -------------------------
@@ -2681,6 +3428,10 @@ def supabase_clear_all_kai_analyses():
 
 def init_session():
     """Initialize all session state variables - COMPLETE VERSION WITH TRACKING FIX"""
+    try:
+        init_purchase_verification_session_state()
+    except Exception:
+        pass
     
     # --- Gallery pagination state ---
     if 'gallery_page' not in st.session_state:
@@ -7949,6 +8700,8 @@ def render_user_dashboard():
 
         st.markdown("---")
 
+        render_user_purchase_button()
+
         # 5-Day Cycle System - MOVED TO TOP (FIRST SECTION)
         st.subheader("📅 5-Day Cycle")
 
@@ -8009,6 +8762,9 @@ def render_user_dashboard():
             st.rerun()
 
         st.markdown("---")
+
+        if st.session_state.get('show_purchase_verification'):
+            render_purchase_verification_modal()
 
         # DISCLAIMER BEFORE LOGOUT BUTTON - FOR LEGAL REASONS
         st.markdown("""
@@ -9147,14 +9903,18 @@ def render_admin_dashboard():
     # Main admin content based on selected mode - FIXED: Added kai_agent condition
     if st.session_state.get('admin_dashboard_mode') == "admin":
         render_admin_management_dashboard()
+    
+        # 💳 Ko-Fi Purchase Verification System - Admin Mode
+        render_admin_purchase_verification_panel()  # This line added inside the 'admin' block
+
     elif st.session_state.get('admin_dashboard_mode') == "premium":
         render_premium_signal_dashboard()
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
-    elif st.session_state.get('admin_dashboard_mode') == "kai_agent":  # ADDED: KAI Agent condition
+    elif st.session_state.get('admin_dashboard_mode') == "kai_agent":
         render_kai_agent()
     else:
-        render_image_gallery_paginated()
+        render_image_gallery_paginated(
 
 def render_admin_sidebar_options():
     """Sidebar options for admin management mode"""
