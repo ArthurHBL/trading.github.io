@@ -6372,7 +6372,7 @@ def get_gallery_images_count():
         logging.error(f"Database count error: {e}")
         return _cache_get("lk_gallery_count", 0)
 
-# USER IMAGE GALLERY - VIEW ONLY VERSION
+# USER IMAGE GALLERY - VIEW ONLY
 # -------------------------
 def render_user_image_gallery():
     """User image gallery with full database-backed pagination (FINAL)"""
