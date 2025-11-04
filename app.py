@@ -10989,21 +10989,21 @@ def _init_supabase_hardened():
     return supabase_client  # may be None; downstream code is guarded
 
 
-# -------------------------
-# Analytics Schema Guard
-# -------------------------
-ANALYTICS_ALLOWED_COLS = {
-    "id",
-    "total_logins",
-    "active_users",
-    "revenue_today",
-    "user_registrations",
-    "login_history",
-    "deleted_users",
-    "plan_changes",
-    "password_changes",
-    "email_verifications",
-}
+    # -------------------------
+    # Analytics Schema Guard
+    # -------------------------
+    ANALYTICS_ALLOWED_COLS = {
+        "id",
+        "total_logins",
+        "active_users",
+        "revenue_today",
+        "user_registrations",
+        "login_history",
+        "deleted_users",
+        "plan_changes",
+        "password_changes",
+        "email_verifications",
+    }
 
 def _sanitize_analytics_payload(data: dict) -> dict:
     """
