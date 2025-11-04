@@ -9900,19 +9900,23 @@ def render_admin_dashboard():
                     st.session_state.image_viewer_mode = True
                     st.rerun()
 
-    # Main admin content based on selected mode - FIXED: Added kai_agent condition
+    # Main admin content based on selected mode
     if st.session_state.get('admin_dashboard_mode') == "admin":
         render_admin_management_dashboard()
-    
-        # 💳 Ko-Fi Purchase Verification System - Admin Mode
-        render_admin_purchase_verification_panel()  # This line added inside the 'admin' block
 
     elif st.session_state.get('admin_dashboard_mode') == "premium":
         render_premium_signal_dashboard()
+
     elif st.session_state.get('admin_dashboard_mode') == "signals_room":
         render_trading_signals_room()
+
+    elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":  # New section for Ko-Fi verification
+        st.markdown("## 💳 Ko-Fi Purchase Verification")
+        render_admin_purchase_verification_panel()  # This renders the Ko-Fi verification section
+
     elif st.session_state.get('admin_dashboard_mode') == "kai_agent":
         render_kai_agent()
+
     else:
         render_image_gallery_paginated()
 
