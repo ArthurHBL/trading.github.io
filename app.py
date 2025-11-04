@@ -2127,13 +2127,13 @@ def supabase_save_analytics(data: dict):
 
 
 def record_successful_login(username: str):
-    """Update users table and analytics login_history/total_logins safely."""
+    """Update users table and analytics login_history/total_logins with full debug."""
     client = _init_supabase_hardened()
     if not client:
         st.error("❌ Supabase unavailable")
         return
 
-    # ---- 1️⃣ Update the users table ----
+    # ---- 1️⃣ Update users table ----
     try:
         u = client.table("users").select("login_count").eq("username", username).single().execute()
         current = 0
@@ -2149,12 +2149,20 @@ def record_successful_login(username: str):
 
     # ---- 2️⃣ Update analytics table ----
     try:
-        result = client.table("analytics").select("id, login_history, total_logins").eq("id", 1).single().execute()
+        result = client.table("analytics").select("*").eq("id", 1).single().execute()
+        print("DEBUG — analytics select result:", result)
+
+        login_history = []
+        total_logins = 0
         if hasattr(result, "data") and result.data:
-            login_history = result.data.get("login_history", []) or []
-            total_logins = result.data.get("total_logins", 0) or 0
+            data = result.data
+            print("DEBUG — current analytics row:", data)
+            login_history = data.get("login_history", []) or []
+            total_logins = data.get("total_logins", 0) or 0
         else:
-            login_history, total_logins = [], 0
+            print("DEBUG — analytics row not found, creating new one.")
+            login_history = []
+            total_logins = 0
 
         login_entry = {"username": username, "timestamp": datetime.now().isoformat()}
         login_history.append(login_entry)
@@ -2165,11 +2173,15 @@ def record_successful_login(username: str):
             "total_logins": int(total_logins) + 1,
         }
 
+        print("DEBUG — payload to upsert:", payload)
         resp = client.table("analytics").upsert(payload, on_conflict="id").execute()
+        print("DEBUG — upsert response:", resp)
+
         if hasattr(resp, "error") and resp.error:
             print(f"❌ Supabase returned error: {resp.error}")
+            st.error(f"❌ Supabase returned error: {resp.error}")
         else:
-            print("✅ Login data saved to analytics.")
+            st.success("✅ Login data saved to analytics.")
     except Exception as e:
         print(f"❌ Error saving login data (details): {e}")
         st.error(f"❌ Error saving login data: {e}")
