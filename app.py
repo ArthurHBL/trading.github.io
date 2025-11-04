@@ -9833,7 +9833,7 @@ def render_admin_dashboard():
                 st.session_state.admin_dashboard_mode = "signals_room"
                 st.rerun()
         with col5:  # Ko-Fi Verification button
-            if st.button("💳 Ko-Fi Purchase Verification", use_container_width=True, key="sidebar_kofi_verification_btn"):
+            if st.button("💳 Ko-Fi", use_container_width=True, key="sidebar_kofi_verification_btn"):
                 st.session_state.admin_dashboard_mode = "purchase_verification"
                 st.rerun()
 
