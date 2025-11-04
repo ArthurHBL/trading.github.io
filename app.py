@@ -4404,15 +4404,16 @@ class UserManager:
         return supabase_save_users(self.users)
 
     def save_analytics(self):
-
-        """Save analytics to Supabase using strict schema guard."""
-        if not hasattr(self, "analytics") or not self.analytics:
-            return
-        cleaned = {k: v for k, v in self.analytics.items() if k in ANALYTICS_ALLOWED_COLS}
-        cleaned["id"] = 1
-        supabase_save_analytics(cleaned)
-
-
+        try:
+            cleaned = _sanitize_analytics_payload(self.analytics)
+            if not cleaned:
+                return False
+            cleaned["id"] = 1
+            supabase_save_analytics(cleaned)
+            return True
+        except Exception as e:
+            print(f"Error saving analytics: {e}")
+            return False
 
     def periodic_cleanup(self):
         """Periodic cleanup that doesn't delete user data"""
@@ -10964,76 +10965,95 @@ def _is_transient_error(err):
     transient_fragments = ["temporarily unavailable", "timeout", "eagain", "rate limit", "connection reset"]
     return any(frag in msg for frag in transient_fragments)
 
+# -------------------------
+# Hardened Supabase accessor
+# -------------------------
 def _init_supabase_hardened():
+    """
+    Returns a working Supabase client, retrying briefly if needed.
+    """
+    if "___supabase_ok___" in st.session_state:
+        return supabase_client  # already initialized by the main code
+
+    tries = 0
+    while tries < 5:
+        try:
+            if supabase_client:
+                st.session_state.___supabase_ok___ = True
+                return supabase_client
+        except Exception:
+            pass
+        time.sleep(0.25 * (2 ** tries))
+        tries += 1
+
+    return supabase_client  # may be None; downstream code is guarded
 
 
-    # ---- ANALYTICS SCHEMA GUARD ----
-    ANALYTICS_ALLOWED_COLS = {
-        "id",
-        "total_logins",
-        "active_users",
-        "revenue_today",
-        "user_registrations",
-        "login_history",
-        "deleted_users",
-        "plan_changes",
-        "password_changes",
-        "email_verifications",
-    }
+# -------------------------
+# Analytics Schema Guard
+# -------------------------
+ANALYTICS_ALLOWED_COLS = {
+    "id",
+    "total_logins",
+    "active_users",
+    "revenue_today",
+    "user_registrations",
+    "login_history",
+    "deleted_users",
+    "plan_changes",
+    "password_changes",
+    "email_verifications",
+}
 
 def _sanitize_analytics_payload(data: dict) -> dict:
-    """Keep only columns that exist in public.analytics and coerce JSONB-friendly types."""
+    """
+    Keep only columns that exist in public.analytics and coerce JSONB-friendly types.
+    Ensures the single-row analytics table (id=1) always has valid structure.
+    """
     if not isinstance(data, dict):
         return {"id": 1}
+
     safe = {k: v for k, v in data.items() if k in ANALYTICS_ALLOWED_COLS}
-    # Ensure the single-row key exists
+
+    # Ensure the singleton key
     safe["id"] = 1
-    # Ensure JSONB fields are lists (or [] when missing)
-    for jsonb_key in [
+
+    # Normalize JSONB arrays
+    jsonb_fields = [
         "user_registrations",
         "login_history",
         "deleted_users",
         "plan_changes",
         "password_changes",
         "email_verifications",
-    ]:
-        val = safe.get(jsonb_key, [])
+    ]
+
+    for key in jsonb_fields:
+        val = safe.get(key, [])
         if val is None or isinstance(val, (str, int, float, bool)):
             val = []
-        if isinstance(val, dict):
+        elif isinstance(val, dict):
             val = [val]
-        if not isinstance(val, list):
+        elif not isinstance(val, list):
             val = []
-        safe[jsonb_key] = val
-    # numeric defaults
+        safe[key] = val
+
+    # Numeric defaults
     try:
         safe["total_logins"] = int(safe.get("total_logins", 0) or 0)
     except Exception:
         safe["total_logins"] = 0
+
     try:
         safe["active_users"] = int(safe.get("active_users", 0) or 0)
     except Exception:
         safe["active_users"] = 0
-    # revenue_today default
+
+    # Default numeric for revenue_today
     if "revenue_today" not in safe or safe["revenue_today"] is None:
         safe["revenue_today"] = 0
-    return safe
 
-    if '___supabase_ok___' in st.session_state:
-        return supabase_client  # already initialized by the main code
-    tries = 0
-    while tries < 5:
-        try:
-            # If the original code already created supabase_client successfully, just use it.
-            if supabase_client:
-                st.session_state.___supabase_ok___ = True
-                return supabase_client
-        except Exception as e:
-            # If this fails in weird ways, keep retrying briefly.
-            pass
-        time.sleep(0.25 * (2 ** tries))
-        tries += 1
-    return supabase_client  # may be None; downstream code is guarded
+    return safe
 
 # ===== Re-define critical Supabase functions with retries =====
 
