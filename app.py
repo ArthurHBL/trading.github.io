@@ -11090,14 +11090,14 @@ def get_user_verification_history(username: str) -> list:
         return []
 
 def approve_verification_request(verification_id: str, admin_name: str = "system") -> bool:
-    """Admin approves a pending verification request."""
+    """Admin approves a pending verification request and logs it into purchase_history."""
     try:
         client = _init_supabase_hardened()
         if not client:
             st.error("❌ Database connection failed.")
             return False
 
-        # ✅ Update record in Supabase
+        # 1️⃣ Update verification status
         resp = client.table("purchase_verifications").update({
             "status": "approved",
             "verified_by": admin_name,
@@ -11107,7 +11107,29 @@ def approve_verification_request(verification_id: str, admin_name: str = "system
         if hasattr(resp, "error") and resp.error:
             raise Exception(resp.error)
 
-        st.success("✅ Verification approved successfully!")
+        # 2️⃣ 🔥 NEW: Fetch verification info for history table
+        ver = client.table("purchase_verifications").select("*").eq("verification_id", verification_id).single().execute()
+        if not ver.data:
+            st.warning("⚠️ Could not find verification record for history log.")
+            return True
+
+        v = ver.data  # shorthand
+
+        # 3️⃣ Insert into purchase_history
+        client.table("purchase_history").insert({
+            "username": v["username"],
+            "plan": v["plan"],
+            "verification_id": verification_id,
+            "purchase_email": v["email"],
+            "approved_by": admin_name,
+            "approved_at": datetime.now().isoformat(),
+            "plan_expires": None,
+            "amount": None,
+            "currency": "USD",
+            "notes": "Auto-added after approval"
+        }).execute()
+
+        st.success("✅ Verification approved and logged in purchase history!")
         return True
 
     except Exception as e:
