@@ -11136,26 +11136,41 @@ def approve_verification_request(verification_id: str, admin_name: str = "system
         st.error(f"Error approving verification: {e}")
         return False
 
-def reject_verification_request(verification_id: str, admin_name: str = "system", notes: str = "") -> bool:
-    """Admin rejects a pending verification request."""
+def reject_verification_request(
+    verification_id: str,
+    admin_name: str = "system",
+    notes: str = ""
+) -> bool:
+    """
+    Admin rejects a pending verification request.
+    Updates Supabase purchase_verifications table.
+    """
     try:
         client = _init_supabase_hardened()
         if not client:
             st.error("❌ Database connection failed.")
             return False
 
-        # ✅ Update record in Supabase
+        # 1️⃣ Update verification status to 'rejected'
         resp = client.table("purchase_verifications").update({
             "status": "rejected",
             "verified_by": admin_name,
             "verified_at": datetime.now().isoformat(),
-            "notes": notes
+            "notes": notes if notes else "Rejected by admin"
         }).eq("verification_id", verification_id).execute()
 
         if hasattr(resp, "error") and resp.error:
             raise Exception(resp.error)
 
-        st.info("⚠️ Verification rejected.")
+        # 2️⃣ Optional: double-check that record exists (for logging / UI feedback)
+        ver = client.table("purchase_verifications").select("*").eq("verification_id", verification_id).single().execute()
+        if ver.data:
+            v = ver.data
+            st.info(f"🚫 Rejected verification for {v['username']} — {v['plan']}")
+        else:
+            st.info("🚫 Verification rejected (record not found in table fetch).")
+
+        st.success("✅ Rejection saved to Supabase.")
         return True
 
     except Exception as e:
