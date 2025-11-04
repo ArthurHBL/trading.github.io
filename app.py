@@ -2117,20 +2117,43 @@ def supabase_get_analytics():
         st.error(f"Error getting analytics: {e}")
         return {}
 
-def supabase_save_analytics(analytics):
-    """Save analytics to Supabase - FIXED VERSION"""
-    if not supabase_client:
-        return False
+def supabase_save_analytics(data: dict):
+    """
+    Safely upserts analytics data to Supabase.
+    Filters out any fields not defined in the 'analytics' table schema.
+    Prevents PGRST204 ('column not found') errors.
+    """
     try:
-        analytics['id'] = 1  # Single analytics record
-        response = supabase_client.table('analytics').upsert(analytics).execute()
-        if hasattr(response, 'error') and response.error:
-            st.error(f"Supabase error saving analytics: {response.error}")
-            return False
-        return True
+        client = _init_supabase_hardened()
+        if not client:
+            print("⚠️ Supabase client not initialized.")
+            return None
+
+        if not data or not isinstance(data, dict):
+            print("⚠️ No analytics data to save.")
+            return None
+
+        # 🧠 Filter out invalid keys — prevent schema mismatch
+        exclude_keys = ["purchase_verifications", "purchase_history"]
+        safe_data = {k: v for k, v in data.items() if k not in exclude_keys}
+
+        if not safe_data:
+            print("⚠️ No valid analytics fields to save.")
+            return None
+
+        # ✅ Upsert (update or insert) analytics into Supabase
+        resp = client.table("analytics").upsert(safe_data).execute()
+
+        # Log for debugging (optional)
+        if hasattr(resp, "error") and resp.error:
+            print(f"❌ Supabase error during analytics save: {resp.error}")
+        else:
+            print("✅ Analytics saved successfully.")
+        return resp
+
     except Exception as e:
-        st.error(f"Error saving analytics: {e}")
-        return False
+        print(f"❌ Error saving analytics: {e}")
+        return None
 
 # Strategy analyses table functions - FIXED VERSION
 def supabase_get_strategy_analyses():
