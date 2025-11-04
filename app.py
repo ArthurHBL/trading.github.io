@@ -2148,7 +2148,77 @@ def supabase_save_analytics(data: dict):
         return None
 
 
+
 def record_successful_login(username: str):
+    """Robustly updates analytics and user login tracking in Supabase."""
+    client = _init_supabase_hardened()
+    if not client:
+        try:
+            st.error("⚠️ Supabase client not initialized")
+        except Exception:
+            print("⚠️ Supabase client not initialized")
+        return
+
+    try:
+        # ---- 1️⃣ Ensure analytics base row exists ----
+        existing = client.table("analytics").select("id").eq("id", 1).single().execute()
+        if not getattr(existing, "data", None):
+            print("ℹ️ Seeding analytics row...")
+            client.table("analytics").insert({
+                "id": 1,
+                "total_logins": 0,
+                "active_users": 0,
+                "revenue_today": 0,
+                "login_history": [],
+            }).execute()
+
+        # ---- 2️⃣ Update user login count ----
+        try:
+            u = client.table("users").select("login_count").eq("username", username).single().execute()
+            current = 0
+            if hasattr(u, "data") and isinstance(u.data, dict):
+                current = u.data.get("login_count", 0) or 0
+
+            client.table("users").update({
+                "last_login": datetime.now().isoformat(),
+                "login_count": int(current) + 1
+            }).eq("username", username).execute()
+        except Exception as e:
+            print(f"⚠️ Could not update users login_count: {e}")
+
+        # ---- 3️⃣ Safely update analytics ----
+        a = client.table("analytics").select("login_history,total_logins").eq("id", 1).single().execute()
+        data = getattr(a, "data", {}) or {}
+
+        login_history = data.get("login_history", [])
+        if not isinstance(login_history, list):
+            try:
+                import json
+                login_history = json.loads(login_history) if isinstance(login_history, str) else []
+            except Exception:
+                login_history = []
+
+        login_history.append({
+            "username": username,
+            "timestamp": datetime.now().isoformat()
+        })
+
+        payload = {
+            "id": 1,
+            "login_history": login_history,
+            "total_logins": int(data.get("total_logins", 0)) + 1
+        }
+
+        resp = client.table("analytics").upsert(payload, on_conflict="id").execute()
+        print("✅ Login data saved to analytics:", getattr(resp, "data", None))
+
+    except Exception as e:
+        print(f"❌ Error saving login data (details): {e}")
+        try:
+            st.error(f"❌ Error saving login data: {e}")
+        except Exception:
+            pass
+
     """Update users table and analytics login_history/total_logins with full debug."""
     client = _init_supabase_hardened()
     if not client:
