@@ -9332,11 +9332,13 @@ def render_admin_dashboard():
         render_image_gallery_paginated()
 
 def render_admin_sidebar_options():
+    """Sidebar options for admin management mode"""
+
     # Ko-Fi: add nav button
     if st.button('💳 Purchase Verification', use_container_width=True, key='sidebar_purchase_verify_btn'):
         st.session_state['admin_view'] = 'purchase_verification'
         st.rerun()
-    """Sidebar options for admin management mode"""
+
     st.subheader("Admin Actions")
 
     if st.button("🔄 Refresh All Data", use_container_width=True, key="sidebar_refresh_btn"):
