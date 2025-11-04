@@ -4273,8 +4273,7 @@ def add_purchase_verification_to_user(user_manager, supabase_client, purchase_da
 class UserManager:
     def __init__(self):
         self.load_data()
-        # Initialize purchase verification system
-        add_purchase_verification_to_user(self)
+        
 
     def load_data(self):
         """Load users and analytics data from Supabase - FIXED VERSION"""
