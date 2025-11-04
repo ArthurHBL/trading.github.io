@@ -8502,6 +8502,38 @@ def submit_purchase_verification(username: str, email: str, plan: str = "premium
     except Exception as e:
         st.error(f"Error submitting verification: {e}")
         return False
+
+def create_purchase_verification_request(username: str, email: str, plan: str = "premium") -> dict:
+    """
+    Create a new purchase verification request
+    
+    Args:
+        username: The user's username
+        email: The email used for Ko-Fi purchase
+        plan: The plan they're purchasing (premium, premium_3month, etc.)
+    
+    Returns:
+        dict: The verification request object or None if error
+    """
+    try:
+        verification_request = {
+            'id': str(uuid.uuid4())[:8],
+            'username': username,
+            'email': email.strip().lower(),  # Normalize email
+            'plan': plan,
+            'status': 'pending',  # pending, approved, rejected
+            'submitted_at': datetime.now().isoformat(),
+            'verified_by': None,
+            'verified_at': None,
+            'notes': '',
+            'purchase_proof': None,  # Can store Ko-Fi order ID
+            'auto_approved': False,  # For future email verification
+        }
+        return verification_request
+    except Exception as e:
+        st.error(f"Error creating verification request: {e}")
+        return None
+
         
 # -------------------------
 # ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
@@ -11013,37 +11045,6 @@ def supabase_save_gallery_images(images: list):
     return True
 
 # PURCHASE VERIFICATION SYSTEM - Helper Functions
-
-def create_purchase_verification_request(username: str, email: str, plan: str = "premium") -> dict:
-    """
-    Create a new purchase verification request
-    
-    Args:
-        username: The user's username
-        email: The email used for Ko-Fi purchase
-        plan: The plan they're purchasing (premium, premium_3month, etc.)
-    
-    Returns:
-        dict: The verification request object or None if error
-    """
-    try:
-        verification_request = {
-            'id': str(uuid.uuid4())[:8],
-            'username': username,
-            'email': email.strip().lower(),  # Normalize email
-            'plan': plan,
-            'status': 'pending',  # pending, approved, rejected
-            'submitted_at': datetime.now().isoformat(),
-            'verified_by': None,
-            'verified_at': None,
-            'notes': '',
-            'purchase_proof': None,  # Can store Ko-Fi order ID
-            'auto_approved': False,  # For future email verification
-        }
-        return verification_request
-    except Exception as e:
-        st.error(f"Error creating verification request: {e}")
-        return None
 
 def get_user_verification_history(username: str) -> list:
     """
