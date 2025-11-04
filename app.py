@@ -9904,7 +9904,7 @@ def render_admin_dashboard():
         render_kai_agent()
     
     elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":  # New section for Ko-Fi Verification
-        st.markdown("## 💳 Ko-Fi Purchase Verification")
+        st.markdown("## 💳 Ko-Fi")
         render_admin_purchase_verification_panel()  # This renders the Ko-Fi verification section
     
     else:
