@@ -2127,66 +2127,52 @@ def supabase_save_analytics(data: dict):
 
 
 def record_successful_login(username: str):
-    """Update users table and analytics login_history/total_logins."""
+    """Update users table and analytics login_history/total_logins safely."""
     client = _init_supabase_hardened()
     if not client:
-        try:
-            import streamlit as st
-            st.error("Supabase unavailable")
-        except Exception:
-            pass
+        st.error("❌ Supabase unavailable")
         return
-    # Update users table
+
+    # ---- 1️⃣ Update the users table ----
     try:
         u = client.table("users").select("login_count").eq("username", username).single().execute()
         current = 0
-        if hasattr(u, "data") and u.data and isinstance(u.data, dict):
+        if hasattr(u, "data") and isinstance(u.data, dict):
             current = u.data.get("login_count", 0) or 0
+
         client.table("users").update({
             "last_login": datetime.now().isoformat(),
             "login_count": int(current) + 1
         }).eq("username", username).execute()
     except Exception as e:
         print(f"⚠️ Could not update users login_count: {e}")
-    # Update analytics singleton
+
+    # ---- 2️⃣ Update analytics table ----
     try:
-        a = client.table("analytics").select("login_history,total_logins").eq("id", 1).single().execute()
-        login_history = []
-        total_logins = 0
-        if hasattr(a, "data") and a.data and isinstance(a.data, dict):
-            login_history = a.data.get("login_history", []) or []
-            total_logins = a.data.get("total_logins", 0) or 0
+        result = client.table("analytics").select("id, login_history, total_logins").eq("id", 1).single().execute()
+        if hasattr(result, "data") and result.data:
+            login_history = result.data.get("login_history", []) or []
+            total_logins = result.data.get("total_logins", 0) or 0
+        else:
+            login_history, total_logins = [], 0
+
         login_entry = {"username": username, "timestamp": datetime.now().isoformat()}
         login_history.append(login_entry)
-        payload = {"id": 1, "login_history": login_history, "total_logins": int(total_logins) + 1}
-        client.table("analytics").upsert(payload, on_conflict="id").execute()
-    except Exception as e:
-        try:
-            import streamlit as st
-            st.error(f"❌ Error saving login data: {e}")
-        except Exception:
-            print(f"❌ Error saving login data: {e}")
 
-    # Ensure row id=1 exists
-    try:
-        client.table("analytics").select("id").eq("id", 1).single().execute()
-    except Exception as _seed_chk:
-        try:
-            client.table("analytics").insert({"id": 1}).execute()
-        except Exception as e:
-            print(f"❌ Could not seed analytics row: {e}")
+        payload = {
+            "id": 1,
+            "login_history": login_history,
+            "total_logins": int(total_logins) + 1,
+        }
 
-    safe = _sanitize_analytics_payload(data if isinstance(data, dict) else {})
-    try:
-        resp = client.table("analytics").upsert(safe, on_conflict="id").execute()
+        resp = client.table("analytics").upsert(payload, on_conflict="id").execute()
         if hasattr(resp, "error") and resp.error:
-            print(f"❌ Supabase analytics upsert error: {resp.error}")
+            print(f"❌ Supabase returned error: {resp.error}")
         else:
-            print("✅ Analytics saved.")
-        return resp
+            print("✅ Login data saved to analytics.")
     except Exception as e:
-        print(f"❌ Error saving analytics: {e}")
-        return None
+        print(f"❌ Error saving login data (details): {e}")
+        st.error(f"❌ Error saving login data: {e}")
 
 def supabase_get_strategy_analyses():
     """Get strategy analyses from Supabase - FIXED"""
