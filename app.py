@@ -4349,8 +4349,23 @@ class UserManager:
         return supabase_save_users(self.users)
 
     def save_analytics(self):
-        """Save analytics data to Supabase - FIXED VERSION"""
-        return supabase_save_analytics(self.analytics)
+        """
+        Save analytics safely to Supabase
+        Filters out fields not in the 'analytics' table schema (e.g. purchase_verifications).
+        """
+        if not hasattr(self, "analytics"):
+            return
+
+        # 🧠 Filter out non-database keys
+        safe_analytics = {
+            k: v for k, v in self.analytics.items()
+            if k not in ["purchase_verifications", "purchase_history"]
+        }
+
+        try:
+            supabase_save_analytics(safe_analytics)
+        except Exception as e:
+            print(f"⚠️ Skipped invalid analytics key: {e}")
 
     def periodic_cleanup(self):
         """Periodic cleanup that doesn't delete user data"""
@@ -8475,30 +8490,41 @@ def render_verification_analytics_admin(all_verifications):
         st.metric("Avg Approval Time", avg_approval_time)
 
 def submit_purchase_verification(username: str, email: str, plan: str = "premium") -> bool:
-    """
-    Submit a purchase verification request to the database
-    """
+    """Submit a purchase verification request directly to Supabase (fixed)"""
     try:
-        # 1️⃣ Create the request
-        verification_request = create_purchase_verification_request(username, email, plan)
-        if not verification_request:
+        # 1️⃣ Initialize Supabase client
+        client = _init_supabase_hardened()
+        if not client:
+            st.error("❌ Could not connect to Supabase.")
             return False
 
-        # 2️⃣ Prevent duplicate pending requests
-        existing_pending = any(
-            req['username'] == username and req['status'] == 'pending'
-            for req in user_manager.analytics.get('purchase_verifications', [])
-        )
-        if existing_pending:
-            st.warning("⚠️ You already have a pending verification request. Please wait for it to be processed.")
+        # 2️⃣ Build request object
+        verification_request = {
+            "username": username,
+            "email": email.strip().lower(),
+            "plan": plan,
+            "status": "pending",
+            "submitted_at": datetime.now().isoformat(),
+        }
+
+        # 3️⃣ Check for existing pending record (optional)
+        existing = client.table("purchase_verifications") \
+            .select("id", count="exact") \
+            .eq("username", username) \
+            .eq("status", "pending") \
+            .execute()
+
+        if existing.count and existing.count > 0:
+            st.warning("⚠️ You already have a pending verification request.")
             return False
 
-        # ✅ 3️⃣ FIX: Ensure key exists before append
-        user_manager.analytics.setdefault('purchase_verifications', [])
-        user_manager.analytics['purchase_verifications'].append(verification_request)
-        user_manager.save_analytics()
+        # 4️⃣ Insert into purchase_verifications table
+        resp = client.table("purchase_verifications").insert(verification_request).execute()
 
-        # 4️⃣ Success
+        if hasattr(resp, "error") and resp.error:
+            raise Exception(resp.error)
+
+        st.success("✅ Verification request submitted successfully!")
         return True
 
     except Exception as e:
@@ -11063,55 +11089,53 @@ def get_user_verification_history(username: str) -> list:
         st.error(f"Error fetching history: {e}")
         return []
 
-def approve_verification_request(username: str, admin_username: str) -> bool:
-    """
-    Approve a verification request and upgrade user to premium
-    """
+def approve_verification_request(verification_id: str, admin_name: str = "system") -> bool:
+    """Admin approves a pending verification request."""
     try:
-        # Find the pending request
-        pending = get_user_pending_verification(username)
-        if not pending:
-            st.error("No pending verification request found")
+        client = _init_supabase_hardened()
+        if not client:
+            st.error("❌ Database connection failed.")
             return False
-        
-        # Upgrade user to the requested plan
-        plan = pending.get('plan', 'premium')
-        success, message = user_manager.change_user_plan(username, plan)
-        if not success:
-            st.error(f"Failed to upgrade user: {message}")
-            return False
-        
-        # Update request status
-        pending['status'] = 'approved'
-        pending['verified_by'] = admin_username
-        pending['verified_at'] = datetime.now().isoformat()
-        pending['auto_approved'] = False
-        
-        user_manager.save_analytics()
+
+        # ✅ Update record in Supabase
+        resp = client.table("purchase_verifications").update({
+            "status": "approved",
+            "verified_by": admin_name,
+            "verified_at": datetime.now().isoformat()
+        }).eq("verification_id", verification_id).execute()
+
+        if hasattr(resp, "error") and resp.error:
+            raise Exception(resp.error)
+
+        st.success("✅ Verification approved successfully!")
         return True
+
     except Exception as e:
         st.error(f"Error approving verification: {e}")
         return False
 
-def reject_verification_request(username: str, admin_username: str, reason: str = "") -> bool:
-    """
-    Reject a verification request with optional reason
-    """
+def reject_verification_request(verification_id: str, admin_name: str = "system", notes: str = "") -> bool:
+    """Admin rejects a pending verification request."""
     try:
-        # Find the pending request
-        pending = get_user_pending_verification(username)
-        if not pending:
-            st.error("No pending verification request found")
+        client = _init_supabase_hardened()
+        if not client:
+            st.error("❌ Database connection failed.")
             return False
-        
-        # Update request status
-        pending['status'] = 'rejected'
-        pending['verified_by'] = admin_username
-        pending['verified_at'] = datetime.now().isoformat()
-        pending['notes'] = reason
-        
-        user_manager.save_analytics()
+
+        # ✅ Update record in Supabase
+        resp = client.table("purchase_verifications").update({
+            "status": "rejected",
+            "verified_by": admin_name,
+            "verified_at": datetime.now().isoformat(),
+            "notes": notes
+        }).eq("verification_id", verification_id).execute()
+
+        if hasattr(resp, "error") and resp.error:
+            raise Exception(resp.error)
+
+        st.info("⚠️ Verification rejected.")
         return True
+
     except Exception as e:
         st.error(f"Error rejecting verification: {e}")
         return False
