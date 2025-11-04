@@ -8479,26 +8479,28 @@ def submit_purchase_verification(username: str, email: str, plan: str = "premium
     Submit a purchase verification request to the database
     """
     try:
-        # Create the request
+        # 1️⃣ Create the request
         verification_request = create_purchase_verification_request(username, email, plan)
         if not verification_request:
             return False
-        
-        # Check for duplicate pending requests
+
+        # 2️⃣ Prevent duplicate pending requests
         existing_pending = any(
-            req['username'] == username and req['status'] == 'pending' 
+            req['username'] == username and req['status'] == 'pending'
             for req in user_manager.analytics.get('purchase_verifications', [])
         )
-        
         if existing_pending:
             st.warning("⚠️ You already have a pending verification request. Please wait for it to be processed.")
             return False
-        
-        # Add to analytics
+
+        # ✅ 3️⃣ FIX: Ensure key exists before append
+        user_manager.analytics.setdefault('purchase_verifications', [])
         user_manager.analytics['purchase_verifications'].append(verification_request)
         user_manager.save_analytics()
-        
+
+        # 4️⃣ Success
         return True
+
     except Exception as e:
         st.error(f"Error submitting verification: {e}")
         return False
