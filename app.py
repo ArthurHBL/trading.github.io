@@ -8763,9 +8763,6 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        if st.session_state.get('show_purchase_verification'):
-            render_purchase_verification_modal()
-
         # DISCLAIMER BEFORE LOGOUT BUTTON - FOR LEGAL REASONS
         st.markdown("""
         <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
@@ -8785,6 +8782,11 @@ def render_user_dashboard():
 
     # Main dashboard content - READ ONLY for users but same layout as admin
     current_view = st.session_state.get('dashboard_view', 'main')
+
+    # ADD THIS: Check if purchase verification modal should be shown
+    if st.session_state.get('show_purchase_verification'):
+        render_purchase_verification_modal()
+        return  # Return early to prevent showing other content when modal is open
 
     if current_view == 'settings':
         render_user_account_settings()
