@@ -2118,11 +2118,33 @@ def supabase_get_analytics():
         return {}
 
 
+
 def supabase_save_analytics(data: dict):
     """Fully integrated with DB: sanitize and upsert into public.analytics (singleton id=1)."""
     client = _init_supabase_hardened()
     if not client:
         print("⚠️ Supabase client not initialized.")
+        return None
+
+    # Ensure row id=1 exists
+    try:
+        client.table("analytics").select("id").eq("id", 1).single().execute()
+    except Exception:
+        try:
+            client.table("analytics").insert({"id": 1}).execute()
+        except Exception as e:
+            print(f"❌ Could not seed analytics row: {e}")
+
+    safe = _sanitize_analytics_payload(data if isinstance(data, dict) else {})
+    try:
+        resp = client.table("analytics").upsert(safe, on_conflict="id").execute()
+        if hasattr(resp, "error") and resp.error:
+            print(f"❌ Supabase analytics upsert error: {resp.error}")
+        else:
+            print("✅ Analytics saved.")
+        return resp
+    except Exception as e:
+        print(f"❌ Error saving analytics: {e}")
         return None
 
 
@@ -4401,17 +4423,19 @@ class UserManager:
         """Save users to Supabase - FIXED VERSION"""
         return supabase_save_users(self.users)
 
+    
     def save_analytics(self):
+        """Save analytics to Supabase using strict schema guard."""
+        if not hasattr(self, "analytics") or not self.analytics:
+            return False
         try:
             cleaned = _sanitize_analytics_payload(self.analytics)
-            if not cleaned:
-                return False
-            cleaned["id"] = 1
             supabase_save_analytics(cleaned)
             return True
         except Exception as e:
-            print(f"Error saving analytics: {e}")
+            print(f"❌ Error saving analytics: {e}")
             return False
+
 
     def periodic_cleanup(self):
         """Periodic cleanup that doesn't delete user data"""
