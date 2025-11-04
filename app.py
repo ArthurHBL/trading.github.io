@@ -4231,15 +4231,41 @@ def check_email_quality(email):
 
     return issues
 
-def add_purchase_verification_to_user(user_manager):
+def add_purchase_verification_to_user(user_manager, supabase_client, purchase_data):
     """
-    Add purchase verification tracking to analytics if not exists
-    Call this in UserManager.__init__() after loading analytics
+    Records a user's verified purchase both locally (runtime) and in Supabase.
+    `purchase_data` should include:
+        username, plan, verification_id, purchase_email, approved_by, amount, currency, etc.
     """
-    if 'purchase_verifications' not in user_manager.analytics:
-        user_manager.analytics['purchase_verifications'] = []
-    if 'purchase_history' not in user_manager.analytics:
-        user_manager.analytics['purchase_history'] = []
+    # --- 1️⃣ Ensure local analytics object exists ---
+    if not hasattr(user_manager, "analytics"):
+        user_manager.analytics = {}
+
+    # Keep only runtime logs
+    user_manager.analytics.setdefault("purchase_verifications", [])
+
+    # --- 2️⃣ Save to Supabase (persistent) ---
+    try:
+        response = supabase_client.table("purchase_history").insert({
+            "username": purchase_data["username"],
+            "plan": purchase_data["plan"],
+            "verification_id": purchase_data.get("verification_id"),
+            "purchase_email": purchase_data.get("purchase_email"),
+            "approved_by": purchase_data.get("approved_by", "system"),
+            "approved_at": purchase_data.get("approved_at"),
+            "plan_expires": purchase_data.get("plan_expires"),
+            "kofi_order_id": purchase_data.get("kofi_order_id"),
+            "amount": purchase_data.get("amount"),
+            "currency": purchase_data.get("currency", "USD"),
+            "notes": purchase_data.get("notes"),
+        }).execute()
+
+        print("✅ Purchase record saved to Supabase:", response)
+        return response
+
+    except Exception as e:
+        print("❌ Error saving purchase history:", e)
+        return None
 
 # -------------------------
 # SECURE USER MANAGEMENT WITH SUPABASE PERSISTENCE - FIXED VERSION
