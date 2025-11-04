@@ -11171,7 +11171,7 @@ def init_purchase_verification_session_state():
 # =====================================================================
 
 def KAIO_purchase_verification_bootstrap():
-    \"\"\"Call this early in your app (e.g., inside main() after user login).
+    """Call this early in your app (e.g., inside main() after user login).
     It initializes state and, if the modal flag is set, renders it and returns True to signal early-exit.\"\"\"
     init_purchase_verification_session_state()
     # If the user opened the modal, render it and tell caller to early return.
