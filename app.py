@@ -10967,19 +10967,19 @@ def _is_transient_error(err):
 def _init_supabase_hardened():
 
 
-# ---- ANALYTICS SCHEMA GUARD ----
-ANALYTICS_ALLOWED_COLS = {
-    "id",
-    "total_logins",
-    "active_users",
-    "revenue_today",
-    "user_registrations",
-    "login_history",
-    "deleted_users",
-    "plan_changes",
-    "password_changes",
-    "email_verifications",
-}
+    # ---- ANALYTICS SCHEMA GUARD ----
+    ANALYTICS_ALLOWED_COLS = {
+        "id",
+        "total_logins",
+        "active_users",
+        "revenue_today",
+        "user_registrations",
+        "login_history",
+        "deleted_users",
+        "plan_changes",
+        "password_changes",
+        "email_verifications",
+    }
 
 def _sanitize_analytics_payload(data: dict) -> dict:
     """Keep only columns that exist in public.analytics and coerce JSONB-friendly types."""
