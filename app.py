@@ -425,7 +425,6 @@ def reject_purchase_verification(verification_id: str, admin_username: str, reas
 
 def render_user_purchase_button():
     """Add a purchase confirmation button to the user sidebar"""
-    st.sidebar.markdown("---")
     st.sidebar.subheader("💳 Upgrade Account")
 
     user = st.session_state.get('user', {})
