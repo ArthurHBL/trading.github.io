@@ -87,8 +87,8 @@ def init_supabase():
     """Initialize Supabase client - FIXED VERSION"""
     try:
         # You'll need to set these in your Streamlit Cloud secrets
-        SUPABASE_URL = "https://mowuitmupjyhczczzslw.supabase.co"
-        SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vd3VpdG11cGp5aGN6Y3p6c2x3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDkyNDE4NSwiZXhwIjoyMDc2NTAwMTg1fQ._iSHD2E5dyAzcUjWRuKIqP7e1OYd7R3y7wJawPlVqTY"
+        SUPABASE_URL = st.secrets["SUPABASE_URL"]
+        SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
         if not SUPABASE_URL or not SUPABASE_KEY:
             st.error("Supabase credentials not found. Please set SUPABASE_URL and SUPABASE_KEY in Streamlit secrets.")
@@ -850,7 +850,7 @@ def get_user_pending_verification(username: str):
 # -------------------------
 # DEEPSEEK API CONFIGURATION
 # -------------------------
-DEEPSEEK_API_KEY = "sk-5d1729bec094490ba50d7da5fe7d5fb1"  # Replace with actual API key
+DEEPSEEK_API_KEY = st.secrets["DEEPSEEK_API_KEY"]  # Replace with actual API key
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # -------------------------
