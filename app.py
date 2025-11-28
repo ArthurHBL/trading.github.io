@@ -1,4 +1,5 @@
 import streamlit as st
+import bcrypt
 import hashlib
 import json
 import pandas as pd
@@ -8,9 +9,7 @@ import re
 import time
 from supabase import create_client, Client
 import plotly.graph_objects as go
-from passlib.context import CryptContext # <-- ADD THIS LINE to your imports
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_image_format_safe(img_data):
     """Safely get image format with fallbacks"""
@@ -4986,9 +4985,6 @@ def check_email_quality(email):
 
     return issues
 
-# -------------------------
-# SECURE USER MANAGEMENT WITH SUPABASE PERSISTENCE - FIXED VERSION
-# -------------------------
 class UserManager:
     def __init__(self):
         self.load_data()
@@ -5026,14 +5022,23 @@ class UserManager:
             "email_verified": True, "verification_date": datetime.now().isoformat()
         }
 
-    # --- NEW SECURE HASHING METHODS ---
+    # --- NEW SECURE HASHING METHODS (using bcrypt directly) ---
     def hash_password(self, password):
         """Hashes a password using bcrypt."""
-        return pwd_context.hash(password)
+        password_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt()
+        hashed_bytes = bcrypt.hashpw(password_bytes, salt)
+        return hashed_bytes.decode('utf-8')
 
     def verify_password(self, plain_password, hashed_password):
-        """Verifies a password against a hash."""
-        return pwd_context.verify(plain_password, hashed_password)
+        """Verifies a plain password against a bcrypt hash."""
+        try:
+            plain_password_bytes = plain_password.encode('utf-8')
+            hashed_password_bytes = hashed_password.encode('utf-8')
+            return bcrypt.checkpw(plain_password_bytes, hashed_password_bytes)
+        except (ValueError, TypeError):
+            # This handles cases where the hash might be invalid, preventing a crash.
+            return False
 
     # --- LEGACY METHOD FOR MIGRATION (private) ---
     def _verify_legacy_password(self, password, password_hash):
@@ -5041,6 +5046,7 @@ class UserManager:
         salt = "default-salt-change-in-production"
         return hashlib.sha256((password + salt).encode()).hexdigest() == password_hash
 
+    # --- THE REST OF YOUR CODE IS UNCHANGED ---
     def save_users(self):
         return supabase_save_users(self.users)
 
