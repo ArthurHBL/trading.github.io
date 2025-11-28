@@ -3,6 +3,14 @@ import hashlib
 import json
 import pandas as pd
 import uuid
+from datetime import datetime, date, timedelta
+import re
+import time
+from supabase import create_client, Client
+import plotly.graph_objects as go
+from passlib.context import CryptContext # <-- ADD THIS LINE to your imports
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_image_format_safe(img_data):
     """Safely get image format with fallbacks"""
@@ -4991,794 +4999,354 @@ class UserManager:
             self.users = supabase_get_users()
             self.analytics = supabase_get_analytics()
 
-            # Create default admin if it doesn't exist
             if "admin" not in self.users:
                 self.create_default_admin()
                 self.save_users()
 
-            # Initialize analytics if empty
             if not self.analytics:
-                self.analytics = {
-                    "total_logins": 0,
-                    "active_users": 0,
-                    "revenue_today": 0,
-                    "user_registrations": [],
-                    "login_history": [],
-                    "deleted_users": [],
-                    "plan_changes": [],
-                    "password_changes": [],
-                    "email_verifications": []
-                }
+                self.analytics = { "total_logins": 0, "active_users": 0, "revenue_today": 0, "user_registrations": [], "login_history": [], "deleted_users": [], "plan_changes": [], "password_changes": [], "email_verifications": [] }
                 self.save_analytics()
 
         except Exception as e:
             st.error(f"❌ Error loading data: {e}")
-            # Initialize with default data
             self.users = {}
-            self.analytics = {
-                "total_logins": 0,
-                "active_users": 0,
-                "revenue_today": 0,
-                "user_registrations": [],
-                "login_history": [],
-                "deleted_users": [],
-                "plan_changes": [],
-                "password_changes": [],
-                "email_verifications": []
-            }
+            self.analytics = { "total_logins": 0, "active_users": 0, "revenue_today": 0, "user_registrations": [], "login_history": [], "deleted_users": [], "plan_changes": [], "password_changes": [], "email_verifications": [] }
             self.create_default_admin()
             self.save_users()
             self.save_analytics()
 
     def create_default_admin(self):
-        """Create default admin account"""
+        """Create default admin account with a SECURE password hash"""
         self.users["admin"] = {
             "password_hash": self.hash_password("ChangeThis123!"),
-            "name": "System Administrator",
-            "plan": "admin",
-            "expires": "2030-12-31",
-            "created": datetime.now().isoformat(),
-            "last_login": None,
-            "login_count": 0,
-            "active_sessions": 0,
-            "max_sessions": 3,
-            "is_active": True,
-            "email": "admin@tradinganalysis.com",
-            "subscription_id": "admin_account",
-            "email_verified": True,  # Admin email is always verified
-            "verification_date": datetime.now().isoformat()
+            "name": "System Administrator", "plan": "admin", "expires": "2030-12-31",
+            "created": datetime.now().isoformat(), "last_login": None, "login_count": 0,
+            "active_sessions": 0, "max_sessions": 3, "is_active": True,
+            "email": "admin@tradinganalysis.com", "subscription_id": "admin_account",
+            "email_verified": True, "verification_date": datetime.now().isoformat()
         }
 
+    # --- NEW SECURE HASHING METHODS ---
     def hash_password(self, password):
-        """Secure password hashing"""
+        """Hashes a password using bcrypt."""
+        return pwd_context.hash(password)
+
+    def verify_password(self, plain_password, hashed_password):
+        """Verifies a password against a hash."""
+        return pwd_context.verify(plain_password, hashed_password)
+
+    # --- LEGACY METHOD FOR MIGRATION (private) ---
+    def _verify_legacy_password(self, password, password_hash):
+        """Verifies a password using the OLD insecure method."""
         salt = "default-salt-change-in-production"
-        return hashlib.sha256((password + salt).encode()).hexdigest()
+        return hashlib.sha256((password + salt).encode()).hexdigest() == password_hash
 
     def save_users(self):
-        """Save users to Supabase - FIXED VERSION"""
         return supabase_save_users(self.users)
 
     def save_analytics(self):
-        """Save analytics data to Supabase - FIXED VERSION"""
         return supabase_save_analytics(self.analytics)
 
     def periodic_cleanup(self):
-        """Periodic cleanup that doesn't delete user data"""
-        # Only reset session counts, don't delete users
         session_reset_count = 0
         for username in self.users:
             if self.users[username].get('active_sessions', 0) > 0:
                 self.users[username]['active_sessions'] = 0
                 session_reset_count += 1
-
         if session_reset_count > 0:
             self.save_users()
 
     def register_user(self, username, password, name, email, plan="trial"):
-        """Register new user with proper validation and persistence - FIXED VERSION"""
-        # Reload data first to ensure we have latest
         self.load_data()
-
-        if username in self.users:
-            return False, "Username already exists"
-
-        if not re.match("^[a-zA-Z0-9_]{3,20}$", username):
-            return False, "Username must be 3-20 characters (letters, numbers, _)"
-
-        if len(password) < 8:
-            return False, "Password must be at least 8 characters"
-
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            return False, "Invalid email address"
+        if username in self.users: return False, "Username already exists"
+        if not re.match("^[a-zA-Z0-9_]{3,20}$", username): return False, "Username must be 3-20 characters (letters, numbers, _)"
+        if len(password) < 8: return False, "Password must be at least 8 characters"
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email): return False, "Invalid email address"
 
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
 
         self.users[username] = {
             "password_hash": self.hash_password(password),
-            "name": name,
-            "email": email,
-            "plan": plan,
-            "expires": expires,
-            "created": datetime.now().isoformat(),
-            "last_login": None,
-            "login_count": 0,
-            "active_sessions": 0,
-            "max_sessions": plan_config["max_sessions"],
-            "is_active": True,
+            "name": name, "email": email, "plan": plan, "expires": expires,
+            "created": datetime.now().isoformat(), "last_login": None, "login_count": 0,
+            "active_sessions": 0, "max_sessions": plan_config["max_sessions"], "is_active": True,
             "subscription_id": f"sub_{username}_{int(time.time())}",
-            "payment_status": "active" if plan == "trial" else "pending",
-            "email_verified": False,  # NEW: Email verification status
-            "verification_date": None,  # NEW: When email was verified
-            "verification_notes": "",  # NEW: Admin notes for verification
-            "verification_admin": None  # NEW: Which admin verified the email
+            "payment_status": "active" if plan == "trial" else "pending", "email_verified": False,
+            "verification_date": None, "verification_notes": "", "verification_admin": None
         }
-
-        # Update analytics
-        if 'user_registrations' not in self.analytics:
-            self.analytics['user_registrations'] = []
-
-        self.analytics["user_registrations"].append({
-            "username": username,
-            "plan": plan,
-            "timestamp": datetime.now().isoformat()
-        })
-
-        # Save both files
-        users_saved = self.save_users()
-        analytics_saved = self.save_analytics()
-
+        if 'user_registrations' not in self.analytics: self.analytics['user_registrations'] = []
+        self.analytics["user_registrations"].append({ "username": username, "plan": plan, "timestamp": datetime.now().isoformat() })
+        
+        users_saved, analytics_saved = self.save_users(), self.save_analytics()
         if users_saved and analytics_saved:
             return True, f"Account created successfully! {plan_config['name']} activated."
         else:
-            # Remove the user if save failed
-            if username in self.users:
-                del self.users[username]
+            if username in self.users: del self.users[username]
             return False, "Error saving user data. Please try again."
 
+    def authenticate(self, username, password):
+        if 'login_history' not in self.analytics: self.analytics['login_history'] = []
+        self.analytics["total_logins"] = self.analytics.get("total_logins", 0) + 1
+        self.analytics["login_history"].append({ "username": username, "timestamp": datetime.now().isoformat(), "success": False })
+
+        if username not in self.users:
+            self.save_analytics(); return False, "Invalid username or password"
+
+        user = self.users[username]
+        current_hash = user.get("password_hash")
+
+        if not user.get("is_active", True): return False, "Account deactivated. Please contact support."
+
+        password_verified, is_legacy_hash = False, False
+        try:
+            if self.verify_password(password, current_hash): password_verified = True
+        except (ValueError, TypeError): pass
+
+        if not password_verified:
+            if self._verify_legacy_password(password, current_hash):
+                password_verified, is_legacy_hash = True, True
+
+        if not password_verified:
+            self.save_analytics(); return False, "Invalid username or password"
+        
+        expires = user.get("expires")
+        if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
+            return False, "Subscription expired. Please renew your plan."
+
+        if is_legacy_hash:
+            st.toast("Upgrading account security...", icon="🛡️")
+            user["password_hash"] = self.hash_password(password)
+
+        user["last_login"] = datetime.now().isoformat()
+        user["login_count"] = user.get("login_count", 0) + 1
+        user["active_sessions"] = user.get("active_sessions", 0) + 1
+        self.analytics["login_history"][-1]["success"] = True
+
+        users_saved, analytics_saved = self.save_users(), self.save_analytics()
+        return (True, "Login successful") if users_saved and analytics_saved else (False, "Error saving login data")
+    
     def create_test_user(self, plan="trial"):
-        """Create a test user for admin purposes"""
         test_username = f"test_{int(time.time())}"
         test_email = f"test{int(time.time())}@example.com"
-
         plan_config = Config.PLANS.get(plan, Config.PLANS["trial"])
         expires = (datetime.now() + timedelta(days=plan_config["duration"])).strftime("%Y-%m-%d")
-
         self.users[test_username] = {
             "password_hash": self.hash_password("test12345"),
-            "name": f"Test User {test_username}",
-            "email": test_email,
-            "plan": plan,
-            "expires": expires,
-            "created": datetime.now().isoformat(),
-            "last_login": None,
-            "login_count": 0,
-            "active_sessions": 0,
-            "max_sessions": plan_config["max_sessions"],
-            "is_active": True,
-            "subscription_id": f"test_{test_username}",
-            "payment_status": "active",
-            "email_verified": False,  # Test users start unverified
-            "verification_date": None,
-            "verification_notes": "",
-            "verification_admin": None
+            "name": f"Test User {test_username}", "email": test_email, "plan": plan,
+            "expires": expires, "created": datetime.now().isoformat(), "last_login": None,
+            "login_count": 0, "active_sessions": 0, "max_sessions": plan_config["max_sessions"],
+            "is_active": True, "subscription_id": f"test_{test_username}",
+            "payment_status": "active", "email_verified": False, "verification_date": None,
+            "verification_notes": "", "verification_admin": None
         }
-
-        self.analytics["user_registrations"].append({
-            "username": test_username,
-            "plan": plan,
-            "timestamp": datetime.now().isoformat()
-        })
-
+        self.analytics["user_registrations"].append({ "username": test_username, "plan": plan, "timestamp": datetime.now().isoformat() })
         if self.save_users() and self.save_analytics():
             return test_username, f"Test user '{test_username}' created with {plan} plan!"
         else:
             return None, "Error creating test user"
 
     def delete_user(self, username):
-        """Delete a user account completely - FIXED VERSION"""
-        if username not in self.users:
-            return False, "User not found"
-
-        if username == "admin":
-            return False, "Cannot delete admin account"
-
-        user_data = self.users[username]
-
-        # Store user info for analytics before deletion
-        user_plan = user_data.get('plan', 'unknown')
-        user_created = user_data.get('created', 'unknown')
-
-        # Delete the user
-        del self.users[username]
-
-        # Update analytics
-        if 'deleted_users' not in self.analytics:
-            self.analytics['deleted_users'] = []
-
-        self.analytics['deleted_users'].append({
-            "username": username,
-            "plan": user_plan,
-            "created": user_created,
-            "deleted_at": datetime.now().isoformat()
-        })
-
-        # Delete from Supabase
+        if username not in self.users: return False, "User not found"
+        if username == "admin": return False, "Cannot delete admin account"
+        user_data = self.users.pop(username)
+        if 'deleted_users' not in self.analytics: self.analytics['deleted_users'] = []
+        self.analytics['deleted_users'].append({ "username": username, "plan": user_data.get('plan', 'unknown'), "created": user_data.get('created', 'unknown'), "deleted_at": datetime.now().isoformat() })
         supabase_success = supabase_delete_user(username)
-
-        # Save changes to local data
-        users_saved = self.save_users()
-        analytics_saved = self.save_analytics()
-
-        if users_saved and analytics_saved and supabase_success:
-            return True, f"User '{username}' has been permanently deleted"
-        else:
-            return False, "Error deleting user data"
+        users_saved, analytics_saved = self.save_users(), self.save_analytics()
+        return (True, f"User '{username}' has been permanently deleted") if users_saved and analytics_saved and supabase_success else (False, "Error deleting user data")
 
     def change_user_plan(self, username, new_plan):
-        """Change a user's subscription plan"""
-        if username not in self.users:
-            return False, "User not found"
-
-        if username == "admin":
-            return False, "Cannot modify admin account plan"
-
-        if new_plan not in Config.PLANS and new_plan != "admin":
-            return False, f"Invalid plan: {new_plan}"
-
+        if username not in self.users: return False, "User not found"
+        if username == "admin": return False, "Cannot modify admin account plan"
+        if new_plan not in Config.PLANS and new_plan != "admin": return False, f"Invalid plan: {new_plan}"
         user_data = self.users[username]
         old_plan = user_data.get('plan', 'unknown')
-
-        old_plan_config = Config.PLANS.get(old_plan, {})
         new_plan_config = Config.PLANS.get(new_plan, {})
-
-        if new_plan != "admin":
-            expires = (datetime.now() + timedelta(days=new_plan_config["duration"])).strftime("%Y-%m-%d")
-        else:
-            expires = "2030-12-31"
-
-        user_data['plan'] = new_plan
-        user_data['expires'] = expires
-        user_data['max_sessions'] = new_plan_config.get('max_sessions', 1) if new_plan != "admin" else 3
-
-        if 'plan_changes' not in self.analytics:
-            self.analytics['plan_changes'] = []
-
-        self.analytics['plan_changes'].append({
-            "username": username,
-            "old_plan": old_plan,
-            "new_plan": new_plan,
-            "timestamp": datetime.now().isoformat(),
-            "admin": self.users.get('admin', {}).get('name', 'System')
-        })
-
+        expires = "2030-12-31" if new_plan == "admin" else (datetime.now() + timedelta(days=new_plan_config.get("duration", 30))).strftime("%Y-%m-%d")
+        user_data.update({'plan': new_plan, 'expires': expires, 'max_sessions': new_plan_config.get('max_sessions', 1) if new_plan != "admin" else 3})
+        if 'plan_changes' not in self.analytics: self.analytics['plan_changes'] = []
+        self.analytics['plan_changes'].append({ "username": username, "old_plan": old_plan, "new_plan": new_plan, "timestamp": datetime.now().isoformat(), "admin": st.session_state.get("username", "System") })
         if self.save_users() and self.save_analytics():
             return True, f"User '{username}' plan changed from {old_plan} to {new_plan}"
         else:
             return False, "Error saving plan change"
 
-    def authenticate(self, username, password):
-        """Authenticate user WITHOUT email verification blocking - FIXED VERSION"""
-        # Increment login attempts first
-        self.analytics["total_logins"] += 1
-        self.analytics["login_history"].append({
-            "username": username,
-            "timestamp": datetime.now().isoformat(),
-            "success": False
-        })
-
-        if username not in self.users:
-            self.save_analytics()
-            return False, "Invalid username or password"
-
-        user = self.users[username]
-
-        if not user.get("is_active", True):
-            return False, "Account deactivated. Please contact support."
-
-        # REMOVED: Email verification check - users can login immediately
-        # Email verification status is only for admin monitoring
-
-        if not self.verify_password(password, user["password_hash"]):
-            # Save analytics for failed login
-            self.save_analytics()
-            return False, "Invalid username or password"
-
-        expires = user.get("expires")
-        if expires and datetime.strptime(expires, "%Y-%m-%d").date() < date.today():
-            return False, "Subscription expired. Please renew your plan."
-
-        user["last_login"] = datetime.now().isoformat()
-        user["login_count"] = user.get("login_count", 0) + 1
-        user["active_sessions"] += 1
-
-        self.analytics["login_history"][-1]["success"] = True
-
-        # Save both users and analytics - FIXED: Check both saves
-        users_saved = self.save_users()
-        analytics_saved = self.save_analytics()
-
-        if users_saved and analytics_saved:
-            return True, "Login successful"
-        else:
-            return False, "Error saving login data"
-
-    def verify_password(self, password, password_hash):
-        return self.hash_password(password) == password_hash
-
     def logout(self, username):
-        """Logout user"""
         if username in self.users:
-            self.users[username]["active_sessions"] = max(0, self.users[username]["active_sessions"] - 1)
+            self.users[username]["active_sessions"] = max(0, self.users[username].get("active_sessions", 1) - 1)
             self.save_users()
 
     def change_admin_password(self, current_password, new_password, changed_by="admin"):
-        """Change admin password with verification"""
         admin_user = self.users.get("admin")
-        if not admin_user:
-            return False, "Admin account not found"
-
-        if not self.verify_password(current_password, admin_user["password_hash"]):
-            return False, "Current password is incorrect"
-
-        if self.verify_password(new_password, admin_user["password_hash"]):
-            return False, "New password cannot be the same as current password"
-
+        if not admin_user: return False, "Admin account not found"
+        if not self.verify_password(current_password, admin_user["password_hash"]): return False, "Current password is incorrect"
+        if self.verify_password(new_password, admin_user["password_hash"]): return False, "New password cannot be the same as current password"
         admin_user["password_hash"] = self.hash_password(new_password)
-
-        if 'password_changes' not in self.analytics:
-            self.analytics['password_changes'] = []
-
-        self.analytics['password_changes'].append({
-            "username": "admin",
-            "timestamp": datetime.now().isoformat(),
-            "changed_by": changed_by
-        })
-
+        if 'password_changes' not in self.analytics: self.analytics['password_changes'] = []
+        self.analytics['password_changes'].append({ "username": "admin", "timestamp": datetime.now().isoformat(), "changed_by": changed_by })
         if self.save_users() and self.save_analytics():
             return True, "Admin password changed successfully!"
         else:
             return False, "Error saving password change"
-
-    def get_business_metrics(self):
-        """Get business metrics for admin"""
-        total_users = len(self.users)
-        active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
-        online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
-
-        plan_counts = {}
-        for user in self.users.values():
-            plan = user.get('plan', 'unknown')
-            plan_counts[plan] = plan_counts.get(plan, 0) + 1
-
-        # NEW: Email verification metrics
-        verified_users = sum(1 for u in self.users.values() if u.get('email_verified', False))
-        unverified_users = total_users - verified_users
-
-        return {
-            "total_users": total_users,
-            "active_users": active_users,
-            "online_users": online_users,
-            "plan_distribution": plan_counts,
-            "total_logins": self.analytics.get("total_logins", 0),
-            "revenue_today": self.analytics.get("revenue_today", 0),
-            "verified_users": verified_users,
-            "unverified_users": unverified_users
-        }
-
-    # NEW FUNCTION: Export all user credentials
-    def export_user_credentials(self):
-        """Export all user login credentials to CSV"""
-        try:
-            rows = []
-            for username, user_data in self.users.items():
-                # Note: We cannot decrypt passwords, but we can show account details
-                rows.append({
-                    "username": username,
-                    "name": user_data.get("name", ""),
-                    "email": user_data.get("email", ""),
-                    "plan": user_data.get("plan", ""),
-                    "expires": user_data.get("expires", ""),
-                    "created": user_data.get("created", ""),
-                    "last_login": user_data.get("last_login", ""),
-                    "login_count": user_data.get("login_count", 0),
-                    "active_sessions": user_data.get("active_sessions", 0),
-                    "is_active": user_data.get("is_active", True),
-                    "subscription_id": user_data.get("subscription_id", ""),
-                    "payment_status": user_data.get("payment_status", ""),
-                    "email_verified": user_data.get("email_verified", False),  # NEW
-                    "verification_date": user_data.get("verification_date", ""),  # NEW
-                    "verification_admin": user_data.get("verification_admin", "")  # NEW
-                })
-
-            df = pd.DataFrame(rows)
-            csv_bytes = df.to_csv(index=False).encode('utf-8')
-            return csv_bytes, None
-        except Exception as e:
-            return None, f"Error exporting user data: {str(e)}"
-
-    # NEW FUNCTION: Change any user's username
-    def change_username(self, old_username, new_username, changed_by="admin"):
-        """Change a user's username"""
-        if old_username not in self.users:
-            return False, "User not found"
-
-        if new_username in self.users:
-            return False, "New username already exists"
-
-        if not re.match("^[a-zA-Z0-9_]{3,20}$", new_username):
-            return False, "New username must be 3-20 characters (letters, numbers, _)"
-
-        # Store user data
-        user_data = self.users[old_username]
-
-        # Remove old username and add with new username
-        del self.users[old_username]
-        self.users[new_username] = user_data
-
-        # Update analytics
-        if 'username_changes' not in self.analytics:
-            self.analytics['username_changes'] = []
-
-        self.analytics['username_changes'].append({
-            "old_username": old_username,
-            "new_username": new_username,
-            "timestamp": datetime.now().isoformat(),
-            "changed_by": changed_by
-        })
-
-        if self.save_users() and self.save_analytics():
-            return True, f"Username changed from '{old_username}' to '{new_username}'"
-        else:
-            # Rollback if save failed
-            del self.users[new_username]
-            self.users[old_username] = user_data
-            return False, "Error saving username change"
-
-    # NEW FUNCTION: Change any user's password
+    
     def change_user_password(self, username, new_password, changed_by="admin"):
-        """Change any user's password (admin function)"""
-        if username not in self.users:
-            return False, "User not found"
-
-        if len(new_password) < 8:
-            return False, "Password must be at least 8 characters"
-
+        if username not in self.users: return False, "User not found"
+        if len(new_password) < 8: return False, "Password must be at least 8 characters"
         user_data = self.users[username]
-
-        # Check if new password is same as current
-        if self.verify_password(new_password, user_data["password_hash"]):
-            return False, "New password cannot be the same as current password"
-
+        if self.verify_password(new_password, user_data["password_hash"]): return False, "New password cannot be the same as current password"
         user_data["password_hash"] = self.hash_password(new_password)
-
-        # Update analytics
-        if 'password_changes' not in self.analytics:
-            self.analytics['password_changes'] = []
-
-        self.analytics['password_changes'].append({
-            "username": username,
-            "timestamp": datetime.now().isoformat(),
-            "changed_by": changed_by,
-            "type": "admin_forced_change"
-        })
-
+        if 'password_changes' not in self.analytics: self.analytics['password_changes'] = []
+        self.analytics['password_changes'].append({ "username": username, "timestamp": datetime.now().isoformat(), "changed_by": changed_by, "type": "admin_forced_change" })
         if self.save_users() and self.save_analytics():
             return True, f"Password for '{username}' changed successfully!"
         else:
             return False, "Error saving password change"
 
-    # NEW FUNCTION: Get user credentials for display
-    def get_user_credentials_display(self):
-        """Get user credentials for display (without password hashes)"""
-        users_list = []
-        for username, user_data in self.users.items():
-            users_list.append({
-                "username": username,
-                "name": user_data.get("name", ""),
-                "email": user_data.get("email", ""),
-                "plan": user_data.get("plan", ""),
-                "expires": user_data.get("expires", ""),
-                "created": user_data.get("created", ""),
-                "last_login": user_data.get("last_login", ""),
-                "is_active": user_data.get("is_active", True),
-                "login_count": user_data.get("login_count", 0),
-                "active_sessions": user_data.get("active_sessions", 0),
-                "email_verified": user_data.get("email_verified", False),  # NEW
-                "verification_date": user_data.get("verification_date", ""),  # NEW
-                "verification_admin": user_data.get("verification_admin", "")  # NEW
-            })
-        return users_list
-
-    # NEW FUNCTION: Verify user email manually
-    def verify_user_email(self, username, admin_username, notes=""):
-        """Manually verify a user's email address (admin function)"""
-        if username not in self.users:
-            return False, "User not found"
-
-        if username == "admin":
-            return False, "Cannot modify admin account verification"
-
-        user_data = self.users[username]
-
-        if user_data.get("email_verified", False):
-            return False, "Email is already verified"
-
-        # Update verification status
-        user_data["email_verified"] = True
-        user_data["verification_date"] = datetime.now().isoformat()
-        user_data["verification_admin"] = admin_username
-        user_data["verification_notes"] = notes
-
-        # Update analytics
-        if 'email_verifications' not in self.analytics:
-            self.analytics['email_verifications'] = []
-
-        self.analytics['email_verifications'].append({
-            "username": username,
-            "email": user_data.get("email", ""),
-            "verified_by": admin_username,
-            "timestamp": datetime.now().isoformat(),
-            "notes": notes
-        })
-
-        if self.save_users() and self.save_analytics():
-            return True, f"Email for '{username}' has been verified successfully!"
-        else:
-            return False, "Error saving verification data"
-
-    # NEW FUNCTION: Revoke email verification
-    def revoke_email_verification(self, username, admin_username, reason=""):
-        """Revoke email verification (admin function)"""
-        if username not in self.users:
-            return False, "User not found"
-
-        if username == "admin":
-            return False, "Cannot modify admin account verification"
-
-        user_data = self.users[username]
-
-        if not user_data.get("email_verified", False):
-            return False, "Email is not verified"
-
-        # Update verification status
-        user_data["email_verified"] = False
-        user_data["verification_date"] = None
-        user_data["verification_admin"] = None
-        user_data["verification_notes"] = reason
-
-        # Update analytics
-        if 'email_verifications' not in self.analytics:
-            self.analytics['email_verifications'] = []
-
-        self.analytics['email_verifications'].append({
-            "username": username,
-            "email": user_data.get("email", ""),
-            "action": "revoked",
-            "revoked_by": admin_username,
-            "timestamp": datetime.now().isoformat(),
-            "reason": reason
-        })
-
-        if self.save_users() and self.save_analytics():
-            return True, f"Email verification for '{username}' has been revoked!"
-        else:
-            return False, "Error saving verification data"
-
-    # NEW FUNCTION: Get email verification statistics
-    def get_email_verification_stats(self):
-        """Get statistics about email verification status"""
-        total_users = len(self.users)
-        verified_count = 0
-        unverified_count = 0
-        pending_verification = []
-        recently_verified = []
-
-        for username, user_data in self.users.items():
-            if username == "admin":
-                continue  # Skip admin
-
-            if user_data.get("email_verified", False):
-                verified_count += 1
-                # Get recently verified (last 7 days)
-                verification_date = user_data.get("verification_date")
-                if verification_date:
-                    try:
-                        verify_dt = datetime.fromisoformat(verification_date)
-                        if (datetime.now() - verify_dt).days <= 7:
-                            recently_verified.append({
-                                "username": username,
-                                "email": user_data.get("email", ""),
-                                "verified_date": verification_date,
-                                "verified_by": user_data.get("verification_admin", "")
-                            })
-                    except:
-                        pass
-            else:
-                unverified_count += 1
-                pending_verification.append({
-                    "username": username,
-                    "email": user_data.get("email", ""),
-                    "created": user_data.get("created", ""),
-                    "plan": user_data.get("plan", "")
-                })
-
-        return {
-            "total_users": total_users - 1,  # Exclude admin
-            "verified_count": verified_count,
-            "unverified_count": unverified_count,
-            "verification_rate": (verified_count / (total_users - 1)) * 100 if total_users > 1 else 0,
-            "pending_verification": pending_verification,
-            "recently_verified": recently_verified
-        }
-
-    # NEW FUNCTION: Get inactive users for bulk deletion - FIXED COMPARISON ERROR
-    def get_inactive_users(self, days_threshold=30):
-        """Get users who haven't logged in for more than specified days - FIXED VERSION"""
-        inactive_users = []
-        cutoff_date = datetime.now() - timedelta(days=days_threshold)
-
-        for username, user_data in self.users.items():
-            if username == "admin":
-                continue
-
-            last_login = user_data.get('last_login')
-            if not last_login:
-                # If user never logged in, check creation date
-                created_date = datetime.fromisoformat(user_data.get('created', datetime.now().isoformat()))
-                if created_date.date() < cutoff_date.date():  # FIXED: Compare dates, not datetime with date
-                    inactive_users.append(username)
-            else:
-                login_date = datetime.fromisoformat(last_login)
-                if login_date.date() < cutoff_date.date():  # FIXED: Compare dates, not datetime with date
-                    inactive_users.append(username)
-
-        return inactive_users
-
-    def upgrade_user_to_premium_tier(self, username, plan_key, duration_days, admin_username):
-        """
-        Upgrade a user to a specific premium tier
-        
-        Args:
-            username: The username to upgrade
-            plan_key: The plan key (e.g., 'premium', 'premium_3month', 'premium_6month', 'premium_12month')
-            duration_days: Number of days for this tier
-            admin_username: The admin performing the upgrade
-        
-        Returns:
-            (success: bool, message: str)
-        """
-        try:
-            if username not in self.users:
-                return False, "User not found"
-
-            user_data = self.users[username]
-            old_plan = user_data.get('plan', 'unknown')
-            
-            # Calculate new expiry date
-            new_expiry = (datetime.now() + timedelta(days=duration_days)).strftime("%Y-%m-%d")
-            
-            # Update user data
-            user_data['plan'] = plan_key
-            user_data['expires'] = new_expiry
-            user_data['max_sessions'] = Config.PLANS.get(plan_key, {}).get('max_sessions', 3)
-            
-            # Update analytics
-            if 'plan_changes' not in self.analytics:
-                self.analytics['plan_changes'] = []
-
-            plan_name = Config.PLANS.get(plan_key, {}).get('name', plan_key)
-            old_plan_name = Config.PLANS.get(old_plan, {}).get('name', old_plan)
-            
-            self.analytics['plan_changes'].append({
-                "username": username,
-                "old_plan": old_plan,
-                "new_plan": plan_key,
-                "timestamp": datetime.now().isoformat(),
-                "admin": admin_username,
-                "duration_days": duration_days
-            })
-
-            # Save changes
-            if self.save_users() and self.save_analytics():
-                return True, f"{username} upgraded from {old_plan_name} to {plan_name} ({duration_days} days)"
-            else:
-                return False, "Error saving upgrade to database"
-                
-        except Exception as e:
-            return False, f"Error during upgrade: {str(e)}"
-
-    # NEW FUNCTION: Bulk delete inactive users - FIXED VERSION
-    def bulk_delete_inactive_users(self, usernames):
-        """Bulk delete specified users - FIXED VERSION"""
-        success_count = 0
-        error_count = 0
-        errors = []
-
-        for username in usernames:
-            if username == "admin":
-                errors.append(f"Cannot delete admin account: {username}")
-                error_count += 1
-                continue
-
-            if username not in self.users:
-                errors.append(f"User not found: {username}")
-                error_count += 1
-                continue
-
-            # Store user info before deletion
-            user_data = self.users[username]
-            user_plan = user_data.get('plan', 'unknown')
-            user_created = user_data.get('created', 'unknown')
-
-            # Delete the user
-            del self.users[username]
-
-            # Update analytics
-            if 'deleted_users' not in self.analytics:
-                self.analytics['deleted_users'] = []
-
-            self.analytics['deleted_users'].append({
-                "username": username,
-                "plan": user_plan,
-                "created": user_created,
-                "deleted_at": datetime.now().isoformat(),
-                "reason": "bulk_delete_inactive"
-            })
-
-            # Delete from Supabase
-            supabase_success = supabase_delete_user(username)
-            if not supabase_success:
-                errors.append(f"Failed to delete {username} from database")
-                error_count += 1
-                continue
-
-            success_count += 1
-
-        # Save changes
-        if success_count > 0:
-            self.save_users()
-            self.save_analytics()
-
-        return success_count, error_count, errors
-
-    # NEW FUNCTION: User change their own password
     def change_own_password(self, username, current_password, new_password):
         """Allow user to change their own password"""
         if username not in self.users:
             return False, "User not found"
 
         user_data = self.users[username]
-
-        # Verify current password
         if not self.verify_password(current_password, user_data["password_hash"]):
             return False, "Current password is incorrect"
 
         if len(new_password) < 8:
             return False, "New password must be at least 8 characters"
 
-        # Check if new password is same as current
         if self.verify_password(new_password, user_data["password_hash"]):
             return False, "New password cannot be the same as current password"
 
-        # Update password
         user_data["password_hash"] = self.hash_password(new_password)
-
-        # Update analytics
         if 'password_changes' not in self.analytics:
             self.analytics['password_changes'] = []
-
         self.analytics['password_changes'].append({
-            "username": username,
-            "timestamp": datetime.now().isoformat(),
-            "changed_by": username,
-            "type": "user_self_change"
+            "username": username, "timestamp": datetime.now().isoformat(),
+            "changed_by": username, "type": "user_self_change"
         })
 
         if self.save_users() and self.save_analytics():
             return True, "Password changed successfully!"
         else:
             return False, "Error saving password change"
+
+    def get_business_metrics(self):
+        total_users = len(self.users)
+        active_users = sum(1 for u in self.users.values() if u.get('is_active', True))
+        online_users = sum(u.get('active_sessions', 0) for u in self.users.values())
+        plan_counts = pd.Series([u.get('plan', 'unknown') for u in self.users.values()]).value_counts().to_dict()
+        verified_users = sum(1 for u in self.users.values() if u.get('email_verified', False))
+        return {
+            "total_users": total_users, "active_users": active_users, "online_users": online_users,
+            "plan_distribution": plan_counts, "total_logins": self.analytics.get("total_logins", 0),
+            "revenue_today": self.analytics.get("revenue_today", 0), "verified_users": verified_users,
+            "unverified_users": total_users - verified_users
+        }
+
+    def export_user_credentials(self):
+        try:
+            df = pd.DataFrame.from_dict(self.users, orient='index')
+            df = df.drop(columns=['password_hash'])
+            csv_bytes = df.to_csv(index=True).encode('utf-8')
+            return csv_bytes, None
+        except Exception as e:
+            return None, f"Error exporting user data: {str(e)}"
+
+    def change_username(self, old_username, new_username, changed_by="admin"):
+        if old_username not in self.users: return False, "User not found"
+        if new_username in self.users: return False, "New username already exists"
+        if not re.match("^[a-zA-Z0-9_]{3,20}$", new_username): return False, "New username must be 3-20 characters (letters, numbers, _)"
+        self.users[new_username] = self.users.pop(old_username)
+        if 'username_changes' not in self.analytics: self.analytics['username_changes'] = []
+        self.analytics['username_changes'].append({ "old_username": old_username, "new_username": new_username, "timestamp": datetime.now().isoformat(), "changed_by": changed_by })
+        if self.save_users() and self.save_analytics():
+            return True, f"Username changed from '{old_username}' to '{new_username}'"
+        else:
+            self.users[old_username] = self.users.pop(new_username) # Revert change on failure
+            return False, "Error saving username change"
+        
+    def get_user_credentials_display(self):
+        users_list = []
+        for username, user_data in self.users.items():
+            users_list.append({
+                "username": username, "name": user_data.get("name", ""), "email": user_data.get("email", ""),
+                "plan": user_data.get("plan", ""), "expires": user_data.get("expires", ""), "created": user_data.get("created", ""),
+                "last_login": user_data.get("last_login", ""), "is_active": user_data.get("is_active", True), "login_count": user_data.get("login_count", 0),
+                "active_sessions": user_data.get("active_sessions", 0), "email_verified": user_data.get("email_verified", False),
+                "verification_date": user_data.get("verification_date", ""), "verification_admin": user_data.get("verification_admin", "")
+            })
+        return users_list
+
+    def verify_user_email(self, username, admin_username, notes=""):
+        if username not in self.users: return False, "User not found"
+        if username == "admin": return False, "Cannot modify admin account verification"
+        user_data = self.users[username]
+        if user_data.get("email_verified", False): return False, "Email is already verified"
+        user_data.update({"email_verified": True, "verification_date": datetime.now().isoformat(), "verification_admin": admin_username, "verification_notes": notes})
+        if 'email_verifications' not in self.analytics: self.analytics['email_verifications'] = []
+        self.analytics['email_verifications'].append({ "username": username, "email": user_data.get("email", ""), "verified_by": admin_username, "timestamp": datetime.now().isoformat(), "notes": notes })
+        if self.save_users() and self.save_analytics():
+            return True, f"Email for '{username}' has been verified successfully!"
+        else:
+            return False, "Error saving verification data"
+
+    def revoke_email_verification(self, username, admin_username, reason=""):
+        if username not in self.users: return False, "User not found"
+        if username == "admin": return False, "Cannot modify admin account verification"
+        user_data = self.users[username]
+        if not user_data.get("email_verified", False): return False, "Email is not verified"
+        user_data.update({"email_verified": False, "verification_date": None, "verification_admin": None, "verification_notes": reason})
+        if 'email_verifications' not in self.analytics: self.analytics['email_verifications'] = []
+        self.analytics['email_verifications'].append({ "username": username, "email": user_data.get("email", ""), "action": "revoked", "revoked_by": admin_username, "timestamp": datetime.now().isoformat(), "reason": reason })
+        if self.save_users() and self.save_analytics():
+            return True, f"Email verification for '{username}' has been revoked!"
+        else:
+            return False, "Error saving verification data"
+
+    def get_email_verification_stats(self):
+        total_users = len(self.users) -1 # Exclude admin
+        verified_count = sum(1 for u, d in self.users.items() if u != "admin" and d.get("email_verified", False))
+        return {
+            "total_users": total_users, "verified_count": verified_count, "unverified_count": total_users - verified_count,
+            "verification_rate": (verified_count / total_users) * 100 if total_users > 0 else 0
+        }
+
+    def get_inactive_users(self, days_threshold=30):
+        inactive_users = []
+        cutoff_date = datetime.now() - timedelta(days=days_threshold)
+        for username, user_data in self.users.items():
+            if username == "admin": continue
+            last_login_str = user_data.get('last_login')
+            last_activity_date = datetime.fromisoformat(last_login_str) if last_login_str else datetime.fromisoformat(user_data.get('created'))
+            if last_activity_date < cutoff_date:
+                inactive_users.append(username)
+        return inactive_users
+
+    def upgrade_user_to_premium_tier(self, username, plan_key, duration_days, admin_username):
+        if username not in self.users: return False, "User not found"
+        user_data = self.users[username]
+        old_plan = user_data.get('plan', 'unknown')
+        user_data.update({
+            'plan': plan_key,
+            'expires': (datetime.now() + timedelta(days=duration_days)).strftime("%Y-%m-%d"),
+            'max_sessions': Config.PLANS.get(plan_key, {}).get('max_sessions', 3)
+        })
+        if 'plan_changes' not in self.analytics: self.analytics['plan_changes'] = []
+        self.analytics['plan_changes'].append({ "username": username, "old_plan": old_plan, "new_plan": plan_key, "timestamp": datetime.now().isoformat(), "admin": admin_username, "duration_days": duration_days })
+        if self.save_users() and self.save_analytics():
+            return True, f"{username} upgraded to {Config.PLANS.get(plan_key, {}).get('name', plan_key)}"
+        else: return False, "Error saving upgrade"
+
+    def bulk_delete_inactive_users(self, usernames):
+        success_count, error_count, errors = 0, 0, []
+        for username in usernames:
+            if username == "admin":
+                errors.append(f"Cannot delete admin account: {username}"); error_count += 1; continue
+            success, msg = self.delete_user(username)
+            if success: success_count += 1
+            else: errors.append(msg); error_count += 1
+        return success_count, error_count, errors
 
 # Initialize user manager
 user_manager = UserManager()
