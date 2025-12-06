@@ -366,4 +366,4 @@ def __init__(self):
             else: errors.append(msg); error_count += 1
         return success_count, error_count, errors
 
-# Initialize user manager
+user_manager = UserManager()
