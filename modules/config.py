@@ -1,5 +1,3 @@
-
- (15 Strategies)
 # -------------------------
 STRATEGIES = {
     "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
