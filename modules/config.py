@@ -17,8 +17,6 @@ STRATEGIES = {
     "Rational Strategy LT": ["Overview","MMBs","GR-Multiple MAs","SAR","Support and Resistance","Coppock Curve","Stoch RSI","BBPower","%R MA","TRIX"],
 }
 
-
- - SIMPLIFIED
 # -------------------------
 SIGNAL_CONFIG = {
     "timeframes": {
