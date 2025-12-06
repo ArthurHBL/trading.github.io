@@ -6,7 +6,7 @@ It is idempotent – safe to run several times.
 import re, os, shutil
 from pathlib import Path
 
-BIG_FILE = "DeepSeek version, Create Test User — o usuário será criado com senha dummy test12345.txt"
+BIG_FILE = "app.py"
 ENCODING = "utf-8"
 
 TREE = {"modules": ["__init__.py"], "data": [], "logs": []}
