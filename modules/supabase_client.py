@@ -1,5 +1,9 @@
+# First, let's see what's actually in the file
+head -n 5 /mount/src/trading.github.io/modules/supabase_client.py
+
+# Now let's create the correct Python file
 cat > /mount/src/trading.github.io/modules/supabase_client.py << 'EOF'
-# modules/supabase_client.py - COMPLETE FILE
+# modules/supabase_client.py
 import base64
 import logging
 import uuid
