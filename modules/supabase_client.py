@@ -1,7 +1,3 @@
-
- - FIXED WITH PROPER ERROR HANDLING
-# -------------------------
-
 # Users table functions - FIXED DELETION FUNCTIONS
 def supabase_get_users():
     """Get all users from Supabase - FIXED VERSION"""
