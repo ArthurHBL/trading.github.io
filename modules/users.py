@@ -1,7 +1,5 @@
-
-
-    def __init__(self):
-        self.load_data()
+def __init__(self):
+    self.load_data()
 
     def load_data(self):
         """Load users and analytics data from Supabase - FIXED VERSION"""
