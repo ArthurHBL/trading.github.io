@@ -1,4 +1,3 @@
-# -------------------------
 STRATEGIES = {
     "Premium Stoch": ["Overview","VWAP AA","VWAP","Volume Delta","Stoch RSI","SMI","RSI(SMI)","RAINBOW_RSI"],
     "LS Copy": ["Overview","NVT","RoC Bands","RoC","BBWP","PSO","RSI","RAINBOW_RSI"],
@@ -17,7 +16,6 @@ STRATEGIES = {
     "Rational Strategy LT": ["Overview","MMBs","GR-Multiple MAs","SAR","Support and Resistance","Coppock Curve","Stoch RSI","BBPower","%R MA","TRIX"],
 }
 
-# -------------------------
 SIGNAL_CONFIG = {
     "timeframes": {
         "short": {"name": "Short Term", "duration": "1-7 days", "color": "#FF6B6B"},
@@ -35,7 +33,6 @@ SIGNAL_CONFIG = {
 
 
 
-# -------------------------
 class Config:
     APP_NAME = "TradingAnalysis Pro"
     VERSION = "2.1.0"
