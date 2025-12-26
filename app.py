@@ -2674,22 +2674,23 @@ class EnhancedKaiTradingAgent:
         return report
 
     def _generate_executive_summary(self, overview, signals, deepseek_analysis):
-        """KAI's signature executive summary style - FIXED VERSION"""
+        """KAI's signature executive summary style - CLEAN VERSION"""
+        # If we have AI analysis, just return it directly without the "DeepSeek Enhanced" label
         if (deepseek_analysis and
             isinstance(deepseek_analysis, dict) and
             deepseek_analysis.get('executive_summary')):
-            return f"🧠 **DeepSeek Enhanced:** {deepseek_analysis['executive_summary']}"
+            return deepseek_analysis['executive_summary']
 
-        # Fallback to standard analysis
+        # Fallback logic (if AI fails) remains the same below...
         reversal_count = len(signals["reversal_signals"])
         strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
         momentum_bearish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
         momentum_bullish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
 
         if reversal_count >= 3 and strong_reversals >= 2:
-            return f"**{self.character['phrases']['critical_juncture']}** - MULTIPLE STRONG REVERSAL SIGNALS DETECTED"
+            return f"**CRITICAL JUNCTURE** - MULTIPLE STRONG REVERSAL SIGNALS DETECTED"
         elif reversal_count >= 2:
-            return f"**{self.character['phrases']['reversal_expected']}** - {reversal_count} reversal patterns identified"
+            return f"**REVERSAL EXPECTED** - {reversal_count} reversal patterns identified"
         elif momentum_bullish > momentum_bearish * 1.5:
             return f"**Bullish Bias** - {momentum_bullish} bullish vs {momentum_bearish} bearish momentum signals"
         elif momentum_bearish > momentum_bullish * 1.5:
