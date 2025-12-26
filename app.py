@@ -4516,7 +4516,8 @@ def render_kai_csv_uploader():
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
 # -------------------------
 def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info=""):
-    """Display KAI's enhanced analysis report - ULTIMATE FIXED VERSION (FULL)"""
+    """Display KAI's enhanced analysis report - ULTIMATE FIXED VERSION (FULL + REGEX SANITIZER)"""
+    import re  # Ensure regex is available
 
     # CRITICAL FIX: Validate that analysis is a dictionary
     if not isinstance(analysis, dict):
@@ -4547,8 +4548,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
 
     st.markdown(f"###{enhancement_badge}{meta_info}")
 
-    # --- EXECUTIVE SUMMARY (SANITIZED) ---
-    # This is the ONLY part I changed to fix the "DeepSeek Enhanced" text issue
+    # --- EXECUTIVE SUMMARY (REGEX SANITIZER FIX) ---
     summary_text = ""
     
     # 1. Get raw text
@@ -4560,20 +4560,20 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
     if not summary_text:
         summary_text = analysis.get("executive_summary", "No executive summary available")
 
-    # 2. Clean it
-    clean_summary = summary_text.replace("🧠 DeepSeek Enhanced:", "")\
-                                .replace("**DeepSeek Enhanced:**", "")\
-                                .replace("DeepSeek Enhanced:", "")\
-                                .replace("🧠", "")\
-                                .strip()
+    # 2. Clean it using Regex (The "Nuclear" Option)
+    # This pattern matches "DeepSeek Enhanced" with optional emoji, bolding (**), and colons, case-insensitive
+    clean_summary = re.sub(r"(?:🧠|:brain:)?\s*(?:\*\*|__)?\s*DeepSeek\s+Enhanced\s*(?::)?\s*(?:\*\*|__)?", "", summary_text, flags=re.IGNORECASE).strip()
+    
+    # 3. Final cleanup of any leading punctuation left behind
+    clean_summary = clean_summary.lstrip(": -")
 
-    # 3. Display it
+    # 4. Display it
     if is_enhanced:
         st.success(f"**🧠 KAI Insight:** {clean_summary}")
     else:
         st.info(clean_summary)
 
-    # --- EVERYTHING BELOW IS YOUR ORIGINAL CODE (PRESERVED) ---
+    # --- EVERYTHING BELOW IS YOUR ORIGINAL FULL CODE ---
 
     # Enhanced Metrics with Quantitative Scoring
     col1, col2, col3, col4 = st.columns(4)
@@ -4620,7 +4620,7 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
     if is_enhanced and analysis.get('deepseek_analysis', {}).get('key_findings'):
         # Use AI-enhanced findings
         for finding in analysis['deepseek_analysis']['key_findings']:
-            # Clean findings too
+            # Clean findings too using simple replace for list items
             clean_finding = str(finding).replace("🧠", "").strip()
             st.write(f"• {clean_finding}")
     else:
