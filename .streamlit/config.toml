@@ -1,0 +1,9 @@
+[theme]
+primaryColor = "#00FF94"    # Electric Green (Matrix/Terminal vibe)
+backgroundColor = "#0E1117" # Deep Blue-Black (Standard SaaS Dark Mode)
+secondaryBackgroundColor = "#262730" # Slightly lighter for sidebars
+textColor = "#FAFAFA"       # Crisp White text
+font = "monospace"          # Forces that "Code/Quant" look
+
+[server]
+enableCORS = false
