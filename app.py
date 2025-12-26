@@ -1047,56 +1047,6 @@ class EnhancedKaiTradingAgent:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-    # BONUS: Add this method to ensure time keywords are comprehensive
-    def _get_all_time_keywords(self):
-        """Get comprehensive list of all time-related keywords"""
-        return {
-            "immediate": [
-                # Current/Right now
-                'now', 'immediate', 'today', 'intraday', 'right now', 'currently',
-                'asap', 'urgent', 'instant', 'alert', 'now!',
-                # This period
-                'this session', 'current candle', 'next candle', 'this hour',
-                # Indicators known for intraday
-                'vwap', 'volume delta', 'stoch rsi', 'rsi', 'macd', 'ao', 'atr',
-                'mfi', 'fisher', 'overview', 'quick', 'momentum', 'intraday', 'scalp',
-                'breakout', 'breaking'
-            ],
-            "short_term": [
-                # Days/weeks
-                'short term', 'this week', 'next few days', 'coming days', '1-7 days',
-                'few days', 'daily', 'day trade', 'overnight', 'swing', 'weekly',
-                'next week', 'week ahead', 'coming week', 'next 3 days', 'next 5 days',
-                # Indicators known for short-term
-                'supertrend', 'ema', 'sma', 'bollinger', 'keltner', 'ichimoku',
-                'support', 'resistance', 'fibonacci', 'trend', 'chart', 'swing',
-                'rsi(smi)', 'smi', 'daily'
-            ],
-            "medium_term": [
-                # Weeks/months
-                'medium term', 'this month', 'next few weeks', '1-4 weeks', 'monthly',
-                'swing trade', 'intermediate', 'coming weeks', 'next month', 'month ahead',
-                'next 2 weeks', 'next 3 weeks', 'rest of month', 'month end',
-                # Indicators known for medium-term
-                'rainbow', 'alligator', 'gr-mmas', 'pi cycle', 'sar', 'demand',
-                'coppock', 'trix', 'williams', 'chaikin', 'weekly', 'monthly',
-                'wick delta', 'elasticity', 'wt_lb'
-            ],
-            "long_term": [
-                # Months/years
-                'long term', 'next year', 'months ahead', '1-6 months',
-                'quarterly', 'position trade', 'investment', 'hold', 'accumulate',
-                'next quarter', 'coming months', 'next 3 months', 'next 6 months',
-                'year ahead', 'future', 'long hold',
-                # Specific years
-                '2024', '2025', '2026',
-                # Indicators known for long-term
-                'log regression', 'monte carlo', 'mvrv', 'nvt', 'roc', 'z-score',
-                'liquidity', 'rainbow wave', 'cycle', 'regression', 'transaction',
-                'quarterly', 'annual'
-            ]
-        }
-
     def _initialize_analysis_patterns(self):
         """KAI's consistent analysis methodology"""
         return {
@@ -1123,78 +1073,129 @@ class EnhancedKaiTradingAgent:
         }
 
     def _initialize_deepseek_prompts(self):
-        """Initialize specialized prompts for DeepSeek API with enhanced risk focus"""
+        """Initialize specialized prompts for DeepSeek API with MEMORY CONTEXT"""
         return {
             "enhanced_analysis": """
-            You are KAI, a Senior Technical Analysis Specialist with 10+ years of multi-timeframe market analysis experience.
+            You are KAI, a Senior Technical Analysis Specialist with 10+ years of experience.
+            
+            **CURRENT MARKET CONTEXT:**
+            {asset_context}
 
-        CORE PERSONALITY TRAITS:
-        - Methodical and structured in analysis
-        - Conservative in risk assessment
-        - Clear and concise communicator
-        - Quantitative and data-driven
-        - Risk-aware and cautious
+            **CORE DIRECTIVES:**
+            1. Analyze the provided indicator data specifically for {asset_name}.
+            2. Compare current signals against the Weekly Close Price of ${current_price}.
+            3. If historical data is provided above, explicitly mention how the price has changed (e.g., "Price is up 5% since last week...").
+            4. Focus ONLY on market signals (Bullish/Bearish/Neutral). Do NOT critique data quality.
 
-        **CRITICAL DIRECTIVES:**
-        - You are analyzing MARKET CONDITIONS and INDICATOR SIGNALS only
-        - NEVER comment on analysis quality, completeness, or data issues
-        - Focus exclusively on what the technical indicators are signaling
-        - The analysis data provided is from an experienced mentor - treat it as professional-grade
+            ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
+            1. STRATEGY_OVERVIEW: Big picture market context based on indicator signals relative to the Weekly Close.
+            2. KEY_INDICATORS: Critical technical levels and indicator convergences.
+            3. MOMENTUM_ANALYSIS: Trend strength and directional bias.
+            4. SUPPORT_RESISTANCE: Key price levels identified by technical analysis.
+            5. TIME_HORIZONS: When indicator signals suggest moves may develop.
 
-        ANALYSIS FRAMEWORK (ALWAYS FOLLOW THIS STRUCTURE):
-        1. STRATEGY_OVERVIEW: Big picture market context based on indicator signals
-        2. KEY_INDICATORS: Critical technical levels and indicator convergences
-        3. MOMENTUM_ANALYSIS: Trend strength and directional bias from indicators
-        4. SUPPORT_RESISTANCE: Key price levels identified by technical analysis
-        5. TIME_HORIZONS: When indicator signals suggest moves may develop
+            TRADING DATA TO ANALYZE:
+            {data_summary}
 
-        TRADING DATA TO ANALYZE:
-        {data_summary}
+            RISK ASSESSMENT FOCUS:
+            - Indicator alignment or divergence
+            - Momentum confirmation
+            - Pattern completion probabilities
 
-        RISK ASSESSMENT FOCUS (MARKET RISKS ONLY):
-        - Indicator alignment or divergence across timeframes
-        - Momentum confirmation or contradiction
-        - Support/resistance strength and reliability
-        - Volume and volatility signals
-        - Pattern completion probabilities
-
-        **STRICTLY PROHIBITED:**
-        - Do NOT mention analysis completeness
-        - Do NOT comment on data quality
-        - Do NOT critique the analysis process
-        - Do NOT make assumptions about missing data
-
-        SPECIFIC INSTRUCTIONS:
-        - Analyze ONLY the market signals present in the indicators
-        - Provide risk assessment based on MARKET CONDITIONS, not analysis quality
-        - Highlight conflicting INDICATOR signals, not data issues
-        - Focus on actionable trading insights from the technical analysis
-        - Provide professional position sizing guidance
-
-        RESPONSE FORMAT (STRICT JSON):
-        {{
-            "executive_summary": "2-3 sentence market overview based on indicator signals",
-            "key_findings": ["finding1", "finding2", "finding3", "finding4", "finding5"],
-            "momentum_assessment": "Detailed momentum analysis from indicator signals",
-            "critical_levels": ["level1", "level2", "level3"],
-            "time_horizons": {{
-                "short_term": "1-7 days analysis based on indicator timing",
-                "medium_term": "1-4 weeks analysis based on indicator cycles",
-                "long_term": "1-6 months analysis based on structural indicators"
-            }},
-            "risk_analysis": "Market risk assessment based on technical indicator alignment/divergence",
-            "confidence_score": 65,
-            "trading_recommendations": [
-                "Position sizing based on signal strength",
-                "Entry/exit levels from technical analysis",
-                "Risk management based on indicator signals",
-                "Market condition adaptations"
-            ]
-        }}
-
-        REMEMBER: You are analyzing MARKET SIGNALS, not the quality of analysis. The data comes from an experienced trading mentor.
-        """,
+            RESPONSE FORMAT (STRICT JSON):
+            {{
+                "executive_summary": "2-3 sentences including the Asset Name, Weekly Price, and context from the Memory Recall.",
+                "key_findings": ["finding1", "finding2", "finding3", "finding4", "finding5"],
+                "momentum_assessment": "Detailed momentum analysis relative to the weekly close",
+                "critical_levels": ["level1", "level2", "level3"],
+                "time_horizons": {{
+                    "short_term": "1-7 days outlook",
+                    "medium_term": "1-4 weeks outlook",
+                    "long_term": "1-6 months outlook"
+                }},
+                "risk_analysis": "Risk assessment based on signal convergence/divergence",
+                "confidence_score": 65,
+                "trading_recommendations": ["Position sizing", "Entry/exit zones", "Stop loss advice"]
+            }}
+            """,
+            "chat_persona": """
+            You are KAI, a professional Trading AI assistant.
+            You are precise, data-driven, and slightly formal but helpful.
+            You specialize in technical analysis, risk management, and trading psychology.
+            
+            Current Context: User is asking about trading strategies or market conditions.
+            Always advise caution and risk management.
+            """
         }
+
+    # -------------------------------------------------------------------------
+    # MEMORY & CONTEXT FUNCTIONS
+    # -------------------------------------------------------------------------
+    
+    def get_previous_weekly_close(self, asset, current_date_str=None):
+        """
+        MEMORY RECALL: Fetch the most recent past price from Supabase.
+        """
+        try:
+            # Check if supabase_client is available in global scope
+            if 'supabase_client' not in globals() or not supabase_client:
+                return None
+                
+            # If no date provided, use today
+            if not current_date_str:
+                current_date_str = datetime.now().strftime('%Y-%m-%d')
+            
+            # Find the most recent record BEFORE the current analysis date
+            response = supabase_client.table('price_memory')\
+                .select('closing_price, week_date')\
+                .eq('asset_symbol', asset)\
+                .lt('week_date', current_date_str)\
+                .order('week_date', desc=True)\
+                .limit(1)\
+                .execute()
+
+            if response.data and len(response.data) > 0:
+                return response.data[0] # Returns dict with 'closing_price' and 'week_date'
+            
+            return None
+        except Exception as e:
+            self.logger.error(f"Memory recall error: {e}")
+            return None
+
+    def chat_with_kai(self, user_message, history):
+        """Interactive Chat Feature"""
+        if not self.use_deepseek:
+            return "I am currently offline (DeepSeek API disabled)."
+            
+        messages = [{"role": "system", "content": self.deepseek_prompts["chat_persona"]}]
+        
+        # Add limited history (last 4 messages)
+        for msg in history[-4:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+            
+        messages.append({"role": "user", "content": user_message})
+        
+        try:
+            headers = {
+                "Content-Type": "application/json", 
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+            }
+            payload = {
+                "model": "deepseek-chat",
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
+            response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=20)
+            if response.status_code == 200:
+                return response.json()['choices'][0]['message']['content']
+            return "Connection error with KAI's brain."
+        except Exception as e:
+            return f"Error: {e}"
+
+    # -------------------------------------------------------------------------
+    # API COMMUNICATION
+    # -------------------------------------------------------------------------
 
     def _call_deepseek_api(self, prompt, temperature=0.3, max_tokens=2000):
         """Call DeepSeek API with improved error handling"""
@@ -1288,486 +1289,14 @@ class EnhancedKaiTradingAgent:
             self.logger.error(f"Error preparing data for DeepSeek: {e}")
             return "{}"
 
-    def _auto_explain_csv_data(self, df):
-        """Auto-Explainer - Convert CSV data to structured analysis with explanations"""
-        try:
-            analysis_summary = {
-                "Data Quality Assessment": self._get_dataset_overview(df),
-                "Strategy Analysis": self._analyze_strategies(df),
-                "Trading Signals": self._extract_trading_signals(df),
-                "Momentum Analysis": self._analyze_momentum_patterns(df),
-                "Risk Assessment": self._assess_dataset_risk(df),
-                "Quality Metrics": self._calculate_quality_metrics(df)
-            }
-            return analysis_summary
-        except Exception as e:
-            self.logger.error(f"Auto-explainer failed: {e}")
-            return {"error": str(e), "raw_data_available": True}
-
-    def _get_dataset_overview(self, df):
-        """Get comprehensive dataset overview"""
-        return {
-            "total_records": len(df),
-            "total_strategies": df['Strategy'].nunique() if 'Strategy' in df.columns else 0,
-            "total_indicators": df['Indicator'].nunique() if 'Indicator' in df.columns else 0,
-            "completion_rate": self._calculate_completion_rate(df),
-            "date_range": self._get_date_range(df),
-            "columns_available": list(df.columns),
-            "data_types": {col: str(df[col].dtype) for col in df.columns}
-        }
-
-    def _calculate_completion_rate(self, df):
-        """Calculate analysis completion rate"""
-        if 'Status' in df.columns:
-            completed = len(df[df['Status'] == 'Done'])
-            total = len(df)
-            return f"{completed}/{total} ({completed/total*100:.1f}%)"
-        return "Status column not available"
-
-    def _get_date_range(self, df):
-        """Get date range from dataset"""
-        date_columns = ['analysis_date', 'Analysis_Date', 'last_modified', 'Last_Modified']
-        for col in date_columns:
-            if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
-                return f"{df[col].min()} to {df[col].max()}"
-        return "No date information available"
-
-    def _analyze_strategies(self, df):
-        """Analyze strategy distribution and performance"""
-        if 'Strategy' not in df.columns:
-            return {"error": "Strategy column not found"}
-
-        strategies = df['Strategy'].value_counts().to_dict()
-        strategy_metrics = {}
-
-        for strategy in df['Strategy'].unique():
-            strategy_data = df[df['Strategy'] == strategy]
-            strategy_metrics[strategy] = {
-                "indicator_count": len(strategy_data),
-                "completion_rate": len(strategy_data[strategy_data['Status'] == 'Done']) / len(strategy_data) * 100 if 'Status' in df.columns else "N/A",
-                "common_tags": strategy_data['Tag'].value_counts().to_dict() if 'Tag' in df.columns else {},
-                "momentum_distribution": strategy_data['Momentum'].value_counts().to_dict() if 'Momentum' in df.columns else {}
-            }
-
-        return {
-            "strategy_count": len(strategies),
-            "strategy_distribution": strategies,
-            "strategy_metrics": strategy_metrics
-        }
-
-    def _extract_trading_signals(self, df):
-        """Extract and categorize trading signals"""
-        signals = {
-            "reversal_signals": self._extract_reversal_signals(df),
-            "momentum_signals": self._extract_momentum_signals(df),
-            "support_resistance": self._extract_support_resistance(df),
-            "volume_signals": self._extract_volume_signals(df),
-            "breakout_signals": self._extract_breakout_signals(df),
-            "divergence_signals": self._extract_divergence_signals(df)
-        }
-
-        # Calculate signal strength and confidence
-        signal_metrics = {
-            "total_signals": sum(len(signal_list) for signal_list in signals.values()),
-            "strong_signals": len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
-        }
-
-        return {"signals": signals, "metrics": signal_metrics}
-
-    def _extract_reversal_signals(self, df):
-        """Extract potential reversal signals from data"""
-        reversal_keywords = ['reversal', 'reverse', 'turnaround', 'revert', 'exhaustion', 'divergence']
-        reversals = []
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            if any(keyword in note for keyword in reversal_keywords):
-                reversal_data = {
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "strength": "HIGH" if any(word in note for word in ['major', 'strong', 'probable', 'confirmed']) else "MEDIUM",
-                    "score": self._calculate_reversal_score(note, row.get('Indicator', '')),
-                    "timestamp": row.get('analysis_date', row.get('last_modified', ''))
-                }
-                reversals.append(reversal_data)
-
-        return reversals
-
-    def _extract_momentum_signals(self, df):
-        """Extract momentum signals from data"""
-        momentum_signals = {"bullish": [], "bearish": [], "neutral": []}
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-
-            if any(word in note for word in ['bullish', 'breaking up', 'uptrend', 'buy', 'long', 'rally']):
-                momentum_signals["bullish"].append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "confidence": self._calculate_confidence_score(note)
-                })
-            elif any(word in note for word in ['bearish', 'breaking down', 'downtrend', 'sell', 'short', 'decline']):
-                momentum_signals["bearish"].append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "confidence": self._calculate_confidence_score(note)
-                })
-            else:
-                momentum_signals["neutral"].append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "confidence": self._calculate_confidence_score(note)
-                })
-
-        return momentum_signals
-
-    def _extract_support_resistance(self, df):
-        """Extract support and resistance levels"""
-        levels = {"support": [], "resistance": []}
-        level_keywords = {
-            "support": ['support', 'holding', 'bounce', 'floor', 'demand', 'base'],
-            "resistance": ['resistance', 'rejection', 'ceiling', 'supply', 'top', 'cap']
-        }
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-
-            for level_type, keywords in level_keywords.items():
-                if any(keyword in note for keyword in keywords):
-                    level_data = {
-                        "strategy": row.get('Strategy', 'Unknown'),
-                        "indicator": row.get('Indicator', 'Unknown'),
-                        "note": row.get('Note', ''),
-                        "level": level_type.upper(),
-                        "strength": "STRONG" if any(word in note for word in ['strong', 'major', 'key', 'critical']) else "MODERATE",
-                        "price_level": self._extract_price_level(note),
-                        "confidence": self._calculate_confidence_score(note)
-                    }
-                    levels[level_type].append(level_data)
-
-        return levels
-
-    def _extract_volume_signals(self, df):
-        """Extract volume-based signals"""
-        volume_signals = []
-        volume_keywords = ['volume', 'volatility', 'liquidity', 'participation']
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            if any(keyword in note for keyword in volume_keywords):
-                volume_signals.append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "type": self._classify_volume_signal(note),
-                    "score": self._calculate_volume_score(note)
-                })
-
-        return volume_signals
-
-    def _extract_breakout_signals(self, df):
-        """Extract breakout signals"""
-        breakout_signals = []
-        breakout_keywords = ['breakout', 'breaking', 'crossing', 'above', 'below', 'through']
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            if any(keyword in note for keyword in breakout_keywords):
-                breakout_signals.append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "direction": "BULLISH" if any(word in note for word in ['above', 'breaking up', 'bullish']) else "BEARISH",
-                    "confidence": self._calculate_confidence_score(note)
-                })
-
-        return breakout_signals
-
-    def _extract_divergence_signals(self, df):
-        """Extract divergence signals"""
-        divergence_signals = []
-        divergence_keywords = ['divergence', 'divergent', 'disagreement', 'conflict']
-
-        for _, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            if any(keyword in note for keyword in divergence_keywords):
-                divergence_signals.append({
-                    "strategy": row.get('Strategy', 'Unknown'),
-                    "indicator": row.get('Indicator', 'Unknown'),
-                    "note": row.get('Note', ''),
-                    "type": self._classify_divergence(note),
-                    "confidence": self._calculate_confidence_score(note)
-                })
-
-        return divergence_signals
-
-    def _classify_volume_signal(self, note):
-        """Classify volume signal type"""
-        if 'high volume' in note or 'increasing volume' in note:
-            return "HIGH_VOLUME"
-        elif 'low volume' in note or 'decreasing volume' in note:
-            return "LOW_VOLUME"
-        elif 'volume confirmation' in note:
-            return "CONFIRMATION"
-        else:
-            return "GENERAL_VOLUME"
-
-    def _calculate_signal_quality(self, signals):
-        """Calculate overall signal quality score"""
-        total_signals = sum(len(signal_list) for signal_list in signals.values())
-        if total_signals == 0:
-            return 0
-
-        strong_signals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
-        high_confidence = len([s for s in signals["momentum_signals"]["bullish"] + signals["momentum_signals"]["bearish"] if s.get('confidence', 0) > 70])
-
-        quality_score = ((strong_signals * 2) + high_confidence) / (total_signals * 2) * 100
-        return min(100, quality_score)
-
-    def _analyze_momentum_patterns(self, df):
-        """Analyze momentum patterns across the dataset"""
-        if 'Momentum' not in df.columns:
-            return {"error": "Momentum column not found"}
-
-        momentum_distribution = df['Momentum'].value_counts().to_dict()
-
-        # Analyze momentum consistency
-        strategy_momentum = {}
-        for strategy in df['Strategy'].unique():
-            strategy_data = df[df['Strategy'] == strategy]
-            momentum_counts = strategy_data['Momentum'].value_counts()
-            if len(momentum_counts) > 0:
-                dominant_momentum = momentum_counts.index[0]
-                strategy_momentum[strategy] = {
-                    "dominant_momentum": dominant_momentum,
-                    "consistency_score": momentum_counts.iloc[0] / len(strategy_data) * 100,
-                    "momentum_distribution": momentum_counts.to_dict()
-                }
-
-        return {
-            "momentum_distribution": momentum_distribution,
-            "strategy_momentum_analysis": strategy_momentum,
-            "overall_momentum_bias": self._calculate_overall_momentum_bias(momentum_distribution)
-        }
-
-    def _calculate_overall_momentum_bias(self, momentum_distribution):
-        """Calculate overall momentum bias"""
-        bullish_terms = ['bullish', 'up', 'positive', 'buy']
-        bearish_terms = ['bearish', 'down', 'negative', 'sell']
-
-        bullish_score = 0
-        bearish_score = 0
-
-        for momentum, count in momentum_distribution.items():
-            momentum_lower = str(momentum).lower()
-            if any(term in momentum_lower for term in bullish_terms):
-                bullish_score += count
-            elif any(term in momentum_lower for term in bearish_terms):
-                bearish_score += count
-
-        total = bullish_score + bearish_score
-        if total == 0:
-            return "NEUTRAL"
-
-        bias_ratio = bullish_score / total
-        if bias_ratio > 0.6:
-            return "BULLISH"
-        elif bias_ratio < 0.4:
-            return "BEARISH"
-        else:
-            return "NEUTRAL"
-
-    def _assess_dataset_risk(self, df):
-        """Assess overall risk in the dataset"""
-        risk_factors = {
-            "high_risk_indicators": 0,
-            "conflicting_signals": 0,
-            "low_confidence_analyses": 0,
-            "incomplete_analyses": 0
-        }
-
-        # Count high risk indicators
-        for _, row in df.iterrows():
-            note = str(row.get('Note', '')).lower()
-            if any(word in note for word in ['high risk', 'danger', 'caution', 'warning', 'uncertain']):
-                risk_factors["high_risk_indicators"] += 1
-
-        # Count incomplete analyses
-        if 'Status' in df.columns:
-            risk_factors["incomplete_analyses"] = len(df[df['Status'] != 'Done'])
-
-        # Calculate overall risk score
-        total_analyses = len(df)
-        if total_analyses == 0:
-            risk_factors["overall_risk_score"] = 0
-        else:
-            risk_score = (
-                risk_factors["high_risk_indicators"] * 3 +
-                risk_factors["incomplete_analyses"] * 2
-            ) / (total_analyses * 3) * 100
-            risk_factors["overall_risk_score"] = min(100, risk_score)
-
-        return risk_factors
-
-    def _calculate_quality_metrics(self, df):
-        """Calculate data quality metrics"""
-        metrics = {
-            "completeness_score": 0,
-            "consistency_score": 0,
-            "timeliness_score": 0,
-            "overall_quality": 0
-        }
-
-        total_records = len(df)
-        if total_records == 0:
-            return metrics
-
-        # Completeness: Check for missing values
-        complete_records = len(df.dropna())
-        metrics["completeness_score"] = (complete_records / total_records) * 100
-
-        # Consistency: Check for consistent formatting
-        if 'Status' in df.columns:
-            valid_statuses = ['Done', 'Open', 'In Progress', 'Skipped']
-            consistent_status = len(df[df['Status'].isin(valid_statuses)])
-            metrics["consistency_score"] = (consistent_status / total_records) * 100
-
-        # Timeliness: Check for recent data
-        date_columns = ['analysis_date', 'Analysis_Date', 'last_modified', 'Last_Modified']
-        for col in date_columns:
-            if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
-                recent_data = len(df[df[col] >= (datetime.now() - timedelta(days=30))])
-                metrics["timeliness_score"] = (recent_data / total_records) * 100
-                break
-
-        # Overall quality (weighted average)
-        weights = {'completeness': 0.4, 'consistency': 0.3, 'timeliness': 0.3}
-        metrics["overall_quality"] = (
-            metrics["completeness_score"] * weights['completeness'] +
-            metrics["consistency_score"] * weights['consistency'] +
-            metrics["timeliness_score"] * weights['timeliness']
-        )
-
-        return metrics
-
-    def _calculate_reversal_score(self, note, indicator):
-        """Calculate quantitative reversal score"""
-        score = 0
-
-        # Keyword scoring
-        strong_keywords = ['major reversal', 'probable reversal', 'strong reversal', 'confirmed reversal']
-        medium_keywords = ['reversal', 'reverse', 'turnaround', 'exhaustion']
-
-        for keyword in strong_keywords:
-            if keyword in note:
-                score += 3
-
-        for keyword in medium_keywords:
-            if keyword in note:
-                score += 1
-
-        # Indicator-specific weighting
-        indicator_weights = {
-            'RSI': 2, 'MACD': 2, 'Stoch': 2, 'Fibonacci': 1.5,
-            'VWAP': 1.5, 'Support': 1.5, 'Resistance': 1.5
-        }
-
-        for ind, weight in indicator_weights.items():
-            if ind.lower() in indicator.lower():
-                score *= weight
-                break
-
-        # Context scoring
-        if 'confirmed' in note:
-            score += 2
-        if 'multiple' in note or 'confluence' in note:
-            score += 2
-
-        return min(10, score)
-
-    def _calculate_confidence_score(self, note):
-        """Calculate confidence score for signals"""
-        confidence = 50  # Base confidence
-
-        if 'confirmed' in note or 'confirmed' in note:
-            confidence += 30
-        if 'likely' in note or 'probable' in note:
-            confidence += 15
-        if 'potential' in note or 'possible' in note:
-            confidence -= 10
-        if 'uncertain' in note or 'maybe' in note:
-            confidence -= 20
-
-        return max(10, min(95, confidence))
-
-    def _calculate_volume_score(self, note):
-        """Calculate volume signal score"""
-        score = 0
-
-        if 'high volume' in note or 'increasing volume' in note:
-            score += 3
-        if 'volume confirmation' in note:
-            score += 2
-        if 'low volume' in note:
-            score += 1
-
-        return score
-
-    def _extract_price_level(self, note):
-        """Extract price levels from notes using regex"""
-        # Look for price patterns like $45000, 45k, 45,000
-        price_patterns = [
-            r'\$(\d+(?:,\d{3})*(?:\.\d{2})?)',  # $45,000.00
-            r'(\d+(?:,\d{3})*)\s*(k|K)',        # 45k, 45K
-            r'(\d+(?:,\d{3})*(?:\.\d{2})?)',    # 45000, 45,000
-        ]
-
-        for pattern in price_patterns:
-            matches = re.findall(pattern, note)
-            if matches:
-                return matches[0] if isinstance(matches[0], str) else ''.join(matches[0])
-
-        return "Not specified"
-
-    def _classify_divergence(self, note):
-        """Classify divergence type"""
-        if 'bullish divergence' in note:
-            return "BULLISH"
-        elif 'bearish divergence' in note:
-            return "BEARISH"
-        elif 'hidden divergence' in note:
-            return "HIDDEN"
-        else:
-            return "REGULAR"
-
-    def analyze_strategy_data(self, df, quality_tier="PRODUCTION"):
+    # -------------------------------------------------------------------------
+    # MAIN ANALYSIS ENTRY POINT
+    # -------------------------------------------------------------------------
+
+    def analyze_strategy_data(self, df, quality_tier="PRODUCTION", manual_asset="ETH", manual_price=0.0):
         """
-        Main analysis method - now quality-aware.
-        Won't generate false "incomplete data" warnings.
+        Main analysis method - now quality-aware and accepts manual context inputs.
         """
-
         # STEP 1: Assess data quality FIRST
         quality = DataQualityFramework.assess_quality(df, tier=quality_tier)
 
@@ -1778,13 +1307,10 @@ class EnhancedKaiTradingAgent:
         risk_analysis = self._phase_4_risk_assessment(df, signals)
 
         # STEP 3: Adjust risk assessment based on data quality
-        # This is KEY: Don't warn about incomplete data if quality is acceptable
         if quality["is_acceptable"]:
-            # Data quality is good - only show REAL risks, not data-volume risks
             risk_analysis["data_quality_note"] = "✅ Data quality acceptable - risk assessment valid"
             risk_analysis["incomplete_data_penalty"] = 0
         else:
-            # Data quality is below tier requirements
             risk_analysis["data_quality_note"] = f"⚠️ Data below {quality_tier} tier requirements"
             risk_analysis["incomplete_data_penalty"] = 5
 
@@ -1792,8 +1318,13 @@ class EnhancedKaiTradingAgent:
         deepseek_analysis = None
         if self.use_deepseek:
             try:
-                deepseek_analysis = self._get_deepseek_enhanced_analysis(df, strategy_overview, signals, time_analysis)
-            except:
+                # PASS THE MANUAL ARGUMENTS HERE
+                deepseek_analysis = self._get_deepseek_enhanced_analysis(
+                    df, strategy_overview, signals, time_analysis, 
+                    manual_asset=manual_asset, manual_price=manual_price
+                )
+            except Exception as e:
+                self.logger.error(f"DeepSeek analysis failed: {e}")
                 pass
 
         # STEP 5: Generate final report
@@ -1801,612 +1332,80 @@ class EnhancedKaiTradingAgent:
             strategy_overview, signals, time_analysis, risk_analysis, deepseek_analysis
         )
 
-        # STEP 6: Add quality metadata - CRITICAL: ENSURE IT'S INCLUDED
+        # STEP 6: Add metadata
         analysis["data_quality"] = quality
         analysis["quality_tier"] = quality_tier
-
-        # STEP 7: ENSURE all required keys exist before returning
+        analysis["asset_context"] = manual_asset
+        analysis["price_context"] = manual_price
+        
+        # Ensure fallback for required keys
         required_keys = [
             'header', 'executive_summary', 'key_findings', 'momentum_analysis',
             'support_resistance_levels', 'time_horizon_outlook', 'risk_assessment_data',
             'risk_assessment_summary', 'confidence_assessment', 'trading_implications',
             'signal_details', 'overview_metrics', 'deepseek_enhanced', 'deepseek_analysis',
-            'data_quality', 'quality_tier'  # ADD THESE TWO
+            'data_quality', 'quality_tier'
         ]
-
         for key in required_keys:
             if key not in analysis:
                 analysis[key] = {} if key in ['data_quality', 'risk_assessment_data'] else None
 
         return analysis
 
-    def _phase_1_scanning(self, df):
-        """KAI's Phase 1: Always scan strategies in same order"""
-        completed_analyses = len(df[df['Status'] == 'Done']) if 'Status' in df.columns else 0
-        total_indicators = len(df)
-        strategies = df['Strategy'].unique() if 'Strategy' in df.columns else []
-
-        return {
-            "completion_rate": f"{completed_analyses}/{total_indicators}",
-            "strategies_analyzed": list(strategies),
-            "pending_analyses": len(df[df['Status'] == 'Open']) if 'Status' in df.columns else 0,
-            "total_strategies": len(strategies),
-            "analysis_coverage": f"{(completed_analyses/total_indicators)*100:.1f}%" if total_indicators > 0 else "0%"
-        }
-
-    def _phase_2_signal_extraction(self, df):
-        """KAI's Phase 2: Enhanced signal extraction with quantitative measures"""
-        signals = {
-            "reversal_signals": [],
-            "momentum_signals": [],
-            "support_signals": [],
-            "volume_signals": [],
-            "breakout_signals": [],
-            "divergence_signals": [],
-            "conflicting_signals": []
-        }
-
-        # Enhanced signal detection with scoring
-        for index, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            indicator = row.get('Indicator', 'Unknown')
-            strategy = row.get('Strategy', 'Unknown')
-
-            # Enhanced reversal detection with scoring
-            reversal_score = self._calculate_reversal_score(note, indicator)
-            if reversal_score > 0:
-                signals["reversal_signals"].append({
-                    "strategy": strategy,
-                    "indicator": indicator,
-                    "message": row.get('Note', ''),
-                    "strength": "HIGH" if reversal_score >= 7 else "MEDIUM",
-                    "score": reversal_score,
-                    "confidence": min(90, reversal_score * 10)
-                })
-
-            # Enhanced support/resistance detection with level extraction
-            sr_analysis = self._analyze_support_resistance_phase2(note, indicator, strategy)
-            if sr_analysis:
-                signals["support_signals"].append(sr_analysis)
-
-            # Enhanced momentum analysis
-            momentum_analysis = self._analyze_momentum_phase2(note, indicator, strategy)
-            if momentum_analysis:
-                signals["momentum_signals"].append(momentum_analysis)
-
-            # Volume analysis
-            if any(keyword in note for keyword in ['volume', 'volatility', 'liquidity']):
-                volume_score = self._calculate_volume_score(note)
-                signals["volume_signals"].append({
-                    "strategy": strategy,
-                    "indicator": indicator,
-                    "message": row.get('Note', ''),
-                    "score": volume_score
-                })
-
-            # Breakout signals
-            if any(keyword in note for keyword in ['breakout', 'breaking', 'crossing', 'above', 'below']):
-                breakout_score = self._calculate_breakout_score(note)
-                signals["breakout_signals"].append({
-                    "strategy": strategy,
-                    "indicator": indicator,
-                    "message": row.get('Note', ''),
-                    "score": breakout_score
-                })
-
-            # Divergence detection
-            if any(keyword in note for keyword in ['divergence', 'divergent', 'disagreement']):
-                signals["divergence_signals"].append({
-                    "strategy": strategy,
-                    "indicator": indicator,
-                    "message": row.get('Note', ''),
-                    "type": self._classify_divergence(note)
-                })
-
-        # Identify conflicting signals
-        signals["conflicting_signals"] = self._find_conflicting_signals(signals)
-
-        return signals
-
-    def _analyze_support_resistance_phase2(self, note, indicator, strategy):
-        """Enhanced support/resistance analysis for phase 2"""
-        support_keywords = ['support', 'holding', 'bounce', 'floor', 'demand']
-        resistance_keywords = ['resistance', 'rejection', 'ceiling', 'supply', 'top']
-
-        level_type = None
-        if any(keyword in note for keyword in support_keywords):
-            level_type = "SUPPORT"
-        elif any(keyword in note for keyword in resistance_keywords):
-            level_type = "RESISTANCE"
-
-        if level_type:
-            strength = "STRONG" if any(word in note for word in ['strong', 'major', 'key']) else "MODERATE"
-            price_level = self._extract_price_level(note)
-
-            return {
-                "strategy": strategy,
-                "indicator": indicator,
-                "message": note,
-                "level": level_type,
-                "strength": strength,
-                "price_level": price_level
-            }
-
-        return None
-
-    def _analyze_momentum_phase2(self, note, indicator, strategy):
-        """Enhanced momentum analysis for phase 2"""
-        bullish_words = ['bullish', 'breaking up', 'uptrend', 'buy', 'long', 'rally']
-        bearish_words = ['bearish', 'breaking down', 'downtrend', 'sell', 'short', 'decline']
-
-        direction = None
-        if any(word in note for word in bullish_words):
-            direction = "BULLISH"
-        elif any(word in note for word in bearish_words):
-            direction = "BEARISH"
-
-        if direction:
-            strength = "STRONG" if any(word in note for word in ['strong', 'powerful', 'accelerating']) else "MODERATE"
-
-            return {
-                "strategy": strategy,
-                "indicator": indicator,
-                "message": note,
-                "direction": direction,
-                "strength": strength
-            }
-
-        return None
-
-    def _calculate_breakout_score(self, note):
-        """Calculate breakout signal score"""
-        score = 0
-
-        if 'confirmed breakout' in note:
-            score += 3
-        if 'breaking' in note or 'crossing' in note:
-            score += 2
-        if 'potential breakout' in note:
-            score += 1
-
-        return score
-
-    def _find_conflicting_signals(self, signals):
-        """Identify conflicting signals across different analysis types"""
-        conflicts = []
-
-        # Check for reversal vs momentum conflicts
-        for reversal in signals["reversal_signals"]:
-            for momentum in signals["momentum_signals"]:
-                if (reversal['strategy'] == momentum['strategy'] and
-                    reversal.get('implied_direction') != momentum.get('direction')):
-                    conflicts.append({
-                        "type": "REVERSAL_MOMENTUM_CONFLICT",
-                        "reversal_signal": reversal,
-                        "momentum_signal": momentum,
-                        "strategy": reversal['strategy']
-                    })
-
-        return conflicts
-
-    # FIXED: Complete Time Horizon Mapping with Guaranteed Display
-    def _phase_3_time_mapping(self, df):
-        """KAI's Phase 3: Enhanced time horizon mapping - GUARANTEED DISPLAY FIX"""
-        time_signals = {
-            "immediate": [],
-            "short_term": [],
-            "medium_term": [],
-            "long_term": []
-        }
-
-        # Enhanced keyword mapping
-        time_keywords = {
-            "immediate": [
-                'now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'asap',
-                'urgent', 'instant', 'momentum', 'breakout', 'breaking', 'now!', 'alert',
-                'today only', 'this session', 'current candle', 'next candle', 'vwap', 'volume delta',
-                'stoch rsi', 'rsi', 'macd', 'ao', 'atr', 'mfi', 'fisher'
-            ],
-            "short_term": [
-                'short term', 'this week', 'next few days', 'coming days', '1-7 days',
-                'few days', 'daily', 'day trade', 'overnight', 'swing', 'weekly',
-                'next week', 'weekend', 'friday', 'monday', 'week ahead', 'coming week',
-                'next 3 days', 'next 5 days', 'supertrend', 'ema', 'sma', 'bollinger',
-                'keltner', 'ichimoku', 'chart'
-            ],
-            "medium_term": [
-                'medium term', 'this month', 'next few weeks', '1-4 weeks', 'monthly',
-                'swing trade', 'intermediate', 'coming weeks', 'next month', 'month ahead',
-                'next 2 weeks', 'next 3 weeks', 'rest of month', 'month end', 'rainbow',
-                'alligator', 'pi cycle', 'sar', 'wick delta'
-            ],
-            "long_term": [
-                'long term', '2026', 'next year', 'months ahead', '1-6 months',
-                'quarterly', 'position trade', 'investment', 'hold', 'accumulate',
-                'next quarter', 'coming months', 'next 3 months', 'next 6 months',
-                'year ahead', '2025', '2026', 'future', 'long hold', 'log regression',
-                'monte carlo', 'mvrv', 'nvt', 'roc', 'z-score'
-            ]
-        }
-
-        signal_count = 0
-        classified_count = 0
-
-        for index, row in df.iterrows():
-            if pd.isna(row.get('Note')) or row.get('Note') == '':
-                continue
-
-            note = str(row.get('Note', '')).lower()
-            indicator = row.get('Indicator', 'Unknown')
-            strategy = row.get('Strategy', 'Unknown')
-
-            signal_count += 1
-            time_horizon = None
-
-            # STEP 1: Try keyword matching FIRST (HIGHEST PRIORITY)
-            for horizon, keywords in time_keywords.items():
-                if any(keyword in note for keyword in keywords):
-                    time_horizon = horizon
-                    classified_count += 1
-                    break
-
-            # STEP 2: If no keywords found, use indicator type classification
-            if not time_horizon:
-                time_horizon = self._classify_time_by_indicator(indicator, note)
-
-            # STEP 3: Validate and ensure we have a valid time_horizon
-            if time_horizon not in time_signals:
-                time_horizon = "medium_term"
-
-            # CREATE SIGNAL DATA - FIXED: Include all required fields for display
-            signal_data = {
-                "indicator": indicator,
-                "strategy": strategy,
-                "message": row.get('Note', ''),
-                "confidence": self._calculate_time_confidence(note),
-                "time_horizon": time_horizon
-            }
-
-            time_signals[time_horizon].append(signal_data)
-
-        # CRITICAL: If we have signals but they're not distributed, ensure at least one per category
-        total_signals = sum(len(signals) for signals in time_signals.values())
-
-        if signal_count > 0 and total_signals > 0:
-            # Distribute signals to ensure all timeframes have representation
-            for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
-                if len(time_signals[horizon]) == 0:
-                    # Find the horizon with most signals and duplicate one
-                    max_horizon = max(time_signals, key=lambda h: len(time_signals[h]))
-                    if time_signals[max_horizon]:
-                        ref_signal = time_signals[max_horizon][0].copy()
-                        ref_signal["classifier"] = "distributed"
-                        time_signals[horizon].append(ref_signal)
-
-        self.logger.info(f"Phase 3 Complete: {signal_count} signals, {classified_count} keyword-classified")
-
-        return time_signals
-
-    def _classify_time_by_indicator(self, indicator, note):
-        """Intelligent time horizon classification based on indicator type - COMPREHENSIVE VERSION"""
-
-        # EXTENSIVE INDICATOR MAPPINGS
-        immediate_indicators = [
-            'VWAP', 'Volume Delta', 'Stoch RSI', 'RSI', 'MACD', 'AO', 'ATR',
-            'MFI', 'Fisher', 'BBWP', 'PSO', 'CMF', 'CVO', 'WWV',
-            'Overview', 'Quick', 'Momentum', 'Intraday', 'Scalp'
-        ]
-
-        short_term_indicators = [
-            'Supertrend', 'EMA', 'SMA', 'Bollinger', 'Keltner', 'Ichimoku',
-            'Support', 'Resistance', 'Fibonacci', 'Trend', 'Momentum',
-            'RSI(SMI)', 'SMI', 'Chart', 'Daily', 'Swing'
-        ]
-
-        medium_term_indicators = [
-            'Rainbow', 'Alligator', 'GR-MMAs', 'Pi Cycle', 'SAR', 'Demand',
-            'Coppock', 'TRIX', 'Williams', 'Chaikin', 'Weekly', 'Monthly',
-            'Wick Delta', 'Elasticity', 'WT_LB'
-        ]
-
-        long_term_indicators = [
-            'Log Regression', 'Monte Carlo', 'MVRV', 'NVT', 'RoC', 'Z-Score',
-            'Liquidity', 'Rainbow Wave', 'Cycle', 'Regression', 'Transaction Fees',
-            'BTC Rainbow', 'Quarterly', 'Annual'
-        ]
-
-        indicator_lower = indicator.lower()
-        note_lower = note.lower()
-
-        # PRIMARY CLASSIFICATION: Check indicator type
-
-        # Check for immediate timeframe signals
-        if any(imm_indicator.lower() in indicator_lower for imm_indicator in immediate_indicators):
-            # But check if note suggests longer timeframe
-            if any(keyword in note_lower for keyword in ['long term', 'weeks', 'months', 'quarter']):
-                return "medium_term"
-            elif any(keyword in note_lower for keyword in ['this week', 'few days']):
-                return "short_term"
-            self.logger.info(f"Classified {indicator} as IMMEDIATE (indicator match)")
-            return "immediate"
-
-        # Check for short-term indicators
-        elif any(short_indicator.lower() in indicator_lower for short_indicator in short_term_indicators):
-            # Check for conflicting timeframes in note
-            if any(keyword in note_lower for keyword in ['immediate', 'today', 'now', 'intraday']):
-                self.logger.info(f"Classified {indicator} as IMMEDIATE (note override)")
-                return "immediate"
-            elif any(keyword in note_lower for keyword in ['weeks', 'month', 'long term']):
-                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note override)")
-                return "medium_term"
-            self.logger.info(f"Classified {indicator} as SHORT_TERM (indicator match)")
-            return "short_term"
-
-        # Check for medium-term indicators
-        elif any(medium_indicator.lower() in indicator_lower for medium_indicator in medium_term_indicators):
-            # Check for conflicting timeframes in note
-            if any(keyword in note_lower for keyword in ['immediate', 'today']):
-                self.logger.info(f"Classified {indicator} as SHORT_TERM (note override)")
-                return "short_term"
-            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'annual']):
-                self.logger.info(f"Classified {indicator} as LONG_TERM (note override)")
-                return "long_term"
-            self.logger.info(f"Classified {indicator} as MEDIUM_TERM (indicator match)")
-            return "medium_term"
-
-        # Check for long-term indicators
-        elif any(long_indicator.lower() in indicator_lower for long_indicator in long_term_indicators):
-            # Check for conflicting timeframes in note
-            if any(keyword in note_lower for keyword in ['immediate', 'this week']):
-                self.logger.info(f"Classified {indicator} as SHORT_TERM (note override)")
-                return "short_term"
-            elif any(keyword in note_lower for keyword in ['weeks']):
-                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note override)")
-                return "medium_term"
-            self.logger.info(f"Classified {indicator} as LONG_TERM (indicator match)")
-            return "long_term"
-
-        # SECONDARY CLASSIFICATION: Fall back to note content analysis
-        else:
-            if any(keyword in note_lower for keyword in ['now', 'today', 'immediate', 'intraday', 'next few hours', 'this hour']):
-                self.logger.info(f"Classified {indicator} as IMMEDIATE (note-based fallback)")
-                return "immediate"
-            elif any(keyword in note_lower for keyword in ['this week', 'few days', '1-7 days', 'next week', 'daily', 'swing']):
-                self.logger.info(f"Classified {indicator} as SHORT_TERM (note-based fallback)")
-                return "short_term"
-            elif any(keyword in note_lower for keyword in ['weeks', 'month', 'monthly', '1-4 weeks']):
-                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (note-based fallback)")
-                return "medium_term"
-            elif any(keyword in note_lower for keyword in ['months', 'quarter', 'long term', '1-6 months', 'annual']):
-                self.logger.info(f"Classified {indicator} as LONG_TERM (note-based fallback)")
-                return "long_term"
-            else:
-                # Default to medium_term if absolutely no match
-                self.logger.info(f"Classified {indicator} as MEDIUM_TERM (default fallback)")
-                return "medium_term"
-
-    def _create_intelligent_time_placeholders(self, df, time_signals):
-        """Create intelligent time horizon placeholders when classification is low"""
-
-        # Analyze the dataset to create reasonable time distributions
-        total_signals = sum(len(signals) for signals in time_signals.values())
-
-        if total_signals == 0:
-            # If no signals classified, distribute based on strategy types
-            for strategy in df['Strategy'].unique() if 'Strategy' in df.columns else []:
-                strategy_data = df[df['Strategy'] == strategy]
-
-                # Determine strategy timeframe bias
-                strategy_name = str(strategy).lower()
-                if any(term in strategy_name for term in ['intraday', 'scalp', 'momentum']):
-                    target_horizon = "immediate"
-                elif any(term in strategy_name for term in ['swing', 'short', 'weekly']):
-                    target_horizon = "short_term"
-                elif any(term in strategy_name for term in ['position', 'medium', 'monthly']):
-                    target_horizon = "medium_term"
-                else:
-                    target_horizon = "long_term"
-
-                # Add placeholder signals for this strategy
-                for _, row in strategy_data.iterrows():
-                    if pd.isna(row.get('Note')) or row.get('Note') == '':
-                        continue
-
-                    time_signals[target_horizon].append({
-                        "indicator": row.get('Indicator', 'Unknown'),
-                        "strategy": strategy,
-                        "message": row.get('Note', ''),
-                        "confidence": 40,  # Lower confidence for placeholders
-                        "classified_by": "intelligent_placeholder"
-                    })
-
-        return time_signals
-
-    def _balance_time_horizons(self, time_signals):
-        """Ensure each timeframe has at least some representation"""
-
-        # Minimum signals per timeframe to ensure display
-        min_signals_per_horizon = 1
-
-        for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
-            if len(time_signals[horizon]) < min_signals_per_horizon:
-                # Add a generic placeholder for this timeframe
-                placeholder_message = {
-                    "immediate": "Monitor for intraday breakout opportunities",
-                    "short_term": "Watch for weekly trend confirmation",
-                    "medium_term": "Evaluate monthly position sizing",
-                    "long_term": "Consider long-term accumulation zones"
-                }
-
-                time_signals[horizon].append({
-                    "indicator": "System",
-                    "strategy": "Time Analysis",
-                    "message": placeholder_message[horizon],
-                    "confidence": 30,
-                    "classified_by": "balance_placeholder"
-                })
-
-        return time_signals
-
-    def _classify_time_horizon(self, note):
-        """Enhanced time horizon classification"""
-        immediate_keywords = ['now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'next few hours']
-        short_term_keywords = ['short term', 'this week', 'next few days', 'coming days', '1-7 days', 'next week', 'few days']
-        long_term_keywords = ['long term', '2026', 'next year', 'months ahead', '1-6 months', 'next quarter', 'coming months']
-        medium_term_keywords = ['medium term', 'next 2 weeks', '2-4 weeks', 'coming weeks', 'next month']
-
-        if any(keyword in note for keyword in immediate_keywords):
-            return "immediate"
-        elif any(keyword in note for keyword in short_term_keywords):
-            return "short_term"
-        elif any(keyword in note for keyword in long_term_keywords):
-            return "long_term"
-        else:
-            return "medium_term"
-
-    def _calculate_time_confidence(self, note):
-        """Calculate confidence score for time horizon predictions"""
-        confidence = 50  # Base confidence
-
-        # Increase confidence for specific time references
-        if any(keyword in note.lower() for keyword in ['confirmed', 'definite', 'certain', 'clear']):
-            confidence += 25
-        elif any(keyword in note.lower() for keyword in ['likely', 'probable', 'expected', 'should']):
-            confidence += 15
-        elif any(keyword in note.lower() for keyword in ['potential', 'possible', 'might', 'could']):
-            confidence += 5
-
-        # Decrease confidence for uncertain language
-        if any(keyword in note.lower() for keyword in ['uncertain', 'unclear', 'maybe', 'perhaps', 'possibly']):
-            confidence -= 15
-        elif any(keyword in note.lower() for keyword in ['waiting', 'pending', 'monitor', 'watch']):
-            confidence -= 10
-
-        # Increase confidence for specific timeframes
-        if any(keyword in note.lower() for keyword in ['today', 'now', 'immediate', 'right now', 'this session']):
-            confidence += 10
-        elif any(keyword in note.lower() for keyword in ['this week', 'next few days', 'coming days']):
-            confidence += 8
-        elif any(keyword in note.lower() for keyword in ['next week', 'next month', 'coming weeks']):
-            confidence += 5
-
-        # Increase confidence for technical confirmation
-        if any(keyword in note.lower() for keyword in ['confirmed by', 'supported by', 'multiple timeframes', 'confluence']):
-            confidence += 12
-        elif any(keyword in note.lower() for keyword in ['breaking', 'crossing', 'bouncing', 'rejecting']):
-            confidence += 8
-
-        # Ensure confidence stays within reasonable bounds
-        return max(20, min(95, confidence))
-
-    def _phase_4_risk_assessment(self, df, signals):
-        """
-        Modified to NOT penalize incomplete data
-        Only assess ACTUAL trading risks
-        """
-        risk_factors = {
-            "high_risk_indicators": [],
-            "false_signal_risks": [],
-            "correlation_risks": [],
-            "position_sizing_recommendations": [],
-            "overall_risk_score": 0,
-            "incomplete_data_penalty": 0  # Will be set by quality assessment
-        }
-
-        # Only assess SIGNAL-BASED risks, not DATA-VOLUME risks
-        total_risk_score = 0
-        signal_count = 0
-
-        # Count actual trading risks
-        for signal_type, signal_list in signals.items():
-            if signal_type == "conflicting_signals":
-                # Conflicting signals = actual risk
-                for conflict in signal_list:
-                    total_risk_score += 2
-                    signal_count += 1
-            elif signal_type == "reversal_signals":
-                # Reversals can be risky if not confirmed
-                for signal in signal_list:
-                    if signal.get("strength") != "HIGH":
-                        total_risk_score += 1
-                    signal_count += 1
-
-        if signal_count > 0:
-            base_risk = total_risk_score / signal_count
-        else:
-            base_risk = 3  # Neutral risk if no signals
-
-        # Cap at 10
-        risk_factors["overall_risk_score"] = min(10, base_risk)
-
-        # Position sizing based on SIGNAL risk, not data volume
-        if risk_factors["overall_risk_score"] >= 7:
-            risk_factors["position_sizing_recommendations"] = [
-                "⚠️ HIGH SIGNAL RISK - Reduce position size by 50%"
-            ]
-        elif risk_factors["overall_risk_score"] >= 5:
-            risk_factors["position_sizing_recommendations"] = [
-                "🟡 MODERATE SIGNAL RISK - Reduce position size by 25%"
-            ]
-        else:
-            risk_factors["position_sizing_recommendations"] = [
-                "🟢 ACCEPTABLE SIGNAL RISK - Normal position sizing"
-            ]
-
-        return risk_factors
-
-    def _calculate_signal_risk(self, signal, signal_type):
-        """Calculate risk score for individual signals"""
-        risk_score = 5  # Base risk
-
-        # Signal type risk weighting
-        type_weights = {
-            "reversal_signals": 1.5,
-            "breakout_signals": 1.3,
-            "divergence_signals": 1.2,
-            "momentum_signals": 1.0,
-            "support_signals": 0.8
-        }
-
-        risk_score *= type_weights.get(signal_type, 1.0)
-
-        # Strength-based risk adjustment
-        if signal.get('strength') == 'HIGH':
-            risk_score += 2
-        elif signal.get('strength') == 'LOW':
-            risk_score -= 1
-
-        # Confidence-based adjustment
-        if signal.get('confidence', 50) < 40:
-            risk_score += 1
-        elif signal.get('confidence', 50) > 70:
-            risk_score -= 1
-
-        return min(10, max(1, risk_score))
-
-    def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis):
-        """Simplified DeepSeek analysis - FIXED VERSION"""
+    # -------------------------------------------------------------------------
+    # DEEPSEEK ANALYSIS LOGIC
+    # -------------------------------------------------------------------------
+
+    def _get_deepseek_enhanced_analysis(self, df, strategy_overview, signals, time_analysis, manual_asset="ETH", manual_price=0.0):
+        """DeepSeek analysis with Asset, Price, and Memory Context injection"""
         try:
-            # Prepare data for DeepSeek
+            # 1. Prepare Data Summary
             data_summary = self._prepare_data_for_deepseek(df)
 
-            # Get the enhanced analysis prompt
-            prompt = self.deepseek_prompts["enhanced_analysis"].format(data_summary=data_summary)
+            # 2. Activate Memory Recall
+            memory_record = self.get_previous_weekly_close(manual_asset)
+            
+            # 3. Construct Context String
+            if memory_record:
+                prev_price = float(memory_record['closing_price'])
+                prev_date = memory_record['week_date']
+                price_change = manual_price - prev_price
+                pct_change = (price_change / prev_price) * 100 if prev_price != 0 else 0
+                
+                memory_context = f"""
+                ASSET: {manual_asset}
+                CURRENT WEEKLY CLOSE: ${manual_price:,.2f}
+                
+                🧠 MEMORY RECALL (Comparing to {prev_date}):
+                - Previous Close: ${prev_price:,.2f}
+                - Price Change: ${price_change:,.2f} ({pct_change:+.2f}%)
+                - Trend implication: {"BULLISH expansion" if pct_change > 0 else "BEARISH contraction"} since last record.
+                """
+            else:
+                memory_context = f"""
+                ASSET: {manual_asset}
+                CURRENT WEEKLY CLOSE: ${manual_price:,.2f}
+                (No historical memory found in database for comparison)
+                """
 
-            # Call DeepSeek API
+            # 4. Format Prompt
+            prompt = self.deepseek_prompts["enhanced_analysis"].format(
+                asset_context=memory_context,
+                asset_name=manual_asset,
+                current_price=f"{manual_price:,.2f}",
+                data_summary=data_summary
+            )
+
+            # 5. Call API
             response = self._call_deepseek_api(prompt)
 
-            # ALWAYS return a valid dict - CRITICAL FIX
             if response:
                 parsed_response = self._parse_deepseek_response(response)
-                # Double-check that we got a dict back
                 if isinstance(parsed_response, dict):
+                    # Inject the memory context into the result for display
+                    parsed_response['memory_context'] = memory_context
                     return parsed_response
                 else:
-                    # If somehow we didn't get a dict, create fallback
                     return self._create_fallback_analysis(f"Unexpected parser response type: {type(parsed_response)}")
             else:
                 return self._create_fallback_analysis("DeepSeek API unavailable")
@@ -2540,23 +1539,485 @@ class EnhancedKaiTradingAgent:
             "deepseek_analysis": None
         }
 
-    def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
-        """KAI's consistent reporting format with DeepSeek enhancement - FIXED VERSION"""
+    # -------------------------------------------------------------------------
+    # CSV AUTO-EXPLAINER
+    # -------------------------------------------------------------------------
 
-        # Ensure deepseek_analysis is always a dictionary
+    def _auto_explain_csv_data(self, df):
+        """Auto-Explainer - Convert CSV data to structured analysis with explanations"""
+        try:
+            analysis_summary = {
+                "Data Quality Assessment": self._get_dataset_overview(df),
+                "Strategy Analysis": self._analyze_strategies(df),
+                "Trading Signals": self._extract_trading_signals(df),
+                "Momentum Analysis": self._analyze_momentum_patterns(df),
+                "Risk Assessment": self._assess_dataset_risk(df),
+                "Quality Metrics": self._calculate_quality_metrics(df)
+            }
+            return analysis_summary
+        except Exception as e:
+            self.logger.error(f"Auto-explainer failed: {e}")
+            return {"error": str(e), "raw_data_available": True}
+
+    def _get_dataset_overview(self, df):
+        """Get comprehensive dataset overview"""
+        return {
+            "total_records": len(df),
+            "total_strategies": df['Strategy'].nunique() if 'Strategy' in df.columns else 0,
+            "total_indicators": df['Indicator'].nunique() if 'Indicator' in df.columns else 0,
+            "completion_rate": self._calculate_completion_rate(df),
+            "date_range": self._get_date_range(df),
+            "columns_available": list(df.columns),
+            "data_types": {col: str(df[col].dtype) for col in df.columns}
+        }
+
+    def _calculate_completion_rate(self, df):
+        """Calculate analysis completion rate"""
+        if 'Status' in df.columns:
+            completed = len(df[df['Status'] == 'Done'])
+            total = len(df)
+            return f"{completed}/{total} ({completed/total*100:.1f}%)" if total > 0 else "0%"
+        return "Status column not available"
+
+    def _get_date_range(self, df):
+        """Get date range from dataset"""
+        date_columns = ['analysis_date', 'Analysis_Date', 'last_modified', 'Last_Modified']
+        for col in date_columns:
+            if col in df.columns:
+                try:
+                    dates = pd.to_datetime(df[col], errors='coerce')
+                    valid_dates = dates.dropna()
+                    if not valid_dates.empty:
+                        return f"{valid_dates.min()} to {valid_dates.max()}"
+                except:
+                    pass
+        return "No date information available"
+
+    def _analyze_strategies(self, df):
+        """Analyze strategy distribution and performance"""
+        if 'Strategy' not in df.columns:
+            return {"error": "Strategy column not found"}
+
+        strategies = df['Strategy'].value_counts().to_dict()
+        strategy_metrics = {}
+
+        for strategy in df['Strategy'].unique():
+            strategy_data = df[df['Strategy'] == strategy]
+            strategy_metrics[strategy] = {
+                "indicator_count": len(strategy_data),
+                "completion_rate": len(strategy_data[strategy_data['Status'] == 'Done']) / len(strategy_data) * 100 if 'Status' in df.columns and len(strategy_data) > 0 else "N/A",
+                "common_tags": strategy_data['Tag'].value_counts().to_dict() if 'Tag' in df.columns else {},
+                "momentum_distribution": strategy_data['Momentum'].value_counts().to_dict() if 'Momentum' in df.columns else {}
+            }
+
+        return {
+            "strategy_count": len(strategies),
+            "strategy_distribution": strategies,
+            "strategy_metrics": strategy_metrics
+        }
+
+    def _extract_trading_signals(self, df):
+        """Extract and categorize trading signals"""
+        signals = {
+            "reversal_signals": self._extract_reversal_signals(df),
+            "momentum_signals": self._extract_momentum_signals(df),
+            "support_resistance": self._extract_support_resistance(df),
+            "volume_signals": self._extract_volume_signals(df),
+            "breakout_signals": self._extract_breakout_signals(df),
+            "divergence_signals": self._extract_divergence_signals(df)
+        }
+
+        # Calculate signal strength and confidence
+        signal_metrics = {
+            "total_signals": sum(len(signal_list) for signal_list in signals.values()),
+            "strong_signals": len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
+        }
+
+        return {"signals": signals, "metrics": signal_metrics}
+
+    # -------------------------------------------------------------------------
+    # SIGNAL EXTRACTION HELPERS
+    # -------------------------------------------------------------------------
+
+    def _extract_reversal_signals(self, df):
+        reversal_keywords = ['reversal', 'reverse', 'turnaround', 'revert', 'exhaustion', 'divergence']
+        reversals = []
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            if any(keyword in note for keyword in reversal_keywords):
+                reversals.append({
+                    "strategy": row.get('Strategy', 'Unknown'),
+                    "indicator": row.get('Indicator', 'Unknown'),
+                    "note": row.get('Note', ''),
+                    "strength": "HIGH" if any(word in note for word in ['major', 'strong', 'probable', 'confirmed']) else "MEDIUM",
+                    "score": self._calculate_reversal_score(note, row.get('Indicator', ''))
+                })
+        return reversals
+
+    def _extract_momentum_signals(self, df):
+        momentum_signals = {"bullish": [], "bearish": [], "neutral": []}
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            if any(word in note for word in ['bullish', 'breaking up', 'uptrend', 'buy', 'long', 'rally']):
+                momentum_signals["bullish"].append({"strategy": row.get('Strategy'), "indicator": row.get('Indicator'), "note": row.get('Note'), "confidence": self._calculate_confidence_score(note)})
+            elif any(word in note for word in ['bearish', 'breaking down', 'downtrend', 'sell', 'short', 'decline']):
+                momentum_signals["bearish"].append({"strategy": row.get('Strategy'), "indicator": row.get('Indicator'), "note": row.get('Note'), "confidence": self._calculate_confidence_score(note)})
+            else:
+                momentum_signals["neutral"].append({"strategy": row.get('Strategy'), "indicator": row.get('Indicator'), "note": row.get('Note'), "confidence": self._calculate_confidence_score(note)})
+        return momentum_signals
+
+    def _extract_support_resistance(self, df):
+        levels = {"support": [], "resistance": []}
+        level_keywords = {
+            "support": ['support', 'holding', 'bounce', 'floor', 'demand', 'base'],
+            "resistance": ['resistance', 'rejection', 'ceiling', 'supply', 'top', 'cap']
+        }
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            for level_type, keywords in level_keywords.items():
+                if any(keyword in note for keyword in keywords):
+                    levels[level_type].append({
+                        "strategy": row.get('Strategy', 'Unknown'),
+                        "indicator": row.get('Indicator', 'Unknown'),
+                        "note": row.get('Note', ''),
+                        "level": level_type.upper(),
+                        "strength": "STRONG" if any(word in note for word in ['strong', 'major', 'key', 'critical']) else "MODERATE",
+                        "price_level": self._extract_price_level(note),
+                        "confidence": self._calculate_confidence_score(note)
+                    })
+        return levels
+
+    def _extract_volume_signals(self, df):
+        volume_signals = []
+        volume_keywords = ['volume', 'volatility', 'liquidity', 'participation']
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            if any(keyword in note for keyword in volume_keywords):
+                volume_signals.append({
+                    "strategy": row.get('Strategy', 'Unknown'),
+                    "indicator": row.get('Indicator', 'Unknown'),
+                    "note": row.get('Note', ''),
+                    "type": self._classify_volume_signal(note),
+                    "score": self._calculate_volume_score(note)
+                })
+        return volume_signals
+
+    def _extract_breakout_signals(self, df):
+        breakout_signals = []
+        breakout_keywords = ['breakout', 'breaking', 'crossing', 'above', 'below', 'through']
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            if any(keyword in note for keyword in breakout_keywords):
+                breakout_signals.append({
+                    "strategy": row.get('Strategy', 'Unknown'),
+                    "indicator": row.get('Indicator', 'Unknown'),
+                    "note": row.get('Note', ''),
+                    "direction": "BULLISH" if any(word in note for word in ['above', 'breaking up', 'bullish']) else "BEARISH",
+                    "confidence": self._calculate_confidence_score(note)
+                })
+        return breakout_signals
+
+    def _extract_divergence_signals(self, df):
+        divergence_signals = []
+        divergence_keywords = ['divergence', 'divergent', 'disagreement', 'conflict']
+        for _, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            if any(keyword in note for keyword in divergence_keywords):
+                divergence_signals.append({
+                    "strategy": row.get('Strategy', 'Unknown'),
+                    "indicator": row.get('Indicator', 'Unknown'),
+                    "note": row.get('Note', ''),
+                    "type": self._classify_divergence(note),
+                    "confidence": self._calculate_confidence_score(note)
+                })
+        return divergence_signals
+
+    def _classify_volume_signal(self, note):
+        if 'high volume' in note or 'increasing volume' in note: return "HIGH_VOLUME"
+        elif 'low volume' in note or 'decreasing volume' in note: return "LOW_VOLUME"
+        elif 'volume confirmation' in note: return "CONFIRMATION"
+        else: return "GENERAL_VOLUME"
+
+    def _calculate_signal_quality(self, signals):
+        total_signals = sum(len(signal_list) for signal_list in signals.values())
+        if total_signals == 0: return 0
+        strong_signals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
+        high_confidence = len([s for s in signals["momentum_signals"]["bullish"] + signals["momentum_signals"]["bearish"] if s.get('confidence', 0) > 70])
+        quality_score = ((strong_signals * 2) + high_confidence) / (total_signals * 2) * 100
+        return min(100, quality_score)
+
+    def _analyze_momentum_patterns(self, df):
+        if 'Momentum' not in df.columns: return {"error": "Momentum column not found"}
+        momentum_distribution = df['Momentum'].value_counts().to_dict()
+        strategy_momentum = {}
+        for strategy in df['Strategy'].unique():
+            strategy_data = df[df['Strategy'] == strategy]
+            momentum_counts = strategy_data['Momentum'].value_counts()
+            if len(momentum_counts) > 0:
+                strategy_momentum[strategy] = {
+                    "dominant_momentum": momentum_counts.index[0],
+                    "consistency_score": momentum_counts.iloc[0] / len(strategy_data) * 100
+                }
+        return {
+            "momentum_distribution": momentum_distribution,
+            "strategy_momentum_analysis": strategy_momentum,
+            "overall_momentum_bias": self._calculate_overall_momentum_bias(momentum_distribution)
+        }
+
+    def _calculate_overall_momentum_bias(self, momentum_distribution):
+        bullish_score = sum(count for m, count in momentum_distribution.items() if any(t in str(m).lower() for t in ['bullish', 'up', 'positive', 'buy']))
+        bearish_score = sum(count for m, count in momentum_distribution.items() if any(t in str(m).lower() for t in ['bearish', 'down', 'negative', 'sell']))
+        total = bullish_score + bearish_score
+        if total == 0: return "NEUTRAL"
+        return "BULLISH" if (bullish_score / total) > 0.6 else "BEARISH" if (bullish_score / total) < 0.4 else "NEUTRAL"
+
+    def _assess_dataset_risk(self, df):
+        risk_factors = {"high_risk_indicators": 0, "conflicting_signals": 0, "incomplete_analyses": 0}
+        for _, row in df.iterrows():
+            if any(word in str(row.get('Note', '')).lower() for word in ['high risk', 'danger', 'caution', 'warning']):
+                risk_factors["high_risk_indicators"] += 1
+        if 'Status' in df.columns:
+            risk_factors["incomplete_analyses"] = len(df[df['Status'] != 'Done'])
+        risk_factors["overall_risk_score"] = min(100, (risk_factors["high_risk_indicators"] * 3 + risk_factors["incomplete_analyses"] * 2) / (len(df) * 3) * 100) if len(df) > 0 else 0
+        return risk_factors
+
+    def _calculate_quality_metrics(self, df):
+        total = len(df)
+        if total == 0: return {"overall_quality": 0}
+        completeness = (len(df.dropna()) / total) * 100
+        consistency = (len(df[df['Status'].isin(['Done', 'Open', 'In Progress', 'Skipped'])]) / total * 100) if 'Status' in df.columns else 0
+        return {"overall_quality": completeness * 0.6 + consistency * 0.4}
+
+    # -------------------------------------------------------------------------
+    # SCORING HELPERS
+    # -------------------------------------------------------------------------
+
+    def _calculate_reversal_score(self, note, indicator):
+        score = 0
+        if any(k in note for k in ['major reversal', 'probable reversal', 'strong reversal', 'confirmed reversal']): score += 3
+        elif any(k in note for k in ['reversal', 'reverse', 'turnaround', 'exhaustion']): score += 1
+        
+        indicator_weights = {'RSI': 2, 'MACD': 2, 'Stoch': 2, 'Fibonacci': 1.5, 'VWAP': 1.5, 'Support': 1.5, 'Resistance': 1.5}
+        for ind, weight in indicator_weights.items():
+            if ind.lower() in indicator.lower():
+                score *= weight; break
+                
+        if 'confirmed' in note: score += 2
+        if 'multiple' in note or 'confluence' in note: score += 2
+        return min(10, score)
+
+    def _calculate_confidence_score(self, note):
+        confidence = 50
+        if 'confirmed' in note: confidence += 30
+        if 'likely' in note or 'probable' in note: confidence += 15
+        if 'potential' in note or 'possible' in note: confidence -= 10
+        if 'uncertain' in note or 'maybe' in note: confidence -= 20
+        return max(10, min(95, confidence))
+
+    def _calculate_volume_score(self, note):
+        score = 0
+        if 'high volume' in note or 'increasing volume' in note: score += 3
+        if 'volume confirmation' in note: score += 2
+        if 'low volume' in note: score += 1
+        return score
+
+    def _extract_price_level(self, note):
+        import re
+        price_patterns = [r'\$(\d+(?:,\d{3})*(?:\.\d{2})?)', r'(\d+(?:,\d{3})*)\s*(k|K)', r'(\d+(?:,\d{3})*(?:\.\d{2})?)']
+        for pattern in price_patterns:
+            matches = re.findall(pattern, note)
+            if matches: return matches[0] if isinstance(matches[0], str) else ''.join(matches[0])
+        return "Not specified"
+
+    def _classify_divergence(self, note):
+        if 'bullish divergence' in note: return "BULLISH"
+        elif 'bearish divergence' in note: return "BEARISH"
+        elif 'hidden divergence' in note: return "HIDDEN"
+        else: return "REGULAR"
+
+    def _calculate_breakout_score(self, note):
+        score = 0
+        if 'confirmed breakout' in note: score += 3
+        if 'breaking' in note or 'crossing' in note: score += 2
+        if 'potential breakout' in note: score += 1
+        return score
+
+    # -------------------------------------------------------------------------
+    # ANALYSIS PHASES
+    # -------------------------------------------------------------------------
+
+    def _phase_1_scanning(self, df):
+        completed_analyses = len(df[df['Status'] == 'Done']) if 'Status' in df.columns else 0
+        total_indicators = len(df)
+        strategies = df['Strategy'].unique() if 'Strategy' in df.columns else []
+        return {
+            "completion_rate": f"{completed_analyses}/{total_indicators}",
+            "strategies_analyzed": list(strategies),
+            "pending_analyses": len(df[df['Status'] == 'Open']) if 'Status' in df.columns else 0,
+            "total_strategies": len(strategies),
+            "analysis_coverage": f"{(completed_analyses/total_indicators)*100:.1f}%" if total_indicators > 0 else "0%"
+        }
+
+    def _phase_2_signal_extraction(self, df):
+        signals = {
+            "reversal_signals": [], "momentum_signals": [], "support_signals": [], 
+            "volume_signals": [], "breakout_signals": [], "divergence_signals": [], 
+            "conflicting_signals": []
+        }
+        for index, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            indicator = row.get('Indicator', 'Unknown')
+            strategy = row.get('Strategy', 'Unknown')
+
+            reversal_score = self._calculate_reversal_score(note, indicator)
+            if reversal_score > 0:
+                signals["reversal_signals"].append({
+                    "strategy": strategy, "indicator": indicator, "message": row.get('Note', ''),
+                    "strength": "HIGH" if reversal_score >= 7 else "MEDIUM", "score": reversal_score,
+                    "confidence": min(90, reversal_score * 10)
+                })
+
+            sr_analysis = self._analyze_support_resistance_phase2(note, indicator, strategy)
+            if sr_analysis: signals["support_signals"].append(sr_analysis)
+
+            momentum_analysis = self._analyze_momentum_phase2(note, indicator, strategy)
+            if momentum_analysis: signals["momentum_signals"].append(momentum_analysis)
+
+            if any(keyword in note for keyword in ['volume', 'volatility', 'liquidity']):
+                signals["volume_signals"].append({"strategy": strategy, "indicator": indicator, "message": row.get('Note', ''), "score": self._calculate_volume_score(note)})
+
+            if any(keyword in note for keyword in ['breakout', 'breaking', 'crossing', 'above', 'below']):
+                signals["breakout_signals"].append({"strategy": strategy, "indicator": indicator, "message": row.get('Note', ''), "score": self._calculate_breakout_score(note)})
+
+            if any(keyword in note for keyword in ['divergence', 'divergent', 'disagreement']):
+                signals["divergence_signals"].append({"strategy": strategy, "indicator": indicator, "message": row.get('Note', ''), "type": self._classify_divergence(note)})
+
+        signals["conflicting_signals"] = self._find_conflicting_signals(signals)
+        return signals
+
+    def _analyze_support_resistance_phase2(self, note, indicator, strategy):
+        support_keywords = ['support', 'holding', 'bounce', 'floor', 'demand']
+        resistance_keywords = ['resistance', 'rejection', 'ceiling', 'supply', 'top']
+        level_type = "SUPPORT" if any(k in note for k in support_keywords) else "RESISTANCE" if any(k in note for k in resistance_keywords) else None
+        if level_type:
+            return {
+                "strategy": strategy, "indicator": indicator, "message": note, "level": level_type,
+                "strength": "STRONG" if any(word in note for word in ['strong', 'major', 'key']) else "MODERATE",
+                "price_level": self._extract_price_level(note)
+            }
+        return None
+
+    def _analyze_momentum_phase2(self, note, indicator, strategy):
+        direction = "BULLISH" if any(w in note for w in ['bullish', 'breaking up', 'uptrend', 'buy', 'long', 'rally']) else "BEARISH" if any(w in note for w in ['bearish', 'breaking down', 'downtrend', 'sell', 'short', 'decline']) else None
+        if direction:
+            return {
+                "strategy": strategy, "indicator": indicator, "message": note, "direction": direction,
+                "strength": "STRONG" if any(word in note for word in ['strong', 'powerful', 'accelerating']) else "MODERATE"
+            }
+        return None
+
+    def _find_conflicting_signals(self, signals):
+        conflicts = []
+        for reversal in signals["reversal_signals"]:
+            for momentum in signals["momentum_signals"]:
+                if (reversal['strategy'] == momentum['strategy'] and reversal.get('implied_direction') != momentum.get('direction')):
+                    conflicts.append({"type": "REVERSAL_MOMENTUM_CONFLICT", "reversal_signal": reversal, "momentum_signal": momentum, "strategy": reversal['strategy']})
+        return conflicts
+
+    def _phase_3_time_mapping(self, df):
+        time_signals = {"immediate": [], "short_term": [], "medium_term": [], "long_term": []}
+        time_keywords = {
+            "immediate": ['now', 'immediate', 'today', 'intraday', 'right now', 'currently', 'asap', 'urgent', 'instant', 'momentum', 'breakout'],
+            "short_term": ['short term', 'this week', 'next few days', 'coming days', '1-7 days', 'few days', 'daily', 'day trade'],
+            "medium_term": ['medium term', 'this month', 'next few weeks', '1-4 weeks', 'monthly', 'swing trade', 'intermediate'],
+            "long_term": ['long term', '2026', 'next year', 'months ahead', '1-6 months', 'quarterly', 'position trade', 'investment']
+        }
+
+        for index, row in df.iterrows():
+            if pd.isna(row.get('Note')) or row.get('Note') == '': continue
+            note = str(row.get('Note', '')).lower()
+            indicator = row.get('Indicator', 'Unknown')
+            strategy = row.get('Strategy', 'Unknown')
+
+            time_horizon = None
+            for horizon, keywords in time_keywords.items():
+                if any(keyword in note for keyword in keywords):
+                    time_horizon = horizon
+                    break
+            
+            if not time_horizon:
+                time_horizon = self._classify_time_by_indicator(indicator, note)
+            
+            if time_horizon not in time_signals: time_horizon = "medium_term"
+
+            time_signals[time_horizon].append({
+                "indicator": indicator, "strategy": strategy, "message": row.get('Note', ''),
+                "confidence": self._calculate_time_confidence(note), "time_horizon": time_horizon
+            })
+
+        # Ensure representation
+        if sum(len(s) for s in time_signals.values()) > 0:
+            for horizon in ["immediate", "short_term", "medium_term", "long_term"]:
+                if len(time_signals[horizon]) == 0:
+                    max_horizon = max(time_signals, key=lambda h: len(time_signals[h]))
+                    if time_signals[max_horizon]:
+                        ref_signal = time_signals[max_horizon][0].copy()
+                        ref_signal["classifier"] = "distributed"
+                        time_signals[horizon].append(ref_signal)
+        return time_signals
+
+    def _classify_time_by_indicator(self, indicator, note):
+        ind_lower = indicator.lower()
+        if any(x in ind_lower for x in ['vwap', 'rsi', 'macd']): return "immediate"
+        if any(x in ind_lower for x in ['supertrend', 'ema', 'sma']): return "short_term"
+        if any(x in ind_lower for x in ['rainbow', 'alligator']): return "medium_term"
+        if any(x in ind_lower for x in ['log', 'cycle', 'mvrv']): return "long_term"
+        return "medium_term"
+
+    def _calculate_time_confidence(self, note):
+        confidence = 50
+        if any(k in note.lower() for k in ['confirmed', 'definite', 'certain']): confidence += 25
+        elif any(k in note.lower() for k in ['likely', 'probable']): confidence += 15
+        if any(k in note.lower() for k in ['uncertain', 'unclear', 'maybe']): confidence -= 15
+        return max(20, min(95, confidence))
+
+    def _phase_4_risk_assessment(self, df, signals):
+        risk_factors = {"high_risk_indicators": [], "false_signal_risks": [], "correlation_risks": [], "position_sizing_recommendations": [], "overall_risk_score": 0, "incomplete_data_penalty": 0}
+        total_risk_score = 0
+        signal_count = 0
+
+        for signal_type, signal_list in signals.items():
+            if signal_type == "conflicting_signals":
+                for _ in signal_list: total_risk_score += 2; signal_count += 1
+            elif signal_type == "reversal_signals":
+                for signal in signal_list:
+                    if signal.get("strength") != "HIGH": total_risk_score += 1
+                    signal_count += 1
+
+        base_risk = (total_risk_score / signal_count) if signal_count > 0 else 3
+        risk_factors["overall_risk_score"] = min(10, base_risk)
+
+        if risk_factors["overall_risk_score"] >= 7: risk_factors["position_sizing_recommendations"] = ["⚠️ HIGH SIGNAL RISK - Reduce position size by 50%"]
+        elif risk_factors["overall_risk_score"] >= 5: risk_factors["position_sizing_recommendations"] = ["🟡 MODERATE SIGNAL RISK - Reduce position size by 25%"]
+        else: risk_factors["position_sizing_recommendations"] = ["🟢 ACCEPTABLE SIGNAL RISK - Normal position sizing"]
+        return risk_factors
+
+    def _generate_kai_report(self, overview, signals, time_analysis, risk_analysis, deepseek_analysis=None):
         if deepseek_analysis is not None and not isinstance(deepseek_analysis, dict):
             try:
-                # Try to parse if it's a JSON string
-                if isinstance(deepseek_analysis, str):
-                    deepseek_analysis = json.loads(deepseek_analysis)
-                else:
-                    # If it's neither dict nor string, create a fallback
-                    deepseek_analysis = self._create_fallback_analysis(f"Unexpected analysis type: {type(deepseek_analysis)}")
+                if isinstance(deepseek_analysis, str): deepseek_analysis = json.loads(deepseek_analysis)
+                else: deepseek_analysis = self._create_fallback_analysis(f"Unexpected type: {type(deepseek_analysis)}")
             except:
-                # If parsing fails, create fallback
                 deepseek_analysis = self._create_fallback_analysis("Analysis format error")
 
-        report = {
+        return {
             "header": f"🔍 **{self.character['name']} Analysis Report**",
             "executive_summary": self._generate_executive_summary(overview, signals, deepseek_analysis),
             "key_findings": self._generate_key_findings(signals, overview, deepseek_analysis),
@@ -2572,227 +2033,61 @@ class EnhancedKaiTradingAgent:
             "deepseek_enhanced": deepseek_analysis is not None,
             "deepseek_analysis": deepseek_analysis
         }
-        return report
 
     def _generate_executive_summary(self, overview, signals, deepseek_analysis):
-        """KAI's signature executive summary style - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('executive_summary')):
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('executive_summary'):
             return f"🧠 **DeepSeek Enhanced:** {deepseek_analysis['executive_summary']}"
-
-        # Fallback to standard analysis
+        
         reversal_count = len(signals["reversal_signals"])
         strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
-        momentum_bearish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-        momentum_bullish = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
-
-        if reversal_count >= 3 and strong_reversals >= 2:
-            return f"**{self.character['phrases']['critical_juncture']}** - MULTIPLE STRONG REVERSAL SIGNALS DETECTED"
-        elif reversal_count >= 2:
-            return f"**{self.character['phrases']['reversal_expected']}** - {reversal_count} reversal patterns identified"
-        elif momentum_bullish > momentum_bearish * 1.5:
-            return f"**Bullish Bias** - {momentum_bullish} bullish vs {momentum_bearish} bearish momentum signals"
-        elif momentum_bearish > momentum_bullish * 1.5:
-            return f"**Bearish Bias** - {momentum_bearish} bearish vs {momentum_bullish} bullish momentum signals"
-        else:
-            return f"**Consolidation Phase** - Mixed signals across {overview['total_strategies']} strategies"
+        if reversal_count >= 3 and strong_reversals >= 2: return "**CRITICAL JUNCTURE** - MULTIPLE STRONG REVERSAL SIGNALS DETECTED"
+        elif reversal_count >= 2: return "**REVERSAL EXPECTED** - Several reversal patterns identified"
+        else: return "**Consolidation Phase** - Mixed signals across strategies"
 
     def _generate_key_findings(self, signals, overview, deepseek_analysis):
-        """KAI always provides 3-5 key findings with DeepSeek enhancement - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('key_findings')):
-            findings = deepseek_analysis['key_findings']
-            if isinstance(findings, list):
-                return findings[:5]
-
-        # Standard key findings
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('key_findings'):
+            return deepseek_analysis['key_findings'][:5]
+        
         findings = []
-
-        # Reversal analysis
-        reversal_count = len(signals["reversal_signals"])
-        strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
-        if reversal_count > 0:
-            findings.append(f"🔄 **Reversal Patterns**: {reversal_count} reversal signals ({strong_reversals} strong)")
-
-        # Support/Resistance
-        support_count = len([s for s in signals["support_signals"] if s.get('level') == 'SUPPORT'])
-        resistance_count = len([s for s in signals["support_signals"] if s.get('level') == 'RESISTANCE'])
-        if support_count > 0 or resistance_count > 0:
-            findings.append(f"📊 **Key Levels**: {support_count} support zones, {resistance_count} resistance zones")
-
-        # Momentum
-        bullish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
-        bearish_momentum = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-        if bullish_momentum > 0 or bearish_momentum > 0:
-            findings.append(f"🎯 **Momentum**: {bullish_momentum} bullish vs {bearish_momentum} bearish signals")
-
-        # Volume analysis
-        if signals["volume_signals"]:
-            findings.append(f"📈 **Volume Analysis**: {len(signals['volume_signals'])} volume-based signals")
-
-        # Divergence signals
-        if signals["divergence_signals"]:
-            divergence_types = {}
-            for signal in signals["divergence_signals"]:
-                div_type = signal.get('type', 'UNKNOWN')
-                divergence_types[div_type] = divergence_types.get(div_type, 0) + 1
-
-            divergence_str = ", ".join([f"{count} {typ}" for typ, count in divergence_types.items()])
-            findings.append(f"⚡ **Divergence Signals**: {divergence_str}")
-
-        return findings[:5]
+        if signals["reversal_signals"]: findings.append(f"🔄 **Reversal Patterns**: {len(signals['reversal_signals'])} signals")
+        if signals["support_signals"]: findings.append(f"📊 **Levels**: {len(signals['support_signals'])} support/resistance zones")
+        if signals["momentum_signals"]["bullish"]: findings.append(f"🎯 **Bullish Momentum**: {len(signals['momentum_signals']['bullish'])} signals")
+        return findings
 
     def _generate_momentum_analysis(self, signals, deepseek_analysis):
-        """Enhanced momentum analysis - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('momentum_assessment')):
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('momentum_assessment'):
             return deepseek_analysis['momentum_assessment']
-
-        # Standard momentum analysis
-        bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
-        bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-
-        if bullish_count > bearish_count * 1.5:
-            return "Strong bullish momentum bias across multiple timeframes"
-        elif bearish_count > bullish_count * 1.5:
-            return "Strong bearish momentum bias with selling pressure"
-        else:
-            return "Mixed momentum signals suggesting consolidation or indecision"
+        return "Mixed momentum signals suggesting consolidation"
 
     def _generate_support_resistance(self, signals, deepseek_analysis):
-        """Enhanced support/resistance analysis - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('critical_levels')):
-            levels = deepseek_analysis['critical_levels']
-            if isinstance(levels, list):
-                return levels[:5]
-
-        # Standard support/resistance
-        levels = []
-        for signal in signals["support_signals"]:
-            level_info = f"{signal.get('level', 'LEVEL')} at {signal.get('price_level', 'N/A')}"
-            if signal.get('strength') == 'STRONG':
-                level_info += " (STRONG)"
-            levels.append(level_info)
-
-        return levels[:5]
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('critical_levels'):
+            return deepseek_analysis['critical_levels'][:5]
+        return [f"{s.get('level')} at {s.get('price_level')}" for s in signals["support_signals"]][:5]
 
     def _generate_time_outlook(self, time_analysis, deepseek_analysis):
-        """FIXED: Enhanced time horizon outlook that ALWAYS displays signals"""
-        # If we have DeepSeek enhanced analysis, use those time horizons
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('time_horizons')):
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('time_horizons'):
             return deepseek_analysis['time_horizons']
-
-        # Otherwise use the standard time analysis
-        # CRITICAL FIX: Ensure we're returning the time_signals dict correctly
-        if isinstance(time_analysis, dict):
-            return time_analysis
-        else:
-            # Fallback if something went wrong
-            return {
-                "immediate": [],
-                "short_term": [],
-                "medium_term": [],
-                "long_term": []
-            }
+        return time_analysis
 
     def _generate_risk_assessment(self, risk_analysis, deepseek_analysis):
-        """Enhanced risk assessment - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('risk_analysis')):
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('risk_analysis'):
             return deepseek_analysis['risk_analysis']
-
         risk_score = risk_analysis.get('overall_risk_score', 5)
-
-        if risk_score >= 7:
-            return "HIGH RISK ENVIRONMENT - Exercise extreme caution with position sizing"
-        elif risk_score >= 5:
-            return "MODERATE RISK - Standard risk management appropriate"
-        else:
-            return "LOW RISK - Favorable conditions for trading"
+        return "HIGH RISK" if risk_score >= 7 else "MODERATE RISK" if risk_score >= 5 else "LOW RISK"
 
     def _calculate_confidence(self, signals, deepseek_analysis):
-        """KAI's consistent confidence scoring with DeepSeek enhancement - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('confidence_score') is not None):
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('confidence_score') is not None:
             return deepseek_analysis['confidence_score']
-
-        # Standard confidence calculation
         score = 0
-
-        # Reversal signals (highest weight)
-        for signal in signals["reversal_signals"]:
-            if signal.get('strength') == 'HIGH':
-                score += 25
-            else:
-                score += 15
-
-        # Support/Resistance signals
+        for signal in signals["reversal_signals"]: score += 25 if signal.get('strength') == 'HIGH' else 15
         score += len(signals["support_signals"]) * 10
-
-        # Momentum confirmation
-        bullish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BULLISH'])
-        bearish_count = len([s for s in signals["momentum_signals"] if s.get('direction') == 'BEARISH'])
-
-        if abs(bullish_count - bearish_count) >= 3:
-            score += 20
-        elif abs(bullish_count - bearish_count) >= 1:
-            score += 10
-
-        # Volume confirmation
-        score += len(signals["volume_signals"]) * 5
-
-        # Divergence signals
-        score += len(signals["divergence_signals"]) * 8
-
         return min(95, max(20, score))
 
     def _generate_trading_implications(self, signals, risk_analysis, deepseek_analysis):
-        """KAI's actionable insights with DeepSeek enhancement - FIXED VERSION"""
-        if (deepseek_analysis and
-            isinstance(deepseek_analysis, dict) and
-            deepseek_analysis.get('trading_recommendations')):
-            recommendations = deepseek_analysis['trading_recommendations']
-            if isinstance(recommendations, list):
-                return recommendations
-
-        # Standard trading implications
-        implications = []
-
-        reversal_strength = len(signals["reversal_signals"])
-        strong_reversals = len([s for s in signals["reversal_signals"] if s.get('strength') == 'HIGH'])
-        risk_score = risk_analysis.get('overall_risk_score', 5)
-
-        if reversal_strength >= 3 and strong_reversals >= 2:
-            implications.append("**🎯 STRONG REVERSAL EVIDENCE** - Prepare for major trend change")
-            implications.append("**📊 MULTI-TIMEFRAME CONFIRMATION** - High probability setup")
-            implications.append("**⏰ IMMINENT MOVE** - Monitor for breakout confirmation")
-        elif reversal_strength >= 2:
-            implications.append("**⚠️ MODERATE REVERSAL SIGNALS** - Wait for additional confirmation")
-            implications.append("**📈 SETUP WATCH** - Prepare entries on confirmation")
-        else:
-            implications.append("**🔄 RANGE-BOUND CONDITIONS** - Focus on support/resistance levels")
-            implications.append("**🎯 MOMENTUM FOLLOWING** - Trade with dominant trend direction")
-
-        # Risk-based position sizing
-        if risk_score >= 7:
-            implications.append("**🔴 HIGH RISK ENVIRONMENT** - Reduce position size by 50-70%")
-        elif risk_score >= 5:
-            implications.append("**🟡 MODERATE RISK** - Use standard position sizing")
-        else:
-            implications.append("**🟢 LOW RISK** - Normal to aggressive position sizing appropriate")
-
-        # Always include core risk management
-        implications.append("**🔒 CORE RISK MANAGEMENT** - 1-3% risk per trade")
-
+        if deepseek_analysis and isinstance(deepseek_analysis, dict) and deepseek_analysis.get('trading_recommendations'):
+            return deepseek_analysis['trading_recommendations']
+        implications = ["**🔒 CORE RISK MANAGEMENT** - 1-3% risk per trade"]
+        if risk_analysis.get('overall_risk_score', 0) >= 7: implications.append("**🔴 HIGH RISK** - Reduce position size by 50-70%")
         return implications
 
 # -------------------------
@@ -3913,92 +3208,75 @@ def load_gallery_images():
         logging.error(f"load_gallery_images() failed completely: {e}")
         return []
 
+def render_kai_chat_interface():
+    """Interactive Chat with KAI"""
+    st.subheader("💬 Tactical Chat")
+    st.caption("Discuss strategy, ask about indicators, or get market insights.")
+
+    # Initialize chat history
+    if "kai_chat_messages" not in st.session_state:
+        st.session_state.kai_chat_messages = []
+
+    # Display chat messages
+    for message in st.session_state.kai_chat_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # User input
+    if prompt := st.chat_input("Ask KAI..."):
+        # Add user message to history
+        st.session_state.kai_chat_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Get KAI response
+        with st.chat_message("assistant"):
+            with st.spinner("KAI is thinking..."):
+                agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+                response = agent.chat_with_kai(prompt, st.session_state.kai_chat_messages)
+                st.markdown(response)
+                
+        # Add assistant message to history
+        st.session_state.kai_chat_messages.append({"role": "assistant", "content": response})
+
 def render_kai_agent():
-    """Enhanced KAI AI Agent interface with comprehensive analysis archive"""
-
-    # Check if user is admin or regular user
+    """Enhanced KAI Agent Interface with Chat and Memory"""
     is_admin = st.session_state.user['plan'] == 'admin'
-
-    st.title("🧠 KAI - Technical Analysis")
-
-    # Enhanced KAI Introduction with DeepSeek
+    
+    st.title("🧠 KAI - AI Trading Architect")
+    
     col1, col2 = st.columns([3, 1])
     with col1:
-        if is_admin:
-            st.markdown(f"""
-            **Meet {KAI_CHARACTER['name']}** - {KAI_CHARACTER['title']}
-
-            *{KAI_CHARACTER['experience']}. Specializes in {KAI_CHARACTER['specialty']}.*
-
-            **🧠 NOW ENHANCED WITH DEEPSEEK AI** - Advanced pattern recognition and quantitative analysis.
-
-            **🔄 NEW: AUTO-EXPLAINER CSV ANALYSIS** - KAI automatically analyzes your CSV structure and converts it to optimized analysis for DeepSeek.
-
-            **📚 COMPREHENSIVE ANALYSIS ARCHIVE** - Access all past KAI analyses, not just the latest one.
-
-            KAI provides consistent, structured analysis of trading strategies using a methodical 4-phase approach.
-            """)
-        else:
-            st.markdown(f"""
-            **Meet {KAI_CHARACTER['name']}** - {KAI_CHARACTER['title']}
-
-            *{KAI_CHARACTER['experience']}. Specializes in {KAI_CHARACTER['specialty']}.*
-
-            **🧠 KAI-ENHANCED TECHNICAL ANALYSIS** - View comprehensive trading analysis reports generated by KAI.
-
-            **📚 ANALYSIS ARCHIVE ACCESS** - Browse all historical KAI analyses and insights.
-
-            **📊 QUANTITATIVE SIGNAL SCORING** - See confidence scores and risk assessments for trading signals.
-
-            Premium user has access to KAI's analysis archive and latest reports.
-            """)
-
+        st.markdown(f"""
+        **Identity:** {KAI_CHARACTER['name']} | **Role:** {KAI_CHARACTER['title']}
+        **Capabilities:** DeepSeek Engine • Historical Memory • Live Chat
+        """)
     with col2:
-        if is_admin:
-            st.info("""
-            **KAI's Enhanced Framework:**
-            - Phase 1: Strategy Scanning
-            - Phase 2: Signal Extraction
-            - Phase 3: Time Mapping
-            - Phase 4: Risk Assessment
-            - 🧠 DeepSeek AI Enhancement
-            - 🔄 Auto-Explainer CSV Analysis
-            - 📚 Analysis Archive
-            """)
-        else:
-            st.info("""
-            **User Access Features:**
-            - 📊 View Latest Analysis
-            - 📚 Browse Analysis Archive
-            - 🧠 AI-Enhanced Insights
-            - 📈 Signal Confidence Scores
-            - ⚠️ Risk Assessments
-            - 💡 Trading Recommendations
-            """)
+        st.info("🟢 System Online")
 
-    # Navigation for KAI views - FIXED: Include single analysis view
     st.markdown("---")
 
-    # Check if we're in single analysis view first
-    if st.session_state.kai_analysis_view == 'view_analysis':
-        render_single_kai_analysis()
-        return
-
-    # KAI Navigation Tabs - DIFFERENT ACCESS FOR ADMINS VS USERS
+    # DEFINE TABS - Add Chat for everyone, Upload/Memory for admins
     if is_admin:
-        kai_tabs = st.tabs(["📊 Latest Analysis", "📚 Analysis Archive", "🔄 Upload CSV"])
+        kai_tabs = st.tabs(["📊 Latest Analysis", "💬 Chat with KAI", "📚 Analysis Archive", "⚙️ Data & Memory"])
     else:
-        kai_tabs = st.tabs(["📊 Latest Analysis", "📚 Analysis Archive"])
+        kai_tabs = st.tabs(["📊 Latest Analysis", "💬 Chat with KAI", "📚 Analysis Archive"])
 
+    # TAB 1: Latest Analysis
     with kai_tabs[0]:
         render_latest_kai_analysis(is_admin)
 
+    # TAB 2: Chat with KAI (NEW FEATURE)
     with kai_tabs[1]:
+        render_kai_chat_interface()
+
+    # TAB 3: Archive
+    with kai_tabs[2]:
         render_kai_analysis_archive(is_admin)
 
-    # Only show CSV upload for admins
-    if is_admin and len(kai_tabs) > 2:
-        with kai_tabs[2]:
+    # TAB 4: Admin Tools (Upload & Memory)
+    if is_admin:
+        with kai_tabs[3]:
             render_kai_csv_uploader()
 
 def render_latest_kai_analysis(is_admin):
@@ -4326,158 +3604,90 @@ def render_kai_analysis_archive(is_admin):
         render_kai_analysis_card(analysis, i, is_admin)
 
 def render_kai_csv_uploader():
-    """Render the CSV uploader for KAI analysis (admin only) - ULTIMATE FIXED VERSION"""
-    st.subheader("🔄 Upload CSV for KAI Analysis")
-
-    st.info("""
-    **Upload your trading strategy CSV for enhanced KAI analysis**
-
-    Expected CSV format should include:
-    - `Strategy` (Strategy name)
-    - `Indicator` (Indicator name)
-    - `Note` (Analysis notes)
-    - `Status` (Done/Open)
-    - `Momentum` (Momentum type)
-    - `Tag` (Buy/Sell/Neutral)
-    - `Analysis_Date` (Date of analysis)
-    """)
-
-    uploaded_file = st.file_uploader(
-        "Choose your strategy analysis CSV",
-        type=['csv'],
-        key="kai_csv_uploader",
-        help="Upload the CSV export from your trading dashboard"
-    )
-
-    if uploaded_file is not None:
+    """Admin Tool: Upload CSV Analysis + Teach Memory"""
+    st.subheader("⚙️ KAI Data Center")
+    
+    col_upload, col_memory = st.columns(2)
+    
+    # LEFT COLUMN: New Analysis Run
+    with col_upload:
+        st.markdown("### 1. Run New Analysis")
+        st.info("Upload current strategy data for processing.")
+        
+        # --- NEW FEATURES: Asset & Price Inputs ---
+        sel_asset = st.selectbox("Select Asset:", ["ETH", "BTC", "SOL"], index=0, key="kai_upload_asset")
+        
+        # Retrieve previous close for hint
+        prev_close_hint = 0.0
         try:
-            # Initialize Enhanced KAI with DeepSeek
-            kai_agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+            agent = EnhancedKaiTradingAgent(use_deepseek=False)
+            last_record = agent.get_previous_weekly_close(sel_asset)
+            if last_record:
+                prev_close_hint = float(last_record['closing_price'])
+                st.caption(f"Last recorded close: ${prev_close_hint:,.2f} ({last_record['week_date']})")
+        except:
+            pass
 
-            # Read and analyze data
+        closing_price = st.number_input(
+            f"Current Weekly Closing Price ($):", 
+            min_value=0.0, 
+            value=prev_close_hint,
+            format="%.2f",
+            key="kai_upload_price"
+        )
+        
+        uploaded_file = st.file_uploader("Strategy CSV", type=['csv'], key="kai_main_upload")
+        
+        if uploaded_file and st.button("🚀 Analyze with KAI", type="primary"):
             df = pd.read_csv(uploaded_file)
+            agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+            
+            with st.spinner(f"KAI is analyzing {sel_asset} @ ${closing_price:,.2f}..."):
+                # Pass the new manual inputs
+                analysis = agent.analyze_strategy_data(
+                    df, 
+                    manual_asset=sel_asset, 
+                    manual_price=closing_price
+                )
+                
+            if analysis:
+                save_kai_analysis(analysis)
+                st.success("Analysis Complete & Archived!")
+                st.rerun()
 
-            # Validate required columns
-            required_columns = ['Strategy', 'Indicator']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-
-            if missing_columns:
-                st.error(f"❌ Missing required columns: {', '.join(missing_columns)}")
-                st.info("Please upload a CSV with the correct format including 'Strategy' and 'Indicator' columns.")
-                return
-
-            # Display basic file info
-            st.success(f"✅ CSV loaded successfully: {len(df)} rows, {len(df['Strategy'].unique())} strategies")
-
-            # Show Auto-Explainer analysis
-            with st.expander("🔄 Auto-Explainer CSV Analysis", expanded=True):
-                st.info("KAI is automatically analyzing your CSV structure and extracting trading signals...")
-
-                # Run Auto-Explainer analysis
-                auto_analysis = kai_agent._auto_explain_csv_data(df)
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    if 'Data Quality Assessment' in auto_analysis:
-                        st.subheader("📊 Data Quality Assessment")
-                        overview = auto_analysis['Data Quality Assessment']
-                        st.write(f"**Total Records:** {overview.get('total_records', 'N/A')}")
-                        st.write(f"**Strategies:** {overview.get('total_strategies', 'N/A')}")
-                        # Completion Rate and Data Quality Score removed
-
-                with col2:
-                    if 'Trading Signals' in auto_analysis:
-                        st.subheader("📈 Signal Summary")
-                        signals = auto_analysis['Trading Signals']
-                        st.write(f"**Total Signals:** {signals.get('metrics', {}).get('total_signals', 'N/A')}")
-                        st.write(f"**Strong Signals:** {signals.get('metrics', {}).get('strong_signals', 'N/A')}")
-
-            # Show data preview
-            with st.expander("📋 Data Preview", expanded=False):
-                st.dataframe(df.head(10), use_container_width=True)
-
-            # KAI analyzes the data with enhanced processing
-            with st.spinner("🧠 KAI is performing enhanced analysis with DeepSeek AI..."):
-                analysis = kai_agent.analyze_strategy_data(df)
-
-            # ========== ULTIMATE VALIDATION: ENSURE ANALYSIS IS PROPERLY STRUCTURED ==========
-            if analysis is None:
-                st.error("❌ Analysis returned None - no data received")
-                return
-
-            if not isinstance(analysis, dict):
-                st.error(f"❌ Analysis returned invalid type: {type(analysis)}")
-                st.info("Expected a dictionary but received a different data type.")
-                return
-
-            # ENSURE ALL REQUIRED KEYS EXIST
-            required_keys = [
-                'header', 'executive_summary', 'key_findings', 'momentum_analysis',
-                'support_resistance_levels', 'time_horizon_outlook', 'risk_assessment_data',
-                'risk_assessment_summary', 'confidence_assessment', 'trading_implications',
-                'signal_details', 'overview_metrics', 'deepseek_enhanced', 'deepseek_analysis'
-            ]
-
-            # Add missing keys with safe defaults
-            for key in required_keys:
-                if key not in analysis:
-                    if key == 'header':
-                        analysis[key] = "🔍 **KAI Analysis Report**"
-                    elif key == 'executive_summary':
-                        analysis[key] = "Analysis completed successfully"
-                    elif key == 'key_findings':
-                        analysis[key] = ["Analysis completed", "Data processed successfully"]
-                    elif key == 'momentum_analysis':
-                        analysis[key] = "Momentum analysis performed"
-                    elif key == 'support_resistance_levels':
-                        analysis[key] = []
-                    elif key == 'time_horizon_outlook':
-                        analysis[key] = {}
-                    elif key == 'risk_assessment_data':
-                        analysis[key] = {"overall_risk_score": 5}
-                    elif key == 'risk_assessment_summary':
-                        analysis[key] = "Risk assessment completed"
-                    elif key == 'confidence_assessment':
-                        analysis[key] = 50
-                    elif key == 'trading_implications':
-                        analysis[key] = ["Review analysis before trading"]
-                    elif key == 'signal_details':
-                        analysis[key] = {}
-                    elif key == 'overview_metrics':
-                        analysis[key] = {"total_strategies": 0, "completion_rate": "0%"}
-                    elif key == 'deepseek_enhanced':
-                        analysis[key] = False
-                    elif key == 'deepseek_analysis':
-                        analysis[key] = None
-
-            # Add analysis type for tracking
-            analysis['analysis_type'] = 'csv_upload'
-            analysis['original_filename'] = uploaded_file.name
-            analysis['total_records_analyzed'] = len(df)
-
-            # Display KAI's enhanced report
-            display_enhanced_kai_analysis_report(analysis)
-
-            # Save analysis to Supabase
-            if st.button("💾 Save Enhanced Analysis to Archive", use_container_width=True, type="primary"):
-                if save_kai_analysis(analysis):
-                    st.success("✅ Enhanced KAI analysis saved to archive!")
-                    st.balloons()
-                    # Refresh the analyses list
-                    st.session_state.kai_analyses = load_kai_analyses()
-                    time.sleep(2)
-                    st.rerun()
+    # RIGHT COLUMN: Memory Management
+    with col_memory:
+        st.markdown("### 2. Teach History (Memory)")
+        st.warning("Upload historical price data (CSV) to populate KAI's long-term memory.")
+        st.markdown("Format: `Date` (YYYY-MM-DD), `Price`")
+        
+        mem_asset = st.selectbox("Asset for Memory:", ["ETH", "BTC", "SOL"], key="kai_mem_asset")
+        mem_file = st.file_uploader("History CSV", type=['csv'], key="kai_mem_upload")
+        
+        if mem_file and st.button("💾 Save to Memory"):
+            try:
+                mem_df = pd.read_csv(mem_file)
+                if 'Date' in mem_df.columns and 'Price' in mem_df.columns:
+                    records = []
+                    for _, row in mem_df.iterrows():
+                        records.append({
+                            "asset_symbol": mem_asset,
+                            "week_date": pd.to_datetime(row['Date']).strftime('%Y-%m-%d'),
+                            "closing_price": float(row['Price'])
+                        })
+                    
+                    # Batch insert to Supabase
+                    if supabase_client:
+                        supabase_client.table('price_memory').upsert(
+                            records, on_conflict='asset_symbol,week_date'
+                        ).execute()
+                        st.success(f"✅ Learned {len(records)} historical weeks for {mem_asset}!")
+                    else:
+                        st.error("Database unavailable")
                 else:
-                    st.error("❌ Failed to save analysis to database")
-
-        except Exception as e:
-            st.error(f"❌ Error analyzing CSV: {str(e)}")
-            st.info("Please ensure you're uploading a valid strategy analysis CSV export from the dashboard.")
-            # Show more detailed error for debugging
-            with st.expander("🔧 Technical Details (for debugging)"):
-                st.code(f"Error type: {type(e).__name__}\nError message: {str(e)}")
-                import traceback
-                st.code(f"Full traceback:\n{traceback.format_exc()}")
+                    st.error("CSV must have 'Date' and 'Price' columns")
+            except Exception as e:
+                st.error(f"Memory upload failed: {e}")
 
 # -------------------------
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
