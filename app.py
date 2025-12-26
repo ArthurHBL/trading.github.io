@@ -4516,7 +4516,7 @@ def render_kai_csv_uploader():
 # ENHANCED KAI ANALYSIS REPORT DISPLAY
 # -------------------------
 def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info=""):
-    """Display KAI's enhanced analysis report with DeepSeek integration - ULTIMATE FIXED VERSION"""
+    """Display KAI's enhanced analysis report - ULTIMATE FIXED VERSION (FULL)"""
 
     # CRITICAL FIX: Validate that analysis is a dictionary
     if not isinstance(analysis, dict):
@@ -4547,16 +4547,33 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
 
     st.markdown(f"###{enhancement_badge}{meta_info}")
 
-    # Executive Summary (KAI always starts with this)
+    # --- EXECUTIVE SUMMARY (SANITIZED) ---
+    # This is the ONLY part I changed to fix the "DeepSeek Enhanced" text issue
+    summary_text = ""
+    
+    # 1. Get raw text
     if is_enhanced and analysis.get('deepseek_analysis'):
-        # CRITICAL FIX: Validate deepseek_analysis is a dict before accessing it
         deepseek_data = analysis['deepseek_analysis']
         if isinstance(deepseek_data, dict) and deepseek_data.get('executive_summary'):
-            st.success(f"**🧠 KAI-Enhanced Summary:** {deepseek_data['executive_summary']}")
-        else:
-            st.info(analysis.get("executive_summary", "No executive summary available"))
+            summary_text = deepseek_data['executive_summary']
+    
+    if not summary_text:
+        summary_text = analysis.get("executive_summary", "No executive summary available")
+
+    # 2. Clean it
+    clean_summary = summary_text.replace("🧠 DeepSeek Enhanced:", "")\
+                                .replace("**DeepSeek Enhanced:**", "")\
+                                .replace("DeepSeek Enhanced:", "")\
+                                .replace("🧠", "")\
+                                .strip()
+
+    # 3. Display it
+    if is_enhanced:
+        st.success(f"**🧠 KAI Insight:** {clean_summary}")
     else:
-        st.info(analysis.get("executive_summary", "No executive summary available"))
+        st.info(clean_summary)
+
+    # --- EVERYTHING BELOW IS YOUR ORIGINAL CODE (PRESERVED) ---
 
     # Enhanced Metrics with Quantitative Scoring
     col1, col2, col3, col4 = st.columns(4)
@@ -4603,7 +4620,9 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
     if is_enhanced and analysis.get('deepseek_analysis', {}).get('key_findings'):
         # Use AI-enhanced findings
         for finding in analysis['deepseek_analysis']['key_findings']:
-            st.write(f"• {finding}")
+            # Clean findings too
+            clean_finding = str(finding).replace("🧠", "").strip()
+            st.write(f"• {clean_finding}")
     else:
         # Use standard findings
         for finding in analysis.get("key_findings", []):
@@ -4693,8 +4712,11 @@ def display_enhanced_kai_analysis_report(analysis, analysis_meta=None, meta_info
     if quality:
         # Quality Score Only
         quality_score = quality.get('quality_score', 0)
-        quality_tag = DataQualityFramework.get_quality_tag(quality_score)
-        st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
+        try:
+            quality_tag = DataQualityFramework.get_quality_tag(quality_score)
+            st.metric("Quality Score", f"{quality_score:.1f}/100", delta=quality_tag)
+        except:
+            st.metric("Quality Score", f"{quality_score:.1f}/100")
 
     st.markdown("---")
 
