@@ -1116,28 +1116,17 @@ class EnhancedKaiTradingAgent:
         """Initialize specialized prompts for DeepSeek API with MEMORY CONTEXT"""
         return {
             "enhanced_analysis": """
-            You are KAI, a Senior Technical Analysis Specialist with 10+ years of experience.
+            You are KAI, a Senior Technical Analysis Specialist.
             
             **CURRENT MARKET CONTEXT:**
             {asset_context}
 
-            **CORE DIRECTIVES:**
-            1. Analyze the provided indicator data specifically for {asset_name}.
-            2. Compare current signals against the Weekly Close Price of ${current_price}.
-            3. If historical data is provided above, explicitly mention how the price has changed.
-            4. Focus ONLY on market signals (Bullish/Bearish/Neutral). Do NOT critique data quality.
-
-            ANALYSIS FRAMEWORK:
-            1. EXECUTIVE SUMMARY: Direct market assessment.
-            2. KEY_FINDINGS: Bullet points of critical signals.
-            3. MOMENTUM: Trend strength analysis.
-            4. LEVELS: Key support/resistance.
-            5. RISK: Market structure risks.
-
-            TRADING DATA TO ANALYZE:
-            {data_summary}
-
-            RESPONSE FORMAT (STRICT JSON):
+            **DIRECTIVES:**
+            1. Analyze the signals for {asset_name}.
+            2. Compare signals against Weekly Close: ${current_price}.
+            3. Mention price trends based on memory.
+            
+            RESPONSE FORMAT (JSON):
             {{
                 "executive_summary": "...",
                 "key_findings": ["..."],
@@ -1150,26 +1139,21 @@ class EnhancedKaiTradingAgent:
             }}
             """,
             
-            # 👇 THIS IS THE PART THAT FIXES THE CHAT TONE
             "chat_persona": """
-            You are KAI (Kinetic Algorithms Intelligence), a sophisticated Trading AI for financial markets.
+            You are KAI. You are the Architect of the **ETH 6-DAY CHART**.
             
-            **YOUR VOICE:**
-            - **Professional & Clinical:** You speak like a hedge fund quant. You are efficient and low-emotion.
-            - **No Fluff:** NEVER use phrases like "How can I help you today?" or "I hope you are doing well."
-            - **Data-First:** Start responses with analysis, data, or a clarifying technical question.
-            - **Terminology:** Use proper trading vocabulary (e.g., liquidity, order blocks, divergence, R:R, volatility, confluence).
+            **YOUR PRIME DIRECTIVE:**
+            1. **THE ASSET IS ALWAYS ETHEREUM (ETH).** Never ask what asset it is.
+            2. **THE TIMEFRAME IS ALWAYS THE 6-DAY CHART.** Never ask for the timeframe.
+            3. **CONTINUITY:** You rely on your previous analysis. Do not act like this is the first time you are seeing the market.
             
-            **PROTOCOL:**
-            - If asked for an opinion, provide a probabilistic assessment based on technicals.
-            - If the user greets you (e.g., "Hi"), reply: "Systems online. Ready for market analysis."
-            - If asked about the market without data, ask for the specific asset and timeframe.
-            - **DISCLAIMER:** You analyze patterns, you do not give financial advice.
+            **CONTEXT FROM YOUR LAST ANALYSIS:**
+            {last_analysis_context}
             
-            **EXAMPLE INTERACTIONS:**
-            - User: "Hi" -> KAI: "KAI Online. Which asset requires analysis?"
-            - User: "What do you think of BTC?" -> KAI: "Without current chart data, I cannot provide a signal. Upload the latest CSV or provide price action context."
-            - User: "Is it a buy?" -> KAI: "My analysis indicates [Scenario A] or [Scenario B]. Confirm via RSI divergence before entry. Manage risk."
+            **VOICE:**
+            - Professional, Quantitative, Institutional.
+            - No "How can I help?". Start immediately with data/analysis.
+            - If the user asks about the market, refer to the trends in your Last Analysis context.
             """
         }
 
@@ -1203,19 +1187,69 @@ class EnhancedKaiTradingAgent:
             self.logger.error(f"Memory recall error: {e}")
             return None
 
+    def get_last_analysis_summary(self):
+        """Fetch the most recent KAI analysis from Supabase to provide chat context"""
+        try:
+            if 'supabase_client' not in globals() or not supabase_client:
+                return "System: Database connection offline."
+
+            # Fetch the latest 1 record from kai_analyses
+            response = supabase_client.table('kai_analyses')\
+                .select('analysis_data, created_at')\
+                .order('created_at', desc=True)\
+                .limit(1)\
+                .execute()
+
+            if response.data and len(response.data) > 0:
+                data = response.data[0]['analysis_data']
+                date = response.data[0]['created_at'].split('T')[0]
+                
+                # Extract the summary and findings
+                summary = data.get('executive_summary', 'No summary available.')
+                findings = data.get('key_findings', [])
+                findings_str = "; ".join(findings) if isinstance(findings, list) else str(findings)
+                
+                return f"""
+                [RECORDED ON {date}]
+                EXECUTIVE SUMMARY: {summary}
+                KEY FINDINGS: {findings_str}
+                """
+            
+            return "System: No previous analysis found in archive."
+            
+        except Exception as e:
+            self.logger.error(f"Failed to fetch last analysis: {e}")
+            return "System: Error retrieving memory."
+
     def chat_with_kai(self, user_message, history):
-        """Interactive Chat Feature"""
+        """Interactive Chat with Auto-Context Injection"""
         if not self.use_deepseek:
             return "I am currently offline (DeepSeek API disabled)."
             
-        messages = [{"role": "system", "content": self.deepseek_prompts["chat_persona"]}]
-        for msg in history[-4:]: # Keep context short
+        # 1. Retrieve Long-Term Memory (Last Analysis)
+        last_analysis = self.get_last_analysis_summary()
+        
+        # 2. Inject into System Prompt
+        system_prompt = self.deepseek_prompts["chat_persona"].format(
+            last_analysis_context=last_analysis
+        )
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # 3. Add Short-Term Memory (Recent Chat History)
+        for msg in history[-4:]:
             messages.append({"role": msg["role"], "content": msg["content"]})
+            
         messages.append({"role": "user", "content": user_message})
         
         try:
             headers = {"Content-Type": "application/json", "Authorization": f"Bearer {DEEPSEEK_API_KEY}"}
-            payload = {"model": "deepseek-chat", "messages": messages, "temperature": 0.7, "max_tokens": 500}
+            payload = {
+                "model": "deepseek-chat", 
+                "messages": messages, 
+                "temperature": 0.7,
+                "max_tokens": 500
+            }
             response = requests.post(DEEPSEEK_API_URL, headers=headers, json=payload, timeout=20)
             if response.status_code == 200:
                 return response.json()['choices'][0]['message']['content']
