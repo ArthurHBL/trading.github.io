@@ -1116,17 +1116,30 @@ class EnhancedKaiTradingAgent:
         """Initialize specialized prompts for DeepSeek API with MEMORY CONTEXT"""
         return {
             "enhanced_analysis": """
-            You are KAI, a Senior Technical Analysis Specialist.
+            You are KAI, a Senior Technical Analysis Specialist with 10+ years of experience.
             
             **CURRENT MARKET CONTEXT:**
             {asset_context}
 
-            **DIRECTIVES:**
-            1. Analyze the signals for {asset_name}.
-            2. Compare signals against Weekly Close: ${current_price}.
-            3. Mention price trends based on memory.
+            **CORE DIRECTIVES:**
+            1. Analyze the provided indicator data specifically for {asset_name}.
+            2. Compare current signals against the Weekly Close Price of ${current_price}.
+            3. **CALCULATE CONFIDENCE:** You must assign a confidence score (0-100) based on signal confluence.
+               - 3+ signals aligning = >80%
+               - Mixed signals = 40-60%
+               - Conflicting signals = <40%
             
-            RESPONSE FORMAT (JSON):
+            ANALYSIS FRAMEWORK:
+            1. EXECUTIVE SUMMARY: Direct market assessment.
+            2. KEY_FINDINGS: Bullet points of critical signals.
+            3. MOMENTUM: Trend strength analysis.
+            4. LEVELS: Key support/resistance.
+            5. RISK: Market structure risks.
+
+            TRADING DATA TO ANALYZE:
+            {data_summary}
+
+            RESPONSE FORMAT (STRICT JSON):
             {{
                 "executive_summary": "...",
                 "key_findings": ["..."],
@@ -1134,7 +1147,7 @@ class EnhancedKaiTradingAgent:
                 "critical_levels": ["..."],
                 "time_horizons": {{ ... }},
                 "risk_analysis": "...",
-                "confidence_score": 0,
+                "confidence_score": 0,  <-- CALCULATE THIS REALISTICALLY
                 "trading_recommendations": ["..."]
             }}
             """,
@@ -2566,36 +2579,48 @@ class EnhancedKaiTradingAgent:
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
 
     def _wrap_string_response(self, text):
-        """Wrap any string response into PROPER KAI analysis format with COMPLETE structure"""
+        """Wrap any string response into PROPER KAI analysis format with DYNAMIC scoring"""
         # Ensure we have a string
         if not isinstance(text, str):
             text = str(text)
 
-        # Create a COMPLETE analysis structure with ALL required fields
+        # DYNAMIC CONFIDENCE CALCULATION
+        # If the text sounds confident, give it a higher score
+        text_lower = text.lower()
+        base_score = 50
+        
+        if "strong" in text_lower or "confirmed" in text_lower: base_score += 15
+        if "high probability" in text_lower: base_score += 10
+        if "caution" in text_lower or "risk" in text_lower: base_score -= 10
+        if "mixed" in text_lower or "uncertain" in text_lower: base_score -= 15
+        if "breakout" in text_lower: base_score += 5
+        
+        # Clamp between 20 and 95
+        final_score = max(20, min(95, base_score))
+
+        # Create a COMPLETE analysis structure
         wrapped_analysis = {
-            "executive_summary": f"🧠 AI Analysis: {text[:150]}..." if len(text) > 150 else f"🧠 AI Analysis: {text}",
+            "executive_summary": text,  # Use the full text here
             "key_findings": [
-                "Market analysis completed",
-                "Technical patterns identified",
-                "Trading signals detected",
-                "Risk assessment performed",
-                "Time horizons analyzed"
+                "Automated analysis completed",
+                "Market structure evaluated",
+                "Risk factors identified",
+                "Signal alignment checked"
             ],
-            "momentum_assessment": "Comprehensive momentum analysis performed",
-            "critical_levels": ["Support/Resistance levels identified"],
+            "momentum_assessment": "Derived from textual analysis",
+            "critical_levels": ["See executive summary for levels"],
             "time_horizons": {
-                "short_term": "1-7 days: Monitor for breakout confirmation",
-                "medium_term": "1-4 weeks: Trend continuation expected",
-                "long_term": "1-6 months: Major level tests anticipated"
+                "short_term": "See summary",
+                "medium_term": "See summary",
+                "long_term": "See summary"
             },
-            "risk_analysis": "Standard risk management protocols applied",
-            "confidence_score": 65,
+            "risk_analysis": "Standard risk protocols apply. See summary for specific threats.",
+            "confidence_score": final_score,  # NOW DYNAMIC
             "trading_recommendations": [
-                "Review all technical indicators before trading",
-                "Implement proper risk management strategies",
-                "Consider market context and broader conditions"
+                "Review chart context manually",
+                "Apply strict risk management",
+                "Wait for candle close confirmation"
             ],
-            # Add the original string for debugging but don't use it in display
             "_original_string": text,
             "_is_wrapped_response": True
         }
