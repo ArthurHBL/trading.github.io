@@ -4195,9 +4195,11 @@ def load_gallery_images():
 
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
-    High-Fidelity PPTX Generator - Dark Mode Edition.
-    Title: "CHAT LOG" (Static)
-    Style: Electric Blue & Dark Grey (Dashboard Look)
+    High-Fidelity PPTX Generator - Dark Mode + Branding.
+    Features:
+    - "KAI // INTEL" Watermark on every slide
+    - Title: "CHAT LOG"
+    - Style: Electric Blue & Dark Grey
     """
     try:
         from pptx import Presentation
@@ -4209,11 +4211,12 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
     except ImportError:
         return None
 
-    # --- CONFIGURATION (DARK MODE) ---
+    # --- CONFIGURATION ---
     DARK_BG = RGBColor(14, 17, 23)       # Dashboard Dark
     ELECTRIC_BLUE = RGBColor(77, 166, 255) # KAI Blue
     TEXT_WHITE = RGBColor(220, 220, 220) # Body Text
     TEXT_GREY = RGBColor(150, 150, 150)  # Subtitles
+    BRAND_COLOR = RGBColor(0, 243, 255)  # Cyan (For the Logo)
     
     # Layout Constants
     MAX_CHARS_PER_SLIDE = 850
@@ -4244,18 +4247,35 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         p.font.size = Pt(10)
         p.font.color.rgb = RGBColor(80, 80, 80)
 
+    # 🟢 NEW: PROCEDURAL LOGO GENERATOR
+    def add_brand_watermark(slide):
+        # Top Right Corner
+        left = Inches(7.5)
+        top = Inches(0.2)
+        width = Inches(2.0)
+        height = Inches(0.5)
+        
+        txBox = slide.shapes.add_textbox(left, top, width, height)
+        tf = txBox.text_frame
+        p = tf.paragraphs[0]
+        
+        # The Badge Text
+        p.text = "KAI // SYSTEM"
+        p.font.size = Pt(14)
+        p.font.bold = True
+        p.font.name = "Courier New" # Tech/Code font
+        p.font.color.rgb = BRAND_COLOR
+        p.alignment = PP_ALIGN.RIGHT
+
     # 1. TITLE SLIDE
     slide = prs.slides.add_slide(prs.slide_layouts[6]) 
     set_dark_background(slide)
+    add_brand_watermark(slide) # <--- Add Logo
     
-    # Title Box
+    # Title
     title_box = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(8), Inches(1))
     title_p = title_box.text_frame.paragraphs[0]
-    
-    # --- CHANGED: EXACTLY AS REQUESTED ---
     title_p.text = "CHAT LOG"
-    # -------------------------------------
-    
     title_p.font.bold = True
     title_p.font.size = Pt(44)
     title_p.font.color.rgb = ELECTRIC_BLUE
@@ -4301,6 +4321,7 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
                 set_dark_background(slide)
                 add_footer(slide, page_counter)
+                add_brand_watermark(slide) # <--- Add Logo
                 
                 # Header
                 t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.5), width, Inches(1))
@@ -4320,7 +4341,7 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                     p = tf.add_paragraph()
                     p.space_after = Pt(10)
                     
-                    # Markdown Parser (Bold -> Blue)
+                    # Markdown Parser
                     parts = text_line.split('**')
                     for i, part in enumerate(parts):
                         run = p.add_run()
@@ -4345,6 +4366,7 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             slide = prs.slides.add_slide(prs.slide_layouts[6])
             set_dark_background(slide)
             add_footer(slide, page_counter)
+            add_brand_watermark(slide) # <--- Add Logo
             
             # Header
             t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.5), width, Inches(1))
