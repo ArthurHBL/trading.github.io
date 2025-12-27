@@ -7801,7 +7801,7 @@ def render_premium_user_section():
     with benefits_col2:
         st.markdown("""
         **🖼️ Gallery Features**
-        - Upload your charts
+        - Download charts
         - Download community images
         - Fullscreen viewer
         - Strategy tagging
