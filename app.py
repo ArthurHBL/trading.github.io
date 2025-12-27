@@ -4400,108 +4400,122 @@ def render_single_kai_analysis():
                 st.error("❌ Failed to delete analysis")
 
 def render_kai_analysis_archive(is_admin):
-    """Render the comprehensive KAI analysis archive for ALL users"""
+    """
+    Render the comprehensive KAI analysis archive.
+    Features: Card Layout, Sanitized Previews, Professional Dates, Stable View Expanders.
+    """
     st.subheader("📚 KAI Analysis Archive")
 
-    if not st.session_state.kai_analyses:
-        st.info("""
-        **No analyses in the archive yet!**
-
-        The archive will show all KAI analyses once they are created.
-        Check back later or ask an administrator to upload trading data for analysis.
-        """)
+    # 1. Handle Empty State
+    if 'kai_analyses' not in st.session_state or not st.session_state.kai_analyses:
+        st.info("No analyses in the archive yet.")
+        if is_admin and st.button("🔄 Force Refresh"):
+            st.session_state.kai_analyses = load_kai_analyses()
+            st.rerun()
         return
 
-    # Archive statistics
+    # 2. Archive Statistics (Top Bar)
     total_analyses = len(st.session_state.kai_analyses)
     enhanced_analyses = len([a for a in st.session_state.kai_analyses if a.get('deepseek_enhanced', False)])
-    standard_analyses = total_analyses - enhanced_analyses
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Total Analyses", total_analyses)
-    with col2:
-        st.metric("AI Enhanced", enhanced_analyses)
-    with col3:
-        st.metric("Standard", standard_analyses)
-    with col4:
-        avg_confidence = sum(a.get('confidence_score', 0) for a in st.session_state.kai_analyses) / total_analyses
-        st.metric("Avg Confidence", f"{avg_confidence:.1f}%")
-
-    st.markdown("---")
-
-    # Filter and sort controls
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        analysis_filter = st.selectbox(
-            "Filter by Type:",
-            ["All Analyses", "AI Enhanced", "Standard Only"],
-            key="kai_archive_filter"
-        )
-
-    with col2:
-        sort_option = st.selectbox(
-            "Sort by:",
-            ["Newest First", "Oldest First", "Highest Confidence", "Most Strategies"],
-            key="kai_archive_sort"
-        )
-
-    with col3:
-        # Quick date filter
-        date_options = ["All Time", "Last 7 Days", "Last 30 Days", "Last 90 Days"]
-        date_filter = st.selectbox("Time Range:", date_options, key="kai_date_filter")
-
-    with col4:
-        if is_admin and st.button("🔄 Refresh Archive", use_container_width=True, key="refresh_archive"):
+    
+    col1, col2, col3 = st.columns(3)
+    with col1: st.metric("Total Analyses", total_analyses)
+    with col2: st.metric("AI Enhanced", enhanced_analyses)
+    with col3: 
+        if is_admin and st.button("🔄 Refresh Archive", use_container_width=True, key="refresh_archive_btn"):
             st.session_state.kai_analyses = load_kai_analyses()
             st.rerun()
 
-    # Apply filters
-    filtered_analyses = st.session_state.kai_analyses.copy()
-
-    # Filter by type
-    if analysis_filter == "AI Enhanced":
-        filtered_analyses = [a for a in filtered_analyses if a.get('deepseek_enhanced', False)]
-    elif analysis_filter == "Standard Only":
-        filtered_analyses = [a for a in filtered_analyses if not a.get('deepseek_enhanced', False)]
-
-    # Filter by date
-    if date_filter != "All Time":
-        cutoff_date = datetime.now()
-        if date_filter == "Last 7 Days":
-            cutoff_date = cutoff_date - timedelta(days=7)
-        elif date_filter == "Last 30 Days":
-            cutoff_date = cutoff_date - timedelta(days=30)
-        elif date_filter == "Last 90 Days":
-            cutoff_date = cutoff_date - timedelta(days=90)
-
-        filtered_analyses = [
-            a for a in filtered_analyses
-            if datetime.fromisoformat(a['created_at']) >= cutoff_date
-        ]
-
-    # Apply sorting
-    if sort_option == "Newest First":
-        filtered_analyses.sort(key=lambda x: x['created_at'], reverse=True)
-    elif sort_option == "Oldest First":
-        filtered_analyses.sort(key=lambda x: x['created_at'])
-    elif sort_option == "Highest Confidence":
-        filtered_analyses.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
-    elif sort_option == "Most Strategies":
-        filtered_analyses.sort(key=lambda x: x.get('total_strategies', 0), reverse=True)
-
-    # Display analyses in a grid
-    st.write(f"**Displaying {len(filtered_analyses)} analyses**")
     st.markdown("---")
 
-    if not filtered_analyses:
-        st.warning("No analyses match your current filters.")
-        return
+    # 3. Filter & Sort Controls
+    col1, col2 = st.columns(2)
+    with col1:
+        filter_type = st.selectbox("Filter Type:", ["All", "AI Enhanced", "Standard"], key="archive_filter_type")
+    with col2:
+        sort_order = st.selectbox("Sort By:", ["Newest First", "Oldest First", "Highest Confidence"], key="archive_sort_order")
 
-    # Display analyses in a responsive grid
+    # 4. Apply Logic
+    filtered_analyses = st.session_state.kai_analyses.copy()
+    
+    # Filtering
+    if filter_type == "AI Enhanced":
+        filtered_analyses = [a for a in filtered_analyses if a.get('deepseek_enhanced')]
+    elif filter_type == "Standard":
+        filtered_analyses = [a for a in filtered_analyses if not a.get('deepseek_enhanced')]
+
+    # Sorting
+    if sort_order == "Newest First":
+        filtered_analyses.sort(key=lambda x: x['created_at'], reverse=True)
+    elif sort_order == "Oldest First":
+        filtered_analyses.sort(key=lambda x: x['created_at'])
+    elif sort_order == "Highest Confidence":
+        filtered_analyses.sort(key=lambda x: x.get('confidence_score', 0), reverse=True)
+
+    st.caption(f"Showing {len(filtered_analyses)} reports")
+
+    # 5. RENDER CARDS (The Main Loop)
     for i, analysis in enumerate(filtered_analyses):
-        render_kai_analysis_card(analysis, i, is_admin)
+        # --- A. Date Formatting ---
+        raw_date = analysis['created_at']
+        try:
+            # Handle potential 'Z' or timezone offsets
+            dt = datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
+            nice_date = dt.strftime("%B %d, %Y")   # October 26, 2025
+            nice_time = dt.strftime("%I:%M %p")    # 10:41 PM
+        except:
+            nice_date = raw_date[:10]
+            nice_time = ""
+
+        # --- B. Snippet Sanitization ---
+        data = analysis.get('analysis_data', {})
+        summary_raw = data.get('executive_summary', 'No summary available')
+        
+        # NUCLEAR CLEANING: Strip all "DeepSeek" artifacts for the preview
+        snippet = str(summary_raw).replace("🧠", "")\
+                                  .replace("DeepSeek Enhanced:", "")\
+                                  .replace("**DeepSeek Enhanced:**", "")\
+                                  .replace("System:", "")\
+                                  .strip()
+        
+        # Truncate
+        if len(snippet) > 120:
+            snippet = snippet[:120] + "..."
+
+        # --- C. The Card Container ---
+        with st.container(border=True):
+            # Layout: Header/Info | Stats | Actions
+            col_info, col_stats, col_action = st.columns([0.65, 0.20, 0.15])
+            
+            with col_info:
+                badge = "🧠 AI" if analysis.get('deepseek_enhanced') else "📊 Standard"
+                st.markdown(f"#### {nice_date} <span style='font-size:0.8em;color:gray'>at {nice_time}</span>", unsafe_allow_html=True)
+                st.caption(f"**{badge}** | {snippet}")
+
+            with col_stats:
+                conf = analysis.get('confidence_score', 0)
+                risk = analysis.get('risk_score', 0)
+                st.metric("Conf.", f"{conf}%")
+                # st.caption(f"Risk: {risk}/10") # Optional: Uncomment to show risk
+
+            with col_action:
+                # Delete Button (Admin Only)
+                if is_admin:
+                    if st.button("🗑️", key=f"del_arch_{analysis['id']}", help="Delete this report"):
+                        if delete_kai_analysis(analysis['id']):
+                            st.toast("Report deleted successfully!")
+                            st.session_state.kai_analyses = load_kai_analyses()
+                            time.sleep(1)
+                            st.rerun()
+
+            # --- D. The View Expander ---
+            # Using expader ensures the report opens smoothly without reloading the page
+            with st.expander(f"📄 Read Full Report ({nice_date})"):
+                display_enhanced_kai_analysis_report(
+                    analysis.get('analysis_data', {}),
+                    analysis,
+                    meta_info=f" | {nice_date} at {nice_time}"
+                )
 
 def render_kai_csv_uploader():
     """Admin Tool: Upload CSV Analysis + Teach Memory"""
