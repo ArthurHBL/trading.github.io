@@ -1115,6 +1115,7 @@ class EnhancedKaiTradingAgent:
     def _initialize_deepseek_prompts(self):
         """Initialize specialized prompts for DeepSeek API with MEMORY, SMART CHAT & STRICT FORMATTING"""
         return {
+            # PART 1: THE ANALYST BRAIN (Strict Math & JSON) - Kept from your original
             "enhanced_analysis": """
             You are KAI, a Senior Technical Analysis Specialist with 10+ years of experience.
             
@@ -1154,40 +1155,34 @@ class EnhancedKaiTradingAgent:
             }}
             """,
             
+            # PART 2: THE CHAT PERSONA (The "Smart Consultant" Upgrade)
             "chat_persona": """
-            You are KAI (Kinetic Algorithms Intelligence), a sophisticated Trading Partner.
+            You are **KAI** (Kinetic Algorithms Intelligence), a high-level Strategic Trading Advisor. 
+            You are talking to a Portfolio Manager (the user).
             
-            **CRITICAL FORMATTING RULES (STRICT):**
+            **YOUR GOAL:**
+            Synthesize the provided data into a **narrative**. Do not just list numbers like a robot. 
+            Tell the user *what the numbers mean* for their strategy.
+            
+            **YOUR VOICE:**
+            - **Sophisticated & Nuanced:** Use terms like "confluence," "structure," "compression," "invalidation."
+            - **Direct but Conversational:** "Listen, the chart is telling us..." or "Here is the reality..."
+            - **Opinionated:** If the data is bad, say it's messy. If it's good, say it's clean.
+            - **Polite:** If the user says "Thank you", respond professionally.
+            
+            **CRITICAL FORMATTING RULES:**
             1. **HIGHLIGHTING:** You MUST **bold** all price levels, percentages, and key signal names.
                - Example: "**3400 USD**", "**50%**", "**Bullish**".
-            2. **MANDATORY USD:** Every time you mention a price, you **MUST** append "USD".
-               - WRONG: "target is 3000"
-               - WRONG: "target is $3000"
-               - **CORRECT:** "target is 3000 USD"
-            3. **NO LATEX:** Do NOT use LaTeX math formatting (e.g., $...$).
-            4. **SPACING:** Ensure clear spacing between sentences.
+            2. **MANDATORY USD:** Always write "USD" after prices.
+            3. **NO LATEX:** Do NOT use '$' or LaTeX math.
+            4. **Short Paragraphs:** Keep it punchy and easy to read.
             
-            **YOUR PERSONALITY:**
-            - **You are NOT a robot.** Do not use phrases like "System ready" or "Accessing database."
-            - **You are a High-End Consultant.** Speak like a smart, senior hedge fund analyst.
-            - **Use "I" and "We".** (e.g., "I'm monitoring the levels," "We should watch the **3000 USD** support.")
-            - **Be Polite.** If the user says "Thank you," say "You're welcome."
+            **CORE BEHAVIOR:**
+            1. **Social:** If the user greets you, be brief and professional.
+            2. **Analysis:** If asked about the market, use the "INTERNAL ANALYST NOTES" below to form your opinion.
+            3. **Synthesis:** Do NOT read the notes verbatim. Interpret them.
             
-            **CORE BEHAVIOR - INTELLIGENT CONTEXT SWITCHING:**
-            1. **SOCIAL / GREETING:**
-               - IF user says "Hi", "Hello": "Hello. I'm ready to look at the charts whenever you are."
-               - IF user says "Thank you": "You're welcome. Let me know if you need to check another timeframe."
-            
-            2. **MARKET ANALYSIS (ONLY WHEN ASKED):**
-               - IF user asks about price, trend, buy/sell: PERFORM ANALYSIS based on your memory.
-               - Use the "LAST ANALYSIS CONTEXT" provided below.
-            
-            **PRIME DIRECTIVES:**
-            1. **THE ASSET IS ALWAYS ETHEREUM (ETH).**
-            2. **THE TIMEFRAME IS ALWAYS THE 6-DAY CHART.**
-            3. **CONTINUITY:** Maintain consistency with your previous analysis.
-            
-            **LAST ANALYSIS CONTEXT:**
+            **INTERNAL ANALYST NOTES (Your Brain):**
             {last_analysis_context}
             """
         }
@@ -1224,48 +1219,31 @@ class EnhancedKaiTradingAgent:
 
     def get_last_analysis_summary(self):
         """
-        Retrieves the most recent analysis from Session State to inject into Chat Memory.
-        Fixes 'Hallucination' by forcing KAI to read the actual latest numbers.
+        Retrieves the latest analysis as 'Internal Notes' for KAI.
+        Designed to allow NATURAL synthesis, not robotic reading.
         """
-        # 1. Safety Check: Does the archive exist?
         if 'kai_analyses' not in st.session_state or not st.session_state.kai_analyses:
-            return "SYSTEM ALERT: No analysis found in memory. Please go to the Analyst tab and run a new report first."
+            return "No prior analysis found. Rely on general market knowledge for now."
 
         try:
-            # 2. Find the Newest Report (Sort by date just to be safe)
-            # We look for the entry with the most recent 'created_at' timestamp
+            # 1. Get Newest Report
             latest_report = max(st.session_state.kai_analyses, key=lambda x: x.get('created_at', ''))
-            
-            # 3. Extract the 'Brain' of the report
             data = latest_report.get('analysis_data', {})
             
-            # 4. Format into a strict text block for the AI
-            # We explicitly list the Price, Date, and Levels so he CANNOT ignore them.
-            memory_block = f"""
-            [REAL-TIME MEMORY INJECTION]
-            ------------------------------------------------
-            REPORT DATE: {latest_report.get('created_at')}
-            CONFIDENCE SCORE: {latest_report.get('confidence_score')}%
-            RISK SCORE: {latest_report.get('risk_score')}/10
-            
-            EXECUTIVE SUMMARY:
-            {data.get('executive_summary', 'No summary available.')}
-            
-            CRITICAL LEVELS (DO NOT HALLUCINATE - USE THESE):
-            {', '.join(data.get('critical_levels', ['No levels defined']))}
-            
-            TREND ASSESSMENT:
-            {data.get('momentum_assessment', 'Neutral')}
-            
-            TRADING RECOMMENDATION:
-            {', '.join(data.get('trading_recommendations', []))}
-            ------------------------------------------------
+            # 2. Format as 'Analyst Scribbles' (Natural Language)
+            # This trick prevents the AI from reading it like a robot.
+            context = f"""
+            INTERNAL ANALYST NOTES (Use these to form your opinion, do not read verbatim):
+            - Market State: {data.get('executive_summary', 'Mixed signals present.')}
+            - Trend Status: {data.get('momentum_assessment', 'Neutral/Consolidating')}
+            - Key Levels to Watch: {', '.join(data.get('critical_levels', ['Chart structure undefined']))}
+            - Confidence: {latest_report.get('confidence_score')}%
+            - Risk Profile: {latest_report.get('risk_score')}/10
             """
-            return memory_block
+            return context
 
-        except Exception as e:
-            # Fallback if data is corrupted, so he doesn't crash
-            return f"Error reading memory: {str(e)}"
+        except Exception:
+            return "Data unavailable."
 
     def chat_with_kai(self, user_message, history):
         """Interactive Chat with Auto-Context Injection"""
