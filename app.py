@@ -1211,38 +1211,70 @@ class EnhancedKaiTradingAgent:
             return None
 
     def get_last_analysis_summary(self):
-        """Fetch the most recent KAI analysis from Supabase to provide chat context"""
+        """Fetch the most recent KAI analysis - PERSONA OPTIMIZED & SANITIZED"""
+        import re  # Ensure regex is available
+        
         try:
+            # Check if global client exists
             if 'supabase_client' not in globals() or not supabase_client:
-                return "System: Database connection offline."
+                return "My memory banks are currently unreachable. I cannot recall the previous session."
 
-            # Fetch the latest 1 record from kai_analyses
-            response = supabase_client.table('kai_analyses')\
-                .select('analysis_data, created_at')\
-                .order('created_at', desc=True)\
-                .limit(1)\
+            # Fetch the latest 1 record
+            # We use parentheses to safely wrap the query across lines
+            response = (
+                supabase_client.table('kai_analyses')
+                .select('analysis_data, created_at')
+                .order('created_at', desc=True)
+                .limit(1)
                 .execute()
+            )
 
+            # Check if we got data
             if response.data and len(response.data) > 0:
                 data = response.data[0]['analysis_data']
                 date = response.data[0]['created_at'].split('T')[0]
                 
-                # Extract the summary and findings
-                summary = data.get('executive_summary', 'No summary available.')
-                findings = data.get('key_findings', [])
-                findings_str = "; ".join(findings) if isinstance(findings, list) else str(findings)
+                # 1. Get raw summary
+                raw_summary = data.get('executive_summary', 'No summary available.')
                 
-                return f"""
-                [RECORDED ON {date}]
-                EXECUTIVE SUMMARY: {summary}
-                KEY FINDINGS: {findings_str}
-                """
+                # 2. NUCLEAR SANITIZER (Protects against the "DeepSeek" label)
+                # Matches "DeepSeek Enhanced" with or without emojis, bolding, etc.
+                pattern = r"(?:🧠|:brain:)?\s*(?:\*\*|__)?\s*DeepSeek\s+Enhanced\s*(?::)?\s*(?:\*\*|__)?\s*"
+                summary = re.sub(pattern, "", raw_summary, flags=re.IGNORECASE).strip()
+                summary = summary.lstrip(": -")
+
+                # 3. Process findings
+                findings = data.get('key_findings', [])
+                clean_findings = []
+                
+                if isinstance(findings, list):
+                    for f in findings:
+                        clean_f = str(f).replace("🧠", "").strip()
+                        clean_findings.append(clean_f)
+                    findings_str = "; ".join(clean_findings)
+                else:
+                    findings_str = str(findings).replace("🧠", "").strip()
+                
+                # 4. Construct the response SAFE WAY (Avoids indentation errors)
+                response_text = (
+                    f"Here is what we discussed on {date}:\n\n"
+                    f"\"{summary}\"\n\n"
+                    f"Key points we noted were: {findings_str}"
+                )
+                
+                return response_text
             
-            return "System: No previous analysis found in archive."
+            # If no data found
+            return "I do not see any prior analysis in my records. This appears to be our first session for this cycle."
             
         except Exception as e:
-            self.logger.error(f"Failed to fetch last analysis: {e}")
-            return "System: Error retrieving memory."
+            # Log the error safely
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Failed to fetch last analysis: {e}")
+            else:
+                print(f"Error: {e}")
+                
+            return "I am having trouble accessing my archives right now. Let's focus on the live market instead."
 
     def chat_with_kai(self, user_message, history):
         """Interactive Chat with Auto-Context Injection"""
