@@ -4196,8 +4196,7 @@ def load_gallery_images():
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
     High-Fidelity PPTX Generator - 'Sacred Manifesto' Edition.
-    Aesthetic: Editorial, Minimalist, White Paper, Serif Typography.
-    NO WATERMARKS.
+    Fixes: Uses 'Vertical Line Counting' to prevent footer overlap.
     """
     try:
         from pptx import Presentation
@@ -4206,17 +4205,22 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         from pptx.enum.text import PP_ALIGN
         from io import BytesIO
         import datetime
+        import math
     except ImportError:
         return None
 
     # --- THE "MANIFESTO" PALETTE ---
     PAPER_BG = RGBColor(255, 255, 255)      # Pure White
-    INK_BLACK = RGBColor(0, 0, 0)           # Deepest Black (Headers/Bold)
-    INK_CHARCOAL = RGBColor(45, 45, 45)     # Soft Black (Body Text)
-    INK_SUBTLE = RGBColor(120, 120, 120)    # Light Grey (Meta data)
+    INK_BLACK = RGBColor(0, 0, 0)           # Deepest Black
+    INK_CHARCOAL = RGBColor(45, 45, 45)     # Soft Black
+    INK_SUBTLE = RGBColor(120, 120, 120)    # Light Grey
     
-    # Layout Constants (Wider margins for "Book" feel)
-    MAX_CHARS_PER_SLIDE = 900
+    # --- LAYOUT CONSTANTS (Strict Vertical Control) ---
+    # We limit by "Line Units" instead of just characters.
+    # 1 Line Unit = ~1 line of text + the gap after it.
+    MAX_LINES_PER_SLIDE = 16  
+    CHARS_PER_LINE = 85       # Approx chars that fit in one horizontal line
+    
     MARGIN_LEFT = Inches(1.0) 
     MARGIN_TOP = Inches(1.5)
     width = Inches(8.0)       
@@ -4231,10 +4235,10 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         fill.solid()
         fill.fore_color.rgb = PAPER_BG
 
-    # Helper: Add Minimalist Footer (Centered, Small)
+    # Helper: Add Minimalist Footer
     def add_footer(slide, page_num):
         left = Inches(0.5)
-        top = Inches(6.9) 
+        top = Inches(6.9) # Safe zone at bottom
         width = Inches(9)
         height = Inches(0.5)
         txBox = slide.shapes.add_textbox(left, top, width, height)
@@ -4246,33 +4250,28 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         p.font.color.rgb = INK_SUBTLE
         p.alignment = PP_ALIGN.CENTER
 
-    # 1. TITLE SLIDE (The Book Cover Look)
+    # 1. TITLE SLIDE
     slide = prs.slides.add_slide(prs.slide_layouts[6]) 
     set_minimalist_background(slide)
     
-    # Title (Serif, Elegant)
     title_box = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(8), Inches(1.5))
     title_p = title_box.text_frame.paragraphs[0]
     title_p.text = "THE CHAT LOG"
     title_p.font.bold = True
     title_p.font.size = Pt(48)
     title_p.font.color.rgb = INK_BLACK
-    title_p.font.name = "Times New Roman" # The "Manifesto" Font
+    title_p.font.name = "Times New Roman" 
     title_p.alignment = PP_ALIGN.CENTER
     
-    # Subtitle (Sans-Serif Contrast)
     sub_box = slide.shapes.add_textbox(Inches(1), Inches(3.5), Inches(8), Inches(1))
     sub_p = sub_box.text_frame.paragraphs[0]
     sub_p.text = f"SESSION ARCHIVE: {asset}  |  {datetime.datetime.now().strftime('%B %d, %Y')}"
     sub_p.font.size = Pt(11)
-    sub_p.font.name = "Arial" # Clean contrast
+    sub_p.font.name = "Arial"
     sub_p.font.color.rgb = INK_SUBTLE
     sub_p.alignment = PP_ALIGN.CENTER
     
-    # Elegant Separator Line
-    shape = slide.shapes.add_shape(
-        1, Inches(3.5), Inches(3.2), Inches(3), Inches(0.0) # Line type
-    )
+    shape = slide.shapes.add_shape(1, Inches(3.5), Inches(3.2), Inches(3), Inches(0.0))
     shape.line.color.rgb = INK_BLACK
     shape.line.width = Pt(1.5)
 
@@ -4283,63 +4282,66 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         role = msg['role']
         raw_text = msg['content']
         
-        # Editorial Style Headers
         if role == "user":
             header_text = "The Trader Inquiry"
             header_color = INK_SUBTLE
-            header_font = "Arial" # User is "Modern"
+            header_font = "Arial"
         else:
             header_text = "The KAI Analysis"
             header_color = INK_BLACK
-            header_font = "Times New Roman" # KAI is "Classic/Wisdom"
+            header_font = "Times New Roman"
 
-        # --- SMART CHUNKING ---
         paragraphs = raw_text.split('\n')
         current_slide_text = []
-        current_char_count = 0
+        
+        # --- NEW: VERTICAL SPACE TRACKING ---
+        current_vertical_cost = 0 
         chunk_index = 1
         
         for para in paragraphs:
             para = para.strip()
             if not para: continue
             
-            # Check Overflow
-            if current_char_count + len(para) > MAX_CHARS_PER_SLIDE:
+            # Calculate "Cost" of this paragraph
+            # 1 base unit + extra units if it wraps to multiple lines
+            lines_occupied = math.ceil(len(para) / CHARS_PER_LINE)
+            # We add a slight buffer (1.2) for the 'luxurious spacing'
+            para_cost = lines_occupied * 1.2
+            
+            # CHECK OVERFLOW
+            if current_vertical_cost + para_cost > MAX_LINES_PER_SLIDE:
                 # RENDER SLIDE
                 page_counter += 1
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
                 set_minimalist_background(slide)
                 add_footer(slide, page_counter)
                 
-                # Header (Small, Upper Left, Like a Chapter)
+                # Header
                 t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.8), width, Inches(0.5))
                 t_p = t_box.text_frame.paragraphs[0]
                 suffix = f" (Cont.)" if chunk_index > 1 else ""
-                t_p.text = (header_text + suffix).upper() # Small Caps style
+                t_p.text = (header_text + suffix).upper()
                 t_p.font.bold = True
                 t_p.font.size = Pt(14)
                 t_p.font.name = header_font
                 t_p.font.color.rgb = header_color
                 
-                # Body Text
+                # Body
                 b_box = slide.shapes.add_textbox(MARGIN_LEFT, MARGIN_TOP, width, height)
                 tf = b_box.text_frame
                 tf.word_wrap = True
                 
                 for text_line in current_slide_text:
                     p = tf.add_paragraph()
-                    p.space_after = Pt(14) # Luxurious spacing
-                    p.line_spacing = 1.2   # Better readability
+                    p.space_after = Pt(14)
+                    p.line_spacing = 1.2
                     
-                    # Markdown Parser
                     parts = text_line.split('**')
                     for i, part in enumerate(parts):
                         run = p.add_run()
                         run.text = part
                         run.font.size = Pt(16)
-                        run.font.name = "Georgia" # High quality reading font
-                        
-                        # Contrast Bolding (Black vs Charcoal)
+                        run.font.name = "Georgia"
                         if i % 2 == 1:
                             run.font.bold = True
                             run.font.color.rgb = INK_BLACK 
@@ -4347,11 +4349,11 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                             run.font.color.rgb = INK_CHARCOAL 
                             
                 current_slide_text = []
-                current_char_count = 0
+                current_vertical_cost = 0
                 chunk_index += 1
             
             current_slide_text.append(para)
-            current_char_count += len(para)
+            current_vertical_cost += para_cost
 
         # RENDER REMAINING TEXT
         if current_slide_text:
@@ -4360,7 +4362,6 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             set_minimalist_background(slide)
             add_footer(slide, page_counter)
             
-            # Header
             t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.8), width, Inches(0.5))
             t_p = t_box.text_frame.paragraphs[0]
             suffix = f" (Cont.)" if chunk_index > 1 else ""
@@ -4370,7 +4371,6 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             t_p.font.name = header_font
             t_p.font.color.rgb = header_color
             
-            # Body
             b_box = slide.shapes.add_textbox(MARGIN_LEFT, MARGIN_TOP, width, height)
             tf = b_box.text_frame
             tf.word_wrap = True
@@ -4380,21 +4380,18 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                 p.space_after = Pt(14)
                 p.line_spacing = 1.2
                 
-                # Markdown Parser
                 parts = text_line.split('**')
                 for i, part in enumerate(parts):
                     run = p.add_run()
                     run.text = part
                     run.font.size = Pt(16)
                     run.font.name = "Georgia" 
-                    
                     if i % 2 == 1:
                         run.font.bold = True
                         run.font.color.rgb = INK_BLACK
                     else:
                         run.font.color.rgb = INK_CHARCOAL
 
-    # 3. SAVE
     output = BytesIO()
     prs.save(output)
     output.seek(0)
