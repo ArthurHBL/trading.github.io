@@ -1221,8 +1221,25 @@ class EnhancedKaiTradingAgent:
             self.logger.error(f"Memory recall error: {e}")
             return None
 
+    def get_live_price(self, asset):
+        """Helper: Fetches real-time price from Coinbase Public API"""
+        import requests
+        try:
+            # Default to USD pair
+            ticker = f"{str(asset).upper()}-USD"
+            url = f"https://api.coinbase.com/v2/prices/{ticker}/spot"
+            
+            # Fast timeout so it doesn't slow down the chat
+            response = requests.get(url, timeout=2)
+            
+            if response.status_code == 200:
+                return float(response.json()['data']['amount'])
+            return None
+        except Exception:
+            return None
+
     def get_last_analysis_summary(self):
-        """Fetch the most recent KAI analysis - NOW INCLUDES PRICE MEMORY"""
+        """Fetch the most recent KAI analysis - NOW INCLUDES LIVE PRICE & MEMORY"""
         import re
         
         try:
@@ -1243,15 +1260,29 @@ class EnhancedKaiTradingAgent:
                 data = response.data[0]['analysis_data']
                 date_str = response.data[0]['created_at'].split('T')[0]
                 
-                # --- CRITICAL FIX: Extract Price & Asset Context ---
+                # --- EXTRACT CONTEXT ---
                 asset = data.get('asset_context', 'ETH')
-                price = data.get('price_context', 0.0)
+                saved_price = data.get('price_context', 0.0)
                 
-                # Format the "Hard Fact" memory
-                if price and float(price) > 0:
-                    fact_line = f"REFERENCE PRICE: The last Weekly Close for {asset} was **{price} USD**."
+                # --- NEW: LIVE PRICE LOGIC ---
+                # 1. Try to get the real-time price
+                live_price = self.get_live_price(asset)
+                
+                if live_price:
+                    # Calculate % change from the report date
+                    change_text = ""
+                    if saved_price and float(saved_price) > 0:
+                        pct = ((live_price - float(saved_price)) / float(saved_price)) * 100
+                        change_text = f"({pct:+.2f}% since report)"
+                    
+                    # KAI gets the LIVE price as the primary fact
+                    fact_line = f"REAL-TIME PRICE: **{live_price:,.2f} USD** {change_text}. (Report Reference: {saved_price} USD)"
                 else:
-                    fact_line = f"REFERENCE ASSET: {asset} (Price not specified in last run)."
+                    # Fallback to the saved price if API fails
+                    if saved_price and float(saved_price) > 0:
+                        fact_line = f"REFERENCE PRICE: The last Weekly Close for {asset} was **{saved_price} USD**."
+                    else:
+                        fact_line = f"REFERENCE ASSET: {asset} (Price not specified)."
 
                 # 1. Get raw summary
                 raw_summary = data.get('executive_summary', 'No summary available.')
@@ -1272,7 +1303,6 @@ class EnhancedKaiTradingAgent:
                     findings_str = str(findings).replace("🧠", "").strip()
                 
                 # 4. Construct the "Brain Injection" text
-                # We put the PRICE right at the top so he sees it first.
                 response_text = (
                     f"[{fact_line}]\n"
                     f"ANALYSIS DATE: {date_str}\n\n"
