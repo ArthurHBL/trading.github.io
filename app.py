@@ -4491,6 +4491,7 @@ def render_kai_chat_interface():
                 
         # 4. Add KAI message to history
         st.session_state.kai_chat_messages.append({"role": "assistant", "content": response})
+        st.rerun()
 
 def render_kai_agent():
     """Enhanced KAI Agent Interface with Chat and Memory"""
