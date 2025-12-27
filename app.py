@@ -4161,53 +4161,82 @@ def load_gallery_images():
         return []
 
 def render_kai_chat_interface():
-    """Interactive Chat with KAI - Custom Avatars Added"""
-    st.subheader("💬 Tactical Chat")
-    st.caption("Discuss strategy, ask about indicators, or get market insights.")
+    """
+    Render the interactive chat interface with KAI.
+    Includes CSS styling for 'Bloomberg Terminal' aesthetic.
+    """
+    # 1. CSS POLISH: Make it look Institutional
+    st.markdown("""
+        <style>
+        /* Message Bubbles */
+        .stChatMessage {
+            background-color: transparent;
+            border: 1px solid rgba(128, 128, 128, 0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        /* Highlight Numbers & Keys in Tech Blue */
+        .stChatMessage strong {
+            color: #4da6ff; 
+            font-weight: 700;
+        }
+        /* Clean up Bullet Points */
+        .stChatMessage ul {
+            margin-top: 0.5rem;
+            margin-bottom: 0.5rem;
+            padding-left: 1.5rem;
+        }
+        .stChatMessage li {
+            margin-bottom: 0.3rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    # Initialize chat history
-    if "kai_chat_messages" not in st.session_state:
-        st.session_state.kai_chat_messages = []
+    st.subheader("💬 Market Intelligence Link")
 
-    # --- DEFINE AVATARS HERE ---
-    # You can replace these emojis with image URLs if you prefer!
-    USER_AVATAR = "👨‍💼"  # The Trader
-    KAI_AVATAR = "🧠"   # The Brain
+    # 2. Initialize Chat History
+    if "kai_chat_history" not in st.session_state:
+        st.session_state.kai_chat_history = []
+        # Add initial greeting if empty
+        st.session_state.kai_chat_history.append({
+            "role": "assistant",
+            "content": "Link established. Monitoring ETH 6-Day timeframe. Ready for your query."
+        })
 
-    # Display chat messages from history
-    for message in st.session_state.kai_chat_messages:
-        # Determine which icon to use
-        if message["role"] == "user":
-            current_avatar = USER_AVATAR
-        else:
-            current_avatar = KAI_AVATAR
-            
-        with st.chat_message(message["role"], avatar=current_avatar):
+    # 3. Display Chat History
+    for message in st.session_state.kai_chat_history:
+        with st.chat_message(message["role"], avatar="🧠" if message["role"] == "assistant" else "👨‍💼"):
             st.markdown(message["content"])
 
-    # User input logic
-    if prompt := st.chat_input("Ask KAI..."):
-        # 1. Add USER message to history
-        st.session_state.kai_chat_messages.append({"role": "user", "content": prompt})
-        
-        # 2. Display USER message immediately
-        with st.chat_message("user", avatar=USER_AVATAR):
+    # 4. Input Handler
+    if prompt := st.chat_input("Ask KAI about levels, trends, or risk..."):
+        # Add User Message
+        st.session_state.kai_chat_history.append({"role": "user", "content": prompt})
+        with st.chat_message("user", avatar="👨‍💼"):
             st.markdown(prompt)
 
-        # 3. Get KAI response
-        with st.chat_message("assistant", avatar=KAI_AVATAR):
-            # Create a placeholder for the "Thinking..." animation
+        # Generate KAI Response
+        with st.chat_message("assistant", avatar="🧠"):
             message_placeholder = st.empty()
-            with st.spinner("Analyzing market data..."):
-                # Initialize the agent to get the response
-                agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
-                response = agent.chat_with_kai(prompt, st.session_state.kai_chat_messages)
-                
-                # Update the placeholder with the final response
-                message_placeholder.markdown(response)
-                
-        # 4. Add KAI message to history
-        st.session_state.kai_chat_messages.append({"role": "assistant", "content": response})
+            full_response = ""
+            
+            # Show "Thinking" indicator momentarily
+            with st.spinner("Analyzing market structure..."):
+                try:
+                    # Get the Smart Response using your Agent
+                    if 'kai_agent' in st.session_state:
+                        full_response = st.session_state.kai_agent.chat_with_kai(prompt)
+                    else:
+                        full_response = "Connection to KAI Core lost. Please refresh."
+                except Exception as e:
+                    full_response = f"Analysis disrupted: {str(e)}"
+
+            # Simulate typing effect for realism
+            message_placeholder.markdown(full_response)
+        
+        # Add Assistant Message to History
+        st.session_state.kai_chat_history.append({"role": "assistant", "content": full_response})
 
 def render_kai_agent():
     """Enhanced KAI Agent Interface with Chat and Memory"""
