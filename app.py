@@ -2638,7 +2638,7 @@ class EnhancedKaiTradingAgent:
         2. "Smart Money" concepts included.
         3. Added "ascending/descending triangle" to technical vocabulary.
         4. Added "Point of Control" and "Volume" to Elite Tier.
-        5. Added "Low Volatility" (-15) and "High Volatility" (-10).
+        5. Added "Low Volatility" (-10) and "High Volatility" (-5).
         6. Minimum Confidence Score set to 35% (max pessimistic).
         """
         if not isinstance(text, str):
@@ -2703,14 +2703,14 @@ class EnhancedKaiTradingAgent:
         if "uncertain" in text_lower or "unclear" in text_lower: base_score -= 15
         if "indecisive" in text_lower or "indecision" in text_lower: base_score -= 15
         if "ambiguous" in text_lower: base_score -= 15
-        if "low volatility" in text_lower: base_score -= 15 # Treated as Indecision
+        if "low volatility" in text_lower: base_score -= 10 # Treated as Indecision
         if "noise" in text_lower: base_score -= 10
 
         # =========================================================
         # TIER 5: SUBOPTIMAL CONDITIONS (-5 to -10)
         # =========================================================
         if "choppy" in text_lower or "chop" in text_lower: base_score -= 10
-        if "high volatility" in text_lower: base_score -= 10 # Treated as Choppy/Dangerous
+        if "high volatility" in text_lower: base_score -= -5 # Treated as Choppy/Dangerous
         if "sideways" in text_lower: base_score -= 5
         if "range-bound" in text_lower or "ranging" in text_lower: base_score -= 5
         if "contraction" in text_lower or "squeeze" in text_lower: base_score -= 5
