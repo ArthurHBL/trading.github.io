@@ -4334,7 +4334,7 @@ def render_kai_chat_interface():
             except Exception as e:
                 st.error(f"Artifact Error: {e}")
         else:
-            st.info("Start a mission to generate artifacts.")
+            st.info("Start a chat to generate artifacts.")
 
     st.markdown("""
         <style>
