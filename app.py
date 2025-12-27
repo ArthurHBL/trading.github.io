@@ -4164,16 +4164,28 @@ def load_gallery_images():
         return []
 
 def render_kai_chat_interface():
-    """Interactive Chat with KAI - Custom Avatars Added"""
+    """Interactive Chat with KAI - Custom Avatars & Blue Text Support"""
+    
+    # --- 1. VISUAL STYLE: Make Bold Text Blue ---
+    st.markdown("""
+        <style>
+        /* This tells the chat window: "If text is BOLD, make it BLUE" */
+        .stChatMessage strong {
+            color: #4da6ff !important;
+            font-weight: 700 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    # --------------------------------------------
+
     st.subheader("💬 Tactical Chat")
     st.caption("Discuss strategy, ask about indicators, or get market insights.")
 
-    # Initialize chat history
+    # Initialize chat history (Using your ORIGINAL variable name)
     if "kai_chat_messages" not in st.session_state:
         st.session_state.kai_chat_messages = []
 
     # --- DEFINE AVATARS HERE ---
-    # You can replace these emojis with image URLs if you prefer!
     USER_AVATAR = "👨‍💼"  # The Trader
     KAI_AVATAR = "🧠"   # The Brain
 
@@ -4202,12 +4214,20 @@ def render_kai_chat_interface():
             # Create a placeholder for the "Thinking..." animation
             message_placeholder = st.empty()
             with st.spinner("Analyzing market data..."):
-                # Initialize the agent to get the response
-                agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
-                response = agent.chat_with_kai(prompt, st.session_state.kai_chat_messages)
-                
-                # Update the placeholder with the final response
-                message_placeholder.markdown(response)
+                try:
+                    # Initialize the agent to get the response
+                    # We create a fresh instance to ensure it gets the latest state
+                    agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+                    
+                    # Pass the CORRECT history variable
+                    response = agent.chat_with_kai(prompt, st.session_state.kai_chat_messages)
+                    
+                    # Update the placeholder with the final response
+                    message_placeholder.markdown(response)
+                except Exception as e:
+                    error_msg = f"⚠️ Connection Error: {str(e)}"
+                    message_placeholder.error(error_msg)
+                    response = error_msg
                 
         # 4. Add KAI message to history
         st.session_state.kai_chat_messages.append({"role": "assistant", "content": response})
