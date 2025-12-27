@@ -4195,9 +4195,9 @@ def load_gallery_images():
 
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
-    High-Fidelity PPTX Generator - Dark Mode + Branding.
+    High-Fidelity PPTX Generator - Dark Mode + Minimalist Brand.
     Features:
-    - "KAI // INTEL" Watermark on every slide
+    - "KAI" (Bold White) Watermark on every slide
     - Title: "CHAT LOG"
     - Style: Electric Blue & Dark Grey
     """
@@ -4216,7 +4216,7 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
     ELECTRIC_BLUE = RGBColor(77, 166, 255) # KAI Blue
     TEXT_WHITE = RGBColor(220, 220, 220) # Body Text
     TEXT_GREY = RGBColor(150, 150, 150)  # Subtitles
-    BRAND_COLOR = RGBColor(0, 243, 255)  # Cyan (For the Logo)
+    PURE_WHITE = RGBColor(255, 255, 255) # For the Logo
     
     # Layout Constants
     MAX_CHARS_PER_SLIDE = 850
@@ -4247,12 +4247,12 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         p.font.size = Pt(10)
         p.font.color.rgb = RGBColor(80, 80, 80)
 
-    # 🟢 NEW: PROCEDURAL LOGO GENERATOR
+    # 🟢 NEW: MINIMALIST "KAI" LOGO
     def add_brand_watermark(slide):
         # Top Right Corner
-        left = Inches(7.5)
-        top = Inches(0.2)
-        width = Inches(2.0)
+        left = Inches(8.0) # Pushed further right
+        top = Inches(0.3)
+        width = Inches(1.5)
         height = Inches(0.5)
         
         txBox = slide.shapes.add_textbox(left, top, width, height)
@@ -4260,11 +4260,11 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         p = tf.paragraphs[0]
         
         # The Badge Text
-        p.text = "KAI // SYSTEM"
-        p.font.size = Pt(14)
+        p.text = "KAI"
+        p.font.size = Pt(24) # Big and Bold
         p.font.bold = True
-        p.font.name = "Courier New" # Tech/Code font
-        p.font.color.rgb = BRAND_COLOR
+        p.font.name = "Arial" # Clean, Heavy Sans-Serif
+        p.font.color.rgb = PURE_WHITE
         p.alignment = PP_ALIGN.RIGHT
 
     # 1. TITLE SLIDE
@@ -4424,7 +4424,7 @@ def render_kai_chat_interface():
                 
                 # 3. Show Download Button
                 st.download_button(
-                    label="📽️ Download Chat Deck (.pptx)",
+                    label="⬇️ Download Chat Deck (.pptx)",
                     data=ppt_file,
                     file_name=f"KAI_Chat_Log_{date.today()}.pptx",
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
