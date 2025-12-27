@@ -4193,8 +4193,148 @@ def load_gallery_images():
         logging.error(f"load_gallery_images() failed completely: {e}")
         return []
 
+def generate_kai_briefing_deck(chat_history, asset="ETH"):
+    """
+    Transforms the ENTIRE CHAT HISTORY into a Professional PowerPoint Dossier.
+    Handles pagination, role detection, and styling.
+    """
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    from io import BytesIO
+    import datetime
+
+    # 1. SETUP PRESENTATION & THEME
+    prs = Presentation()
+    
+    # "Institutional Dark" Background Helper
+    def set_dark_background(slide):
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = RGBColor(14, 17, 23) # Deep Dark Blue-Grey
+
+    # 2. TITLE SLIDE
+    title_layout = prs.slide_layouts[0]
+    slide = prs.slides.add_slide(title_layout)
+    set_dark_background(slide)
+    
+    title = slide.shapes.title
+    subtitle = slide.placeholders[1]
+    
+    title.text = f"MISSION LOG: {asset}"
+    subtitle.text = f"Full Strategic Transcript | {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    
+    # Style Title
+    title.text_frame.paragraphs[0].font.color.rgb = RGBColor(77, 166, 255) # Electric Blue
+    title.text_frame.paragraphs[0].font.bold = True
+    subtitle.text_frame.paragraphs[0].font.color.rgb = RGBColor(150, 150, 150)
+
+    # 3. PROCESS THE CHAT HISTORY
+    content_layout = prs.slide_layouts[1] # Title and Content
+    
+    for msg in chat_history:
+        role = msg['role']
+        raw_text = msg['content']
+        
+        # Define Style based on Speaker
+        if role == "user":
+            header_text = "TRADER INQUIRY"
+            header_color = RGBColor(200, 200, 200) # Light Grey
+            body_color = RGBColor(255, 255, 255)   # White
+        else:
+            header_text = "KAI TACTICAL ANALYSIS"
+            header_color = RGBColor(77, 166, 255)  # Electric Blue
+            body_color = RGBColor(220, 220, 220)   # Off-White
+
+        # Split text into paragraphs
+        paragraphs = raw_text.split('\n')
+        
+        # Pagination Variables
+        max_lines_per_slide = 10
+        current_line_count = 0
+        
+        # Create the first slide for this message
+        current_slide = prs.slides.add_slide(content_layout)
+        set_dark_background(current_slide)
+        
+        slide_title = current_slide.shapes.title
+        slide_title.text = header_text
+        slide_title.text_frame.paragraphs[0].font.color.rgb = header_color
+        slide_title.text_frame.paragraphs[0].font.size = Pt(32)
+        
+        body_shape = current_slide.placeholders[1]
+        tf = body_shape.text_frame
+        tf.clear()
+
+        # Loop through paragraphs and add to slide(s)
+        for para in paragraphs:
+            para = para.strip()
+            if not para: continue
+            
+            # Clean Markdown
+            clean_text = para.replace("**", "").replace("__", "").replace("###", "")
+            
+            p = tf.add_paragraph()
+            p.text = clean_text
+            p.font.color.rgb = body_color
+            p.font.size = Pt(18)
+            p.space_after = Pt(10)
+            
+            current_line_count += 1
+            
+            # Check for Overflow -> Create New Slide
+            if current_line_count >= max_lines_per_slide:
+                # Add continuation slide
+                current_slide = prs.slides.add_slide(content_layout)
+                set_dark_background(current_slide)
+                
+                slide_title = current_slide.shapes.title
+                slide_title.text = f"{header_text} (Cont.)"
+                slide_title.text_frame.paragraphs[0].font.color.rgb = header_color
+                
+                body_shape = current_slide.placeholders[1]
+                tf = body_shape.text_frame
+                tf.clear()
+                current_line_count = 0
+
+    # 4. SAVE TO BUFFER
+    output = BytesIO()
+    prs.save(output)
+    output.seek(0)
+    return output
+
 def render_kai_chat_interface():
     """Interactive Chat with KAI - Custom Avatars Added"""
+    
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown("### 📂 Mission Artifacts")
+        
+        # Check if chat history exists
+        if 'kai_chat_messages' in st.session_state and st.session_state.kai_chat_messages:
+            
+            # 1. Get Full History
+            full_history = st.session_state.kai_chat_messages
+            
+            # 2. Generate Deck (Using the function you just added)
+            # We use a try-except block just in case the PPTX library isn't ready
+            try:
+                ppt_file = generate_kai_briefing_deck(full_history, asset="ETH")
+                
+                # 3. Show Download Button
+                st.download_button(
+                    label="📽️ Download Mission Deck (.pptx)",
+                    data=ppt_file,
+                    file_name=f"KAI_Mission_Log_{date.today()}.pptx",
+                    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    help="Export the full strategic conversation to PowerPoint."
+                )
+            except Exception as e:
+                st.error(f"Artifact Error: {e}")
+        else:
+            st.info("Start a mission to generate artifacts.")
 
     st.markdown("""
         <style>
