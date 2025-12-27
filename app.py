@@ -4163,7 +4163,7 @@ def load_gallery_images():
 def render_kai_chat_interface():
     """
     Render the interactive chat interface with KAI.
-    Includes CSS styling for 'Bloomberg Terminal' aesthetic.
+    Includes CSS styling for 'Bloomberg Terminal' aesthetic & Auto-Initialization.
     """
     # 1. CSS POLISH: Make it look Institutional
     st.markdown("""
@@ -4211,8 +4211,10 @@ def render_kai_chat_interface():
 
     # 4. Input Handler
     if prompt := st.chat_input("Ask KAI about levels, trends, or risk..."):
-        # Add User Message
+        # Add User Message to History
         st.session_state.kai_chat_history.append({"role": "user", "content": prompt})
+        
+        # Display User Message Immediately
         with st.chat_message("user", avatar="👨‍💼"):
             st.markdown(prompt)
 
@@ -4224,13 +4226,19 @@ def render_kai_chat_interface():
             # Show "Thinking" indicator momentarily
             with st.spinner("Analyzing market structure..."):
                 try:
-                    # Get the Smart Response using your Agent
-                    if 'kai_agent' in st.session_state:
-                        full_response = st.session_state.kai_agent.chat_with_kai(prompt)
-                    else:
-                        full_response = "Connection to KAI Core lost. Please refresh."
+                    # --- CRITICAL FIX: Wake up KAI if he's sleeping ---
+                    if 'kai_agent' not in st.session_state:
+                        # Re-initialize the agent on the fly
+                        st.session_state.kai_agent = EnhancedKaiTradingAgent(use_deepseek=True)
+                    
+                    # Call KAI (Passing history excluding the just-added prompt to avoid duplicates)
+                    history_context = st.session_state.kai_chat_history[:-1]
+                    full_response = st.session_state.kai_agent.chat_with_kai(prompt, history_context)
+                    
                 except Exception as e:
-                    full_response = f"Analysis disrupted: {str(e)}"
+                    full_response = f"⚠️ Analysis disrupted: {str(e)}"
+                    # Fallback logging
+                    print(f"KAI Error: {e}")
 
             # Simulate typing effect for realism
             message_placeholder.markdown(full_response)
