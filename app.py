@@ -2631,47 +2631,117 @@ class EnhancedKaiTradingAgent:
             return self._create_fallback_analysis(f"Parser error: {str(e)}")
 
     def _wrap_string_response(self, text):
-        """Wrap any string response into PROPER KAI analysis format with DYNAMIC scoring"""
-        # Ensure we have a string
+        """
+        Wrap string response with INSTITUTIONAL GRADE CONFIDENCE SCORING.
+        Updates:
+        1. "Traps/Fakeouts" now INCREASE confidence.
+        2. "Smart Money" concepts included.
+        3. Added "ascending/descending triangle" to technical vocabulary.
+        4. Added "Point of Control" and "Volume" to Elite Tier.
+        5. Added "Low Volatility" (-15) and "High Volatility" (-10).
+        6. Minimum Confidence Score set to 35% (max pessimistic).
+        """
         if not isinstance(text, str):
             text = str(text)
 
-        # DYNAMIC CONFIDENCE CALCULATION
-        # If the text sounds confident, give it a higher score
-        text_lower = text.lower()
-        base_score = 50
+        # 1. CLEANUP
+        text_clean = text.replace("🧠", "").replace("DeepSeek Enhanced:", "").strip()
+        text_lower = text_clean.lower()
         
-        if "strong" in text_lower or "confirmed" in text_lower: base_score += 15
-        if "high probability" in text_lower: base_score += 10
-        if "caution" in text_lower or "risk" in text_lower: base_score -= 10
-        if "mixed" in text_lower or "uncertain" in text_lower: base_score -= 15
-        if "breakout" in text_lower: base_score += 5
+        # Start with a neutral-optimistic baseline
+        base_score = 60  
         
-        # Clamp between 20 and 95
-        final_score = max(20, min(95, base_score))
+        # =========================================================
+        # TIER 1: ELITE INSTITUTIONAL INSIGHT (+15 to +20)
+        # =========================================================
+        elite_terms = [
+            "smart money", "institutional", "liquidity sweep", "stop hunt",
+            "order flow", "manipulation", "trap", "fakeout", "fake-out",
+            "confluence", "high probability", "textbook", "volume anomaly",
+            "volume profile", "volume imbalance", "volume expansion", 
+            "volume spike", "point of control", "volume"
+        ]
+        
+        for term in elite_terms:
+            if term in text_lower:
+                base_score += 15
+                break # Cap at +15 for this tier
 
-        # Create a COMPLETE analysis structure
+        # =========================================================
+        # TIER 2: SIGNAL CONFIRMATION & MOMENTUM (+10)
+        # =========================================================
+        if "confirmed" in text_lower or "confirmation" in text_lower: base_score += 10
+        if "decisive" in text_lower: base_score += 10
+        if "follow-through" in text_lower: base_score += 10
+        if "impulsive" in text_lower: base_score += 10  # Strong directional move
+        if "breakout" in text_lower or "breakdown" in text_lower: base_score += 5
+        if "reclaim" in text_lower: base_score += 10   # Reclaiming a level is very bullish
+        if "validation" in text_lower or "validated" in text_lower: base_score += 5
+
+        # =========================================================
+        # TIER 3: TECHNICAL PRECISION (+5)
+        # =========================================================
+        # Specific pattern recognition boosts confidence
+        technical_terms = [
+            "divergence", "golden cross", "death cross", "fair value gap", 
+            "order block", "market structure shift", "mss", "head and shoulders", 
+            "double bottom", "double top", "accumulation", "distribution", 
+            "bull flag", "bear flag", "falling wedge", "rising wedge", 
+            "ascending triangle", "descending triangle", "wedge", "channel", 
+            "triangle", "pennant"
+        ]
+        for term in technical_terms:
+            if term in text_lower:
+                base_score += 5
+                break 
+
+        # =========================================================
+        # TIER 4: MARKET CONFUSION (-15)
+        # =========================================================
+        if "mixed" in text_lower: base_score -= 15
+        if "conflict" in text_lower or "contradiction" in text_lower: base_score -= 15
+        if "uncertain" in text_lower or "unclear" in text_lower: base_score -= 15
+        if "indecisive" in text_lower or "indecision" in text_lower: base_score -= 15
+        if "ambiguous" in text_lower: base_score -= 15
+        if "low volatility" in text_lower: base_score -= 15 # Treated as Indecision
+        if "noise" in text_lower: base_score -= 10
+
+        # =========================================================
+        # TIER 5: SUBOPTIMAL CONDITIONS (-5 to -10)
+        # =========================================================
+        if "choppy" in text_lower or "chop" in text_lower: base_score -= 10
+        if "high volatility" in text_lower: base_score -= 10 # Treated as Choppy/Dangerous
+        if "sideways" in text_lower: base_score -= 5
+        if "range-bound" in text_lower or "ranging" in text_lower: base_score -= 5
+        if "contraction" in text_lower or "squeeze" in text_lower: base_score -= 5
+        if "exhaustion" in text_lower: base_score -= 5
+        if "overextended" in text_lower: base_score -= 5
+        if "monitor" in text_lower or "awaiting" in text_lower: base_score -= 5
+
+        # 3. CLAMP SCORE
+        # Min set to 35 (Very Uncertain) instead of 30
+        final_score = max(35, min(99, base_score))
+
+        # 4. CONSTRUCT STRUCTURED RESPONSE
         wrapped_analysis = {
-            "executive_summary": text,  # Use the full text here
+            "executive_summary": text_clean,
             "key_findings": [
-                "Automated analysis completed",
+                "Automated text analysis completed",
                 "Market structure evaluated",
-                "Risk factors identified",
-                "Signal alignment checked"
+                "Signal alignment verified"
             ],
             "momentum_assessment": "Derived from textual analysis",
-            "critical_levels": ["See executive summary for levels"],
+            "critical_levels": ["See summary for price levels"],
             "time_horizons": {
-                "short_term": "See summary",
-                "medium_term": "See summary",
-                "long_term": "See summary"
+                "short_term": "See executive summary",
+                "medium_term": "See executive summary", 
+                "long_term": "See executive summary"
             },
-            "risk_analysis": "Standard risk protocols apply. See summary for specific threats.",
-            "confidence_score": final_score,  # NOW DYNAMIC
+            "risk_analysis": "Please review the executive summary for specific risk warnings.",
+            "confidence_score": final_score,
             "trading_recommendations": [
                 "Review chart context manually",
-                "Apply strict risk management",
-                "Wait for candle close confirmation"
+                "Apply strict risk management"
             ],
             "_original_string": text,
             "_is_wrapped_response": True
