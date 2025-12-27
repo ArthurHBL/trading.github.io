@@ -1115,7 +1115,6 @@ class EnhancedKaiTradingAgent:
     def _initialize_deepseek_prompts(self):
         """Initialize specialized prompts for DeepSeek API with MEMORY, SMART CHAT & STRICT FORMATTING"""
         return {
-            # PART 1: THE ANALYST BRAIN (Strict Math & JSON) - Kept from your original
             "enhanced_analysis": """
             You are KAI, a Senior Technical Analysis Specialist with 10+ years of experience.
             
@@ -1155,34 +1154,38 @@ class EnhancedKaiTradingAgent:
             }}
             """,
             
-            # PART 2: THE CHAT PERSONA (The "Smart Consultant" Upgrade)
             "chat_persona": """
-            You are **KAI** (Kinetic Algorithms Intelligence), a high-level Strategic Trading Advisor. 
-            You are talking to a Portfolio Manager (the user).
+            You are KAI (Kinetic Algorithms Intelligence), a sophisticated Trading Partner.
             
-            **YOUR GOAL:**
-            Synthesize the provided data into a **narrative**. Do not just list numbers like a robot. 
-            Tell the user *what the numbers mean* for their strategy.
+            **CRITICAL FORMATTING RULES (STRICT ENFORCEMENT):**
+            1. **NO LATEX:** Do NOT use LaTeX math formatting (e.g., $...$).
+            2. **MANDATORY USD:** Every time you mention a price, you **MUST** append "USD".
+               - WRONG: "target is 3000"
+               - WRONG: "target is $3000"
+               - **CORRECT:** "target is 3000 USD"
+            3. **SPACING:** Ensure clear spacing between sentences.
             
-            **YOUR VOICE:**
-            - **Sophisticated & Nuanced:** Use terms like "confluence," "structure," "compression," "invalidation."
-            - **Direct but Conversational:** "Listen, the chart is telling us..." or "Here is the reality..."
-            - **Opinionated:** If the data is bad, say it's messy. If it's good, say it's clean.
-            - **Polite:** If the user says "Thank you", respond professionally.
+            **YOUR PERSONALITY:**
+            - **You are NOT a robot.** Do not use phrases like "System ready" or "Accessing database."
+            - **You are a High-End Consultant.** Speak like a smart, senior hedge fund analyst.
+            - **Use "I" and "We".** (e.g., "I'm monitoring the levels," "We should watch the 3000 USD support.")
+            - **Be Polite.** If the user says "Thank you," say "You're welcome."
             
-            **CRITICAL FORMATTING RULES:**
-            1. **HIGHLIGHTING:** You MUST **bold** all price levels, percentages, and key signal names.
-               - Example: "**3400 USD**", "**50%**", "**Bullish**".
-            2. **MANDATORY USD:** Always write "USD" after prices.
-            3. **NO LATEX:** Do NOT use '$' or LaTeX math.
-            4. **Short Paragraphs:** Keep it punchy and easy to read.
+            **CORE BEHAVIOR - INTELLIGENT CONTEXT SWITCHING:**
+            1. **SOCIAL / GREETING:**
+               - IF user says "Hi", "Hello": "Hello. I'm ready to look at the charts whenever you are."
+               - IF user says "Thank you": "You're welcome. Let me know if you need to check another timeframe."
             
-            **CORE BEHAVIOR:**
-            1. **Social:** If the user greets you, be brief and professional.
-            2. **Analysis:** If asked about the market, use the "INTERNAL ANALYST NOTES" below to form your opinion.
-            3. **Synthesis:** Do NOT read the notes verbatim. Interpret them.
+            2. **MARKET ANALYSIS (ONLY WHEN ASKED):**
+               - IF user asks about price, trend, buy/sell: PERFORM ANALYSIS based on your memory.
+               - Use the "LAST ANALYSIS CONTEXT" provided below.
             
-            **INTERNAL ANALYST NOTES (Your Brain):**
+            **PRIME DIRECTIVES:**
+            1. **THE ASSET IS ALWAYS ETHEREUM (ETH).**
+            2. **THE TIMEFRAME IS ALWAYS THE 6-DAY CHART.**
+            3. **CONTINUITY:** Maintain consistency with your previous analysis.
+            
+            **LAST ANALYSIS CONTEXT:**
             {last_analysis_context}
             """
         }
@@ -1218,32 +1221,70 @@ class EnhancedKaiTradingAgent:
             return None
 
     def get_last_analysis_summary(self):
-        """
-        Retrieves the latest analysis as 'Internal Notes' for KAI.
-        Designed to allow NATURAL synthesis, not robotic reading.
-        """
-        if 'kai_analyses' not in st.session_state or not st.session_state.kai_analyses:
-            return "No prior analysis found. Rely on general market knowledge for now."
-
+        """Fetch the most recent KAI analysis - PERSONA OPTIMIZED & SANITIZED"""
+        import re  # Ensure regex is available
+        
         try:
-            # 1. Get Newest Report
-            latest_report = max(st.session_state.kai_analyses, key=lambda x: x.get('created_at', ''))
-            data = latest_report.get('analysis_data', {})
-            
-            # 2. Format as 'Analyst Scribbles' (Natural Language)
-            # This trick prevents the AI from reading it like a robot.
-            context = f"""
-            INTERNAL ANALYST NOTES (Use these to form your opinion, do not read verbatim):
-            - Market State: {data.get('executive_summary', 'Mixed signals present.')}
-            - Trend Status: {data.get('momentum_assessment', 'Neutral/Consolidating')}
-            - Key Levels to Watch: {', '.join(data.get('critical_levels', ['Chart structure undefined']))}
-            - Confidence: {latest_report.get('confidence_score')}%
-            - Risk Profile: {latest_report.get('risk_score')}/10
-            """
-            return context
+            # Check if global client exists
+            if 'supabase_client' not in globals() or not supabase_client:
+                return "My memory banks are currently unreachable. I cannot recall the previous session."
 
-        except Exception:
-            return "Data unavailable."
+            # Fetch the latest 1 record
+            # We use parentheses to safely wrap the query across lines
+            response = (
+                supabase_client.table('kai_analyses')
+                .select('analysis_data, created_at')
+                .order('created_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+
+            # Check if we got data
+            if response.data and len(response.data) > 0:
+                data = response.data[0]['analysis_data']
+                date = response.data[0]['created_at'].split('T')[0]
+                
+                # 1. Get raw summary
+                raw_summary = data.get('executive_summary', 'No summary available.')
+                
+                # 2. NUCLEAR SANITIZER (Protects against the "DeepSeek" label)
+                # Matches "DeepSeek Enhanced" with or without emojis, bolding, etc.
+                pattern = r"(?:🧠|:brain:)?\s*(?:\*\*|__)?\s*DeepSeek\s+Enhanced\s*(?::)?\s*(?:\*\*|__)?\s*"
+                summary = re.sub(pattern, "", raw_summary, flags=re.IGNORECASE).strip()
+                summary = summary.lstrip(": -")
+
+                # 3. Process findings
+                findings = data.get('key_findings', [])
+                clean_findings = []
+                
+                if isinstance(findings, list):
+                    for f in findings:
+                        clean_f = str(f).replace("🧠", "").strip()
+                        clean_findings.append(clean_f)
+                    findings_str = "; ".join(clean_findings)
+                else:
+                    findings_str = str(findings).replace("🧠", "").strip()
+                
+                # 4. Construct the response SAFE WAY (Avoids indentation errors)
+                response_text = (
+                    f"Here is what we discussed on {date}:\n\n"
+                    f"\"{summary}\"\n\n"
+                    f"Key points we noted were: {findings_str}"
+                )
+                
+                return response_text
+            
+            # If no data found
+            return "I do not see any prior analysis in my records. This appears to be our first session for this cycle."
+            
+        except Exception as e:
+            # Log the error safely
+            if hasattr(self, 'logger'):
+                self.logger.error(f"Failed to fetch last analysis: {e}")
+            else:
+                print(f"Error: {e}")
+                
+            return "I am having trouble accessing my archives right now. Let's focus on the live market instead."
 
     def chat_with_kai(self, user_message, history):
         """Interactive Chat with Auto-Context Injection"""
@@ -4120,90 +4161,53 @@ def load_gallery_images():
         return []
 
 def render_kai_chat_interface():
-    """
-    Render the interactive chat interface with KAI.
-    Includes CSS styling for 'Bloomberg Terminal' aesthetic & Auto-Initialization.
-    """
-    # 1. CSS POLISH: Make it look Institutional
-    st.markdown("""
-        <style>
-        /* Message Bubbles */
-        .stChatMessage {
-            background-color: transparent;
-            border: 1px solid rgba(128, 128, 128, 0.2);
-            border-radius: 10px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-        }
-        /* Highlight Numbers & Keys in Tech Blue */
-        .stChatMessage strong {
-            color: #4da6ff; 
-            font-weight: 700;
-        }
-        /* Clean up Bullet Points */
-        .stChatMessage ul {
-            margin-top: 0.5rem;
-            margin-bottom: 0.5rem;
-            padding-left: 1.5rem;
-        }
-        .stChatMessage li {
-            margin-bottom: 0.3rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    """Interactive Chat with KAI - Custom Avatars Added"""
+    st.subheader("💬 Tactical Chat")
+    st.caption("Discuss strategy, ask about indicators, or get market insights.")
 
-    st.subheader("💬 Market Intelligence Link")
+    # Initialize chat history
+    if "kai_chat_messages" not in st.session_state:
+        st.session_state.kai_chat_messages = []
 
-    # 2. Initialize Chat History
-    if "kai_chat_history" not in st.session_state:
-        st.session_state.kai_chat_history = []
-        # Add initial greeting if empty
-        st.session_state.kai_chat_history.append({
-            "role": "assistant",
-            "content": "Link established. Monitoring ETH 6-Day timeframe. Ready for your query."
-        })
+    # --- DEFINE AVATARS HERE ---
+    # You can replace these emojis with image URLs if you prefer!
+    USER_AVATAR = "👨‍💼"  # The Trader
+    KAI_AVATAR = "🧠"   # The Brain
 
-    # 3. Display Chat History
-    for message in st.session_state.kai_chat_history:
-        with st.chat_message(message["role"], avatar="🧠" if message["role"] == "assistant" else "👨‍💼"):
+    # Display chat messages from history
+    for message in st.session_state.kai_chat_messages:
+        # Determine which icon to use
+        if message["role"] == "user":
+            current_avatar = USER_AVATAR
+        else:
+            current_avatar = KAI_AVATAR
+            
+        with st.chat_message(message["role"], avatar=current_avatar):
             st.markdown(message["content"])
 
-    # 4. Input Handler
-    if prompt := st.chat_input("Ask KAI about levels, trends, or risk..."):
-        # Add User Message to History
-        st.session_state.kai_chat_history.append({"role": "user", "content": prompt})
+    # User input logic
+    if prompt := st.chat_input("Ask KAI..."):
+        # 1. Add USER message to history
+        st.session_state.kai_chat_messages.append({"role": "user", "content": prompt})
         
-        # Display User Message Immediately
-        with st.chat_message("user", avatar="👨‍💼"):
+        # 2. Display USER message immediately
+        with st.chat_message("user", avatar=USER_AVATAR):
             st.markdown(prompt)
 
-        # Generate KAI Response
-        with st.chat_message("assistant", avatar="🧠"):
+        # 3. Get KAI response
+        with st.chat_message("assistant", avatar=KAI_AVATAR):
+            # Create a placeholder for the "Thinking..." animation
             message_placeholder = st.empty()
-            full_response = ""
-            
-            # Show "Thinking" indicator momentarily
-            with st.spinner("Analyzing market structure..."):
-                try:
-                    # --- CRITICAL FIX: Wake up KAI if he's sleeping ---
-                    if 'kai_agent' not in st.session_state:
-                        # Re-initialize the agent on the fly
-                        st.session_state.kai_agent = EnhancedKaiTradingAgent(use_deepseek=True)
-                    
-                    # Call KAI (Passing history excluding the just-added prompt to avoid duplicates)
-                    history_context = st.session_state.kai_chat_history[:-1]
-                    full_response = st.session_state.kai_agent.chat_with_kai(prompt, history_context)
-                    
-                except Exception as e:
-                    full_response = f"⚠️ Analysis disrupted: {str(e)}"
-                    # Fallback logging
-                    print(f"KAI Error: {e}")
-
-            # Simulate typing effect for realism
-            message_placeholder.markdown(full_response)
-        
-        # Add Assistant Message to History
-        st.session_state.kai_chat_history.append({"role": "assistant", "content": full_response})
+            with st.spinner("Analyzing market data..."):
+                # Initialize the agent to get the response
+                agent = EnhancedKaiTradingAgent(use_deepseek=st.session_state.use_deepseek)
+                response = agent.chat_with_kai(prompt, st.session_state.kai_chat_messages)
+                
+                # Update the placeholder with the final response
+                message_placeholder.markdown(response)
+                
+        # 4. Add KAI message to history
+        st.session_state.kai_chat_messages.append({"role": "assistant", "content": response})
 
 def render_kai_agent():
     """Enhanced KAI Agent Interface with Chat and Memory"""
