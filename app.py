@@ -4165,6 +4165,17 @@ def load_gallery_images():
 
 def render_kai_chat_interface():
     """Interactive Chat with KAI - Custom Avatars Added"""
+
+    st.markdown("""
+        <style>
+        /* This makes BOLD text appear ELECTRIC BLUE */
+        .stChatMessage strong {
+            color: #4da6ff !important;
+            font-weight: 700 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.subheader("💬 Tactical Chat")
     st.caption("Discuss strategy, ask about indicators, or get market insights.")
 
