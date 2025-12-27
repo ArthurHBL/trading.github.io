@@ -1222,16 +1222,15 @@ class EnhancedKaiTradingAgent:
             return None
 
     def get_last_analysis_summary(self):
-        """Fetch the most recent KAI analysis - PERSONA OPTIMIZED & SANITIZED"""
-        import re  # Ensure regex is available
+        """Fetch the most recent KAI analysis - NOW INCLUDES PRICE MEMORY"""
+        import re
         
         try:
             # Check if global client exists
             if 'supabase_client' not in globals() or not supabase_client:
-                return "My memory banks are currently unreachable. I cannot recall the previous session."
+                return "My memory banks are currently unreachable."
 
             # Fetch the latest 1 record
-            # We use parentheses to safely wrap the query across lines
             response = (
                 supabase_client.table('kai_analyses')
                 .select('analysis_data, created_at')
@@ -1240,16 +1239,24 @@ class EnhancedKaiTradingAgent:
                 .execute()
             )
 
-            # Check if we got data
             if response.data and len(response.data) > 0:
                 data = response.data[0]['analysis_data']
-                date = response.data[0]['created_at'].split('T')[0]
+                date_str = response.data[0]['created_at'].split('T')[0]
                 
+                # --- CRITICAL FIX: Extract Price & Asset Context ---
+                asset = data.get('asset_context', 'ETH')
+                price = data.get('price_context', 0.0)
+                
+                # Format the "Hard Fact" memory
+                if price and float(price) > 0:
+                    fact_line = f"REFERENCE PRICE: The last Weekly Close for {asset} was **{price} USD**."
+                else:
+                    fact_line = f"REFERENCE ASSET: {asset} (Price not specified in last run)."
+
                 # 1. Get raw summary
                 raw_summary = data.get('executive_summary', 'No summary available.')
                 
-                # 2. NUCLEAR SANITIZER (Protects against the "DeepSeek" label)
-                # Matches "DeepSeek Enhanced" with or without emojis, bolding, etc.
+                # 2. Clean it (DeepSeek label removal)
                 pattern = r"(?:🧠|:brain:)?\s*(?:\*\*|__)?\s*DeepSeek\s+Enhanced\s*(?::)?\s*(?:\*\*|__)?\s*"
                 summary = re.sub(pattern, "", raw_summary, flags=re.IGNORECASE).strip()
                 summary = summary.lstrip(": -")
@@ -1257,35 +1264,30 @@ class EnhancedKaiTradingAgent:
                 # 3. Process findings
                 findings = data.get('key_findings', [])
                 clean_findings = []
-                
                 if isinstance(findings, list):
                     for f in findings:
-                        clean_f = str(f).replace("🧠", "").strip()
-                        clean_findings.append(clean_f)
+                        clean_findings.append(str(f).replace("🧠", "").strip())
                     findings_str = "; ".join(clean_findings)
                 else:
                     findings_str = str(findings).replace("🧠", "").strip()
                 
-                # 4. Construct the response SAFE WAY (Avoids indentation errors)
+                # 4. Construct the "Brain Injection" text
+                # We put the PRICE right at the top so he sees it first.
                 response_text = (
-                    f"Here is what we discussed on {date}:\n\n"
-                    f"\"{summary}\"\n\n"
-                    f"Key points we noted were: {findings_str}"
+                    f"[{fact_line}]\n"
+                    f"ANALYSIS DATE: {date_str}\n\n"
+                    f"SUMMARY:\n\"{summary}\"\n\n"
+                    f"KEY LEVELS & FINDINGS:\n{findings_str}"
                 )
                 
                 return response_text
             
-            # If no data found
-            return "I do not see any prior analysis in my records. This appears to be our first session for this cycle."
+            return "No prior analysis found in memory."
             
         except Exception as e:
-            # Log the error safely
             if hasattr(self, 'logger'):
-                self.logger.error(f"Failed to fetch last analysis: {e}")
-            else:
-                print(f"Error: {e}")
-                
-            return "I am having trouble accessing my archives right now. Let's focus on the live market instead."
+                self.logger.error(f"Memory error: {e}")
+            return f"Memory retrieval error: {e}"
 
     def chat_with_kai(self, user_message, history):
         """Interactive Chat with Auto-Context Injection"""
