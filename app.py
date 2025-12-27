@@ -1223,70 +1223,49 @@ class EnhancedKaiTradingAgent:
             return None
 
     def get_last_analysis_summary(self):
-        """Fetch the most recent KAI analysis - PERSONA OPTIMIZED & SANITIZED"""
-        import re  # Ensure regex is available
-        
+        """
+        Retrieves the most recent analysis from Session State to inject into Chat Memory.
+        Fixes 'Hallucination' by forcing KAI to read the actual latest numbers.
+        """
+        # 1. Safety Check: Does the archive exist?
+        if 'kai_analyses' not in st.session_state or not st.session_state.kai_analyses:
+            return "SYSTEM ALERT: No analysis found in memory. Please go to the Analyst tab and run a new report first."
+
         try:
-            # Check if global client exists
-            if 'supabase_client' not in globals() or not supabase_client:
-                return "My memory banks are currently unreachable. I cannot recall the previous session."
-
-            # Fetch the latest 1 record
-            # We use parentheses to safely wrap the query across lines
-            response = (
-                supabase_client.table('kai_analyses')
-                .select('analysis_data, created_at')
-                .order('created_at', desc=True)
-                .limit(1)
-                .execute()
-            )
-
-            # Check if we got data
-            if response.data and len(response.data) > 0:
-                data = response.data[0]['analysis_data']
-                date = response.data[0]['created_at'].split('T')[0]
-                
-                # 1. Get raw summary
-                raw_summary = data.get('executive_summary', 'No summary available.')
-                
-                # 2. NUCLEAR SANITIZER (Protects against the "DeepSeek" label)
-                # Matches "DeepSeek Enhanced" with or without emojis, bolding, etc.
-                pattern = r"(?:🧠|:brain:)?\s*(?:\*\*|__)?\s*DeepSeek\s+Enhanced\s*(?::)?\s*(?:\*\*|__)?\s*"
-                summary = re.sub(pattern, "", raw_summary, flags=re.IGNORECASE).strip()
-                summary = summary.lstrip(": -")
-
-                # 3. Process findings
-                findings = data.get('key_findings', [])
-                clean_findings = []
-                
-                if isinstance(findings, list):
-                    for f in findings:
-                        clean_f = str(f).replace("🧠", "").strip()
-                        clean_findings.append(clean_f)
-                    findings_str = "; ".join(clean_findings)
-                else:
-                    findings_str = str(findings).replace("🧠", "").strip()
-                
-                # 4. Construct the response SAFE WAY (Avoids indentation errors)
-                response_text = (
-                    f"Here is what we discussed on {date}:\n\n"
-                    f"\"{summary}\"\n\n"
-                    f"Key points we noted were: {findings_str}"
-                )
-                
-                return response_text
+            # 2. Find the Newest Report (Sort by date just to be safe)
+            # We look for the entry with the most recent 'created_at' timestamp
+            latest_report = max(st.session_state.kai_analyses, key=lambda x: x.get('created_at', ''))
             
-            # If no data found
-            return "I do not see any prior analysis in my records. This appears to be our first session for this cycle."
+            # 3. Extract the 'Brain' of the report
+            data = latest_report.get('analysis_data', {})
             
+            # 4. Format into a strict text block for the AI
+            # We explicitly list the Price, Date, and Levels so he CANNOT ignore them.
+            memory_block = f"""
+            [REAL-TIME MEMORY INJECTION]
+            ------------------------------------------------
+            REPORT DATE: {latest_report.get('created_at')}
+            CONFIDENCE SCORE: {latest_report.get('confidence_score')}%
+            RISK SCORE: {latest_report.get('risk_score')}/10
+            
+            EXECUTIVE SUMMARY:
+            {data.get('executive_summary', 'No summary available.')}
+            
+            CRITICAL LEVELS (DO NOT HALLUCINATE - USE THESE):
+            {', '.join(data.get('critical_levels', ['No levels defined']))}
+            
+            TREND ASSESSMENT:
+            {data.get('momentum_assessment', 'Neutral')}
+            
+            TRADING RECOMMENDATION:
+            {', '.join(data.get('trading_recommendations', []))}
+            ------------------------------------------------
+            """
+            return memory_block
+
         except Exception as e:
-            # Log the error safely
-            if hasattr(self, 'logger'):
-                self.logger.error(f"Failed to fetch last analysis: {e}")
-            else:
-                print(f"Error: {e}")
-                
-            return "I am having trouble accessing my archives right now. Let's focus on the live market instead."
+            # Fallback if data is corrupted, so he doesn't crash
+            return f"Error reading memory: {str(e)}"
 
     def chat_with_kai(self, user_message, history):
         """Interactive Chat with Auto-Context Injection"""
