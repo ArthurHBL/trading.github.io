@@ -4310,7 +4310,7 @@ def render_kai_chat_interface():
     
     with st.sidebar:
         st.markdown("---")
-        st.markdown("### 📂 Mission Artifacts")
+        st.markdown("### 📂 Chat Artifacts")
         
         # Check if chat history exists
         if 'kai_chat_messages' in st.session_state and st.session_state.kai_chat_messages:
@@ -4325,9 +4325,9 @@ def render_kai_chat_interface():
                 
                 # 3. Show Download Button
                 st.download_button(
-                    label="📽️ Download Mission Deck (.pptx)",
+                    label="📽️ Download Chat Deck (.pptx)",
                     data=ppt_file,
-                    file_name=f"KAI_Mission_Log_{date.today()}.pptx",
+                    file_name=f"KAI_Chat_Log_{date.today()}.pptx",
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                     help="Export the full strategic conversation to PowerPoint."
                 )
