@@ -4195,11 +4195,9 @@ def load_gallery_images():
 
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
-    High-Fidelity PPTX Generator - Dark Mode + Minimalist Brand.
-    Features:
-    - "KAI" (Bold White) Watermark on every slide
-    - Title: "CHAT LOG"
-    - Style: Electric Blue & Dark Grey
+    High-Fidelity PPTX Generator - 'Sacred Manifesto' Edition.
+    Aesthetic: Editorial, Minimalist, White Paper, Serif Typography.
+    NO WATERMARKS.
     """
     try:
         from pptx import Presentation
@@ -4211,83 +4209,72 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
     except ImportError:
         return None
 
-    # --- CONFIGURATION ---
-    DARK_BG = RGBColor(14, 17, 23)       # Dashboard Dark
-    ELECTRIC_BLUE = RGBColor(77, 166, 255) # KAI Blue
-    TEXT_WHITE = RGBColor(220, 220, 220) # Body Text
-    TEXT_GREY = RGBColor(150, 150, 150)  # Subtitles
-    PURE_WHITE = RGBColor(255, 255, 255) # For the Logo
+    # --- THE "MANIFESTO" PALETTE ---
+    PAPER_BG = RGBColor(255, 255, 255)      # Pure White
+    INK_BLACK = RGBColor(0, 0, 0)           # Deepest Black (Headers/Bold)
+    INK_CHARCOAL = RGBColor(45, 45, 45)     # Soft Black (Body Text)
+    INK_SUBTLE = RGBColor(120, 120, 120)    # Light Grey (Meta data)
     
-    # Layout Constants
-    MAX_CHARS_PER_SLIDE = 850
-    MARGIN_LEFT = Inches(0.5)
+    # Layout Constants (Wider margins for "Book" feel)
+    MAX_CHARS_PER_SLIDE = 900
+    MARGIN_LEFT = Inches(1.0) 
     MARGIN_TOP = Inches(1.5)
-    width = Inches(9.0)
+    width = Inches(8.0)       
     height = Inches(5.0)
 
     prs = Presentation()
 
-    # Helper: Apply Dark Background
-    def set_dark_background(slide):
+    # Helper: Apply Paper Background
+    def set_minimalist_background(slide):
         background = slide.background
         fill = background.fill
         fill.solid()
-        fill.fore_color.rgb = DARK_BG
+        fill.fore_color.rgb = PAPER_BG
 
-    # Helper: Add Footer
+    # Helper: Add Minimalist Footer (Centered, Small)
     def add_footer(slide, page_num):
         left = Inches(0.5)
-        top = Inches(6.8) 
+        top = Inches(6.9) 
         width = Inches(9)
         height = Inches(0.5)
         txBox = slide.shapes.add_textbox(left, top, width, height)
         tf = txBox.text_frame
         p = tf.paragraphs[0]
-        p.text = f"CONFIDENTIAL | KAI CHAT LOG | PAGE {page_num}"
-        p.font.size = Pt(10)
-        p.font.color.rgb = RGBColor(80, 80, 80)
+        p.text = f"{page_num}  |  KAI STRATEGIC LOG"
+        p.font.size = Pt(9)
+        p.font.name = "Times New Roman" 
+        p.font.color.rgb = INK_SUBTLE
+        p.alignment = PP_ALIGN.CENTER
 
-    # 🟢 NEW: MINIMALIST "KAI" LOGO
-    def add_brand_watermark(slide):
-        # Top Right Corner
-        left = Inches(8.0) # Pushed further right
-        top = Inches(0.3)
-        width = Inches(1.5)
-        height = Inches(0.5)
-        
-        txBox = slide.shapes.add_textbox(left, top, width, height)
-        tf = txBox.text_frame
-        p = tf.paragraphs[0]
-        
-        # The Badge Text
-        p.text = "KAI"
-        p.font.size = Pt(24) # Big and Bold
-        p.font.bold = True
-        p.font.name = "Arial" # Clean, Heavy Sans-Serif
-        p.font.color.rgb = PURE_WHITE
-        p.alignment = PP_ALIGN.RIGHT
-
-    # 1. TITLE SLIDE
+    # 1. TITLE SLIDE (The Book Cover Look)
     slide = prs.slides.add_slide(prs.slide_layouts[6]) 
-    set_dark_background(slide)
-    add_brand_watermark(slide) # <--- Add Logo
+    set_minimalist_background(slide)
     
-    # Title
-    title_box = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(8), Inches(1))
+    # Title (Serif, Elegant)
+    title_box = slide.shapes.add_textbox(Inches(1), Inches(2.5), Inches(8), Inches(1.5))
     title_p = title_box.text_frame.paragraphs[0]
-    title_p.text = "CHAT LOG"
+    title_p.text = "THE CHAT LOG"
     title_p.font.bold = True
-    title_p.font.size = Pt(44)
-    title_p.font.color.rgb = ELECTRIC_BLUE
+    title_p.font.size = Pt(48)
+    title_p.font.color.rgb = INK_BLACK
+    title_p.font.name = "Times New Roman" # The "Manifesto" Font
     title_p.alignment = PP_ALIGN.CENTER
     
-    # Subtitle
+    # Subtitle (Sans-Serif Contrast)
     sub_box = slide.shapes.add_textbox(Inches(1), Inches(3.5), Inches(8), Inches(1))
     sub_p = sub_box.text_frame.paragraphs[0]
-    sub_p.text = f"Strategic Transcript | {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-    sub_p.font.size = Pt(18)
-    sub_p.font.color.rgb = TEXT_GREY
+    sub_p.text = f"SESSION ARCHIVE: {asset}  |  {datetime.datetime.now().strftime('%B %d, %Y')}"
+    sub_p.font.size = Pt(11)
+    sub_p.font.name = "Arial" # Clean contrast
+    sub_p.font.color.rgb = INK_SUBTLE
     sub_p.alignment = PP_ALIGN.CENTER
+    
+    # Elegant Separator Line
+    shape = slide.shapes.add_shape(
+        1, Inches(3.5), Inches(3.2), Inches(3), Inches(0.0) # Line type
+    )
+    shape.line.color.rgb = INK_BLACK
+    shape.line.width = Pt(1.5)
 
     page_counter = 1
 
@@ -4296,13 +4283,15 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         role = msg['role']
         raw_text = msg['content']
         
-        # Header Settings
+        # Editorial Style Headers
         if role == "user":
-            header_text = "TRADER INQUIRY"
-            header_color = TEXT_GREY
+            header_text = "The Trader Inquiry"
+            header_color = INK_SUBTLE
+            header_font = "Arial" # User is "Modern"
         else:
-            header_text = "KAI TACTICAL ANALYSIS"
-            header_color = ELECTRIC_BLUE
+            header_text = "The KAI Analysis"
+            header_color = INK_BLACK
+            header_font = "Times New Roman" # KAI is "Classic/Wisdom"
 
         # --- SMART CHUNKING ---
         paragraphs = raw_text.split('\n')
@@ -4319,27 +4308,28 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                 # RENDER SLIDE
                 page_counter += 1
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
-                set_dark_background(slide)
+                set_minimalist_background(slide)
                 add_footer(slide, page_counter)
-                add_brand_watermark(slide) # <--- Add Logo
                 
-                # Header
-                t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.5), width, Inches(1))
+                # Header (Small, Upper Left, Like a Chapter)
+                t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.8), width, Inches(0.5))
                 t_p = t_box.text_frame.paragraphs[0]
-                suffix = f" (Part {chunk_index})" if chunk_index > 1 else ""
-                t_p.text = header_text + suffix
+                suffix = f" (Cont.)" if chunk_index > 1 else ""
+                t_p.text = (header_text + suffix).upper() # Small Caps style
                 t_p.font.bold = True
-                t_p.font.size = Pt(28)
+                t_p.font.size = Pt(14)
+                t_p.font.name = header_font
                 t_p.font.color.rgb = header_color
                 
-                # Body
+                # Body Text
                 b_box = slide.shapes.add_textbox(MARGIN_LEFT, MARGIN_TOP, width, height)
                 tf = b_box.text_frame
                 tf.word_wrap = True
                 
                 for text_line in current_slide_text:
                     p = tf.add_paragraph()
-                    p.space_after = Pt(10)
+                    p.space_after = Pt(14) # Luxurious spacing
+                    p.line_spacing = 1.2   # Better readability
                     
                     # Markdown Parser
                     parts = text_line.split('**')
@@ -4347,11 +4337,14 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                         run = p.add_run()
                         run.text = part
                         run.font.size = Pt(16)
+                        run.font.name = "Georgia" # High quality reading font
+                        
+                        # Contrast Bolding (Black vs Charcoal)
                         if i % 2 == 1:
                             run.font.bold = True
-                            run.font.color.rgb = ELECTRIC_BLUE
+                            run.font.color.rgb = INK_BLACK 
                         else:
-                            run.font.color.rgb = TEXT_WHITE
+                            run.font.color.rgb = INK_CHARCOAL 
                             
                 current_slide_text = []
                 current_char_count = 0
@@ -4364,17 +4357,17 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         if current_slide_text:
             page_counter += 1
             slide = prs.slides.add_slide(prs.slide_layouts[6])
-            set_dark_background(slide)
+            set_minimalist_background(slide)
             add_footer(slide, page_counter)
-            add_brand_watermark(slide) # <--- Add Logo
             
             # Header
-            t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.5), width, Inches(1))
+            t_box = slide.shapes.add_textbox(MARGIN_LEFT, Inches(0.8), width, Inches(0.5))
             t_p = t_box.text_frame.paragraphs[0]
-            suffix = f" (Part {chunk_index})" if chunk_index > 1 else ""
-            t_p.text = header_text + suffix
+            suffix = f" (Cont.)" if chunk_index > 1 else ""
+            t_p.text = (header_text + suffix).upper()
             t_p.font.bold = True
-            t_p.font.size = Pt(28)
+            t_p.font.size = Pt(14)
+            t_p.font.name = header_font
             t_p.font.color.rgb = header_color
             
             # Body
@@ -4384,7 +4377,8 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             
             for text_line in current_slide_text:
                 p = tf.add_paragraph()
-                p.space_after = Pt(10)
+                p.space_after = Pt(14)
+                p.line_spacing = 1.2
                 
                 # Markdown Parser
                 parts = text_line.split('**')
@@ -4392,11 +4386,13 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
                     run = p.add_run()
                     run.text = part
                     run.font.size = Pt(16)
+                    run.font.name = "Georgia" 
+                    
                     if i % 2 == 1:
                         run.font.bold = True
-                        run.font.color.rgb = ELECTRIC_BLUE
+                        run.font.color.rgb = INK_BLACK
                     else:
-                        run.font.color.rgb = TEXT_WHITE
+                        run.font.color.rgb = INK_CHARCOAL
 
     # 3. SAVE
     output = BytesIO()
