@@ -7424,10 +7424,9 @@ def render_user_image_gallery():
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
             
-            # 1. ⚡ LAZY LOAD: Fetch image data if missing
+            # 1. ⚡ LAZY LOAD (Keep this, it makes the app fast)
             if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
                 try:
-                    # Download JUST this one image
                     response = supabase_client.table('gallery_images')\
                         .select('bytes_b64')\
                         .eq('id', img_data['id'])\
@@ -7438,25 +7437,32 @@ def render_user_image_gallery():
                 except Exception:
                     pass
 
-            # 2. 🎨 DISPLAY LOGIC (This was missing!)
-            col = cols[idx % 3] # Distribute across 3 columns
+            # 2. 🎨 DISPLAY LOGIC (Updated)
+            col = cols[idx % 3]
             
             with col:
-                st.markdown(f"##### {img_data.get('name', 'Untitled')}")
+                # ❌ REMOVED: st.markdown(f"##### {img_data.get('name', 'Untitled')}")
+                # Removing the name ensures every box starts at the exact same height.
                 
-                # Check if we have the data now
+                # Check if we have the data
                 if img_data.get('bytes_b64'):
                     try:
-                        # Convert code back to image
                         decoded_image = base64.b64decode(img_data['bytes_b64'])
+                        # Show Image (Top of the card)
                         st.image(decoded_image, use_column_width=True)
                     except Exception:
                         st.error("Image Error")
                 else:
+                    # Placeholder if loading fails
                     st.warning("Loading...")
                 
-                # Show details
+                # Metadata (kept small and consistent)
                 st.caption(f"❤️ {img_data.get('likes', 0)} | 👤 {img_data.get('uploaded_by', 'Unknown')}")
+                
+                # Action Buttons
+                if st.button(f"🔍 View", key=f"view_{img_data.get('id', idx)}"):
+                    st.session_state.selected_image = img_data
+                    st.rerun()
 
         st.markdown("---")
 
