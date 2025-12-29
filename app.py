@@ -4122,6 +4122,51 @@ def save_signals_data(signals):
 # -------------------------
 
 @st.cache_data(ttl=60)
+def load_gallery_images_metadata_only():
+    """Load ONLY metadata first (names/dates) - Extremely Fast"""
+    try:
+        if not supabase_client:
+            return []
+            
+        # ⚡ CRITICAL OPTIMIZATION: We explicitly exclude 'bytes_b64'
+        # This makes the query 100x faster because we aren't downloading images yet
+        response = supabase_client.table('gallery_images')\
+            .select('id, name, description, uploaded_by, timestamp, likes, format, strategies')\
+            .execute()
+            
+        return response.data if response.data else []
+    except Exception as e:
+        logging.error(f"Metadata load failed: {e}")
+        return []
+
+def get_strategy_image_lazy(strategy_name, indicator_name):
+    """Fetch ONE specific image only when needed (Lazy Loading)"""
+    # 1. Check if we already loaded it this session (Cache Check)
+    cache_key = f"img_{strategy_name}_{indicator_name}"
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
+    
+    # 2. If not in cache, fetch JUST THIS ONE image from Supabase
+    try:
+        response = supabase_client.table('strategy_indicator_images')\
+            .select('bytes_b64')\
+            .eq('strategy_name', strategy_name)\
+            .eq('indicator_name', indicator_name)\
+            .single().execute()
+            
+        if response.data and response.data.get('bytes_b64'):
+            # Decode the specific image
+            img_bytes = base64.b64decode(response.data['bytes_b64'])
+            
+            # Save to session cache so we don't fetch it again
+            st.session_state[cache_key] = img_bytes
+            return img_bytes
+            
+    except Exception as e:
+        return None
+    return None
+
+@st.cache_data(ttl=60)
 @st.cache_data(ttl=60)
 def load_gallery_images():
     """
@@ -7194,7 +7239,7 @@ def render_user_image_gallery():
     if 'gallery_page' not in st.session_state:
         st.session_state.gallery_page = 0
     if 'gallery_per_page' not in st.session_state:
-        st.session_state.gallery_per_page = 15
+        st.session_state.gallery_per_page = 6
     if 'gallery_filter_author' not in st.session_state:
         st.session_state.gallery_filter_author = "All Authors"
     if 'gallery_filter_strategy' not in st.session_state:
