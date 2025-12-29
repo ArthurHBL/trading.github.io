@@ -7239,7 +7239,7 @@ def render_user_image_gallery():
     if 'gallery_page' not in st.session_state:
         st.session_state.gallery_page = 0
     if 'gallery_per_page' not in st.session_state:
-        st.session_state.gallery_per_page = 6
+        st.session_state.gallery_per_page = 15
     if 'gallery_filter_author' not in st.session_state:
         st.session_state.gallery_filter_author = "All Authors"
     if 'gallery_filter_strategy' not in st.session_state:
