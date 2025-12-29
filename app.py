@@ -7451,9 +7451,6 @@ def render_user_image_gallery():
                         st.empty() # Show nothing if broken
                 else:
                     st.empty()
-                
-                # Minimal Metadata (Optional: Remove this line too if you want 100% clean)
-                st.caption(f"❤️ {img_data.get('likes', 0)} | 👤 {img_data.get('uploaded_by', 'Unknown')}")
 
         st.markdown("---")
 
