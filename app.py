@@ -4196,7 +4196,9 @@ def load_gallery_images():
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
     High-Fidelity PPTX Generator - 'Sacred Manifesto' Edition.
-    Fixes: Reduced MAX_LINES to 11 to guarantee Footer Safety.
+    Fixes: 
+    1. Reduced MAX_LINES to 11 (Footer Safety).
+    2. Auto-converts USER input to UPPERCASE for visual consistency.
     """
     try:
         from pptx import Presentation
@@ -4215,9 +4217,7 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
     INK_CHARCOAL = RGBColor(45, 45, 45)     # Soft Black
     INK_SUBTLE = RGBColor(120, 120, 120)    # Light Grey
     
-    # --- LAYOUT CONSTANTS (Strict Safety) ---
-    # REDUCED FROM 16 TO 11.
-    # This forces more slides, but guarantees the text never touches the footer.
+    # --- LAYOUT CONSTANTS ---
     MAX_LINES_PER_SLIDE = 11  
     CHARS_PER_LINE = 85       
     
@@ -4294,7 +4294,6 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
         paragraphs = raw_text.split('\n')
         current_slide_text = []
         
-        # --- NEW: VERTICAL SPACE TRACKING ---
         current_vertical_cost = 0 
         chunk_index = 1
         
@@ -4302,12 +4301,13 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             para = para.strip()
             if not para: continue
             
-            # Calculate "Cost" of this paragraph
-            # 1 base unit + extra units if it wraps to multiple lines
-            lines_occupied = math.ceil(len(para) / CHARS_PER_LINE)
+            # 🟢 FORCE UPPERCASE IF IT IS THE USER
+            if role == "user":
+                para = para.upper()
             
-            # We treat every paragraph as costing at least 1.2 lines due to padding
-            para_cost = lines_occupied + 0.5 # Add 0.5 buffer for the spacing
+            # Calculate "Cost"
+            lines_occupied = math.ceil(len(para) / CHARS_PER_LINE)
+            para_cost = lines_occupied + 0.5 
             
             # CHECK OVERFLOW
             if current_vertical_cost + para_cost > MAX_LINES_PER_SLIDE:
