@@ -4196,7 +4196,7 @@ def load_gallery_images():
 def generate_kai_briefing_deck(chat_history, asset="ETH"):
     """
     High-Fidelity PPTX Generator - 'Sacred Manifesto' Edition.
-    Fixes: Uses 'Vertical Line Counting' to prevent footer overlap.
+    Fixes: Reduced MAX_LINES to 11 to guarantee Footer Safety.
     """
     try:
         from pptx import Presentation
@@ -4215,11 +4215,11 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
     INK_CHARCOAL = RGBColor(45, 45, 45)     # Soft Black
     INK_SUBTLE = RGBColor(120, 120, 120)    # Light Grey
     
-    # --- LAYOUT CONSTANTS (Strict Vertical Control) ---
-    # We limit by "Line Units" instead of just characters.
-    # 1 Line Unit = ~1 line of text + the gap after it.
-    MAX_LINES_PER_SLIDE = 16  
-    CHARS_PER_LINE = 85       # Approx chars that fit in one horizontal line
+    # --- LAYOUT CONSTANTS (Strict Safety) ---
+    # REDUCED FROM 16 TO 11.
+    # This forces more slides, but guarantees the text never touches the footer.
+    MAX_LINES_PER_SLIDE = 11  
+    CHARS_PER_LINE = 85       
     
     MARGIN_LEFT = Inches(1.0) 
     MARGIN_TOP = Inches(1.5)
@@ -4305,8 +4305,9 @@ def generate_kai_briefing_deck(chat_history, asset="ETH"):
             # Calculate "Cost" of this paragraph
             # 1 base unit + extra units if it wraps to multiple lines
             lines_occupied = math.ceil(len(para) / CHARS_PER_LINE)
-            # We add a slight buffer (1.2) for the 'luxurious spacing'
-            para_cost = lines_occupied * 1.2
+            
+            # We treat every paragraph as costing at least 1.2 lines due to padding
+            para_cost = lines_occupied + 0.5 # Add 0.5 buffer for the spacing
             
             # CHECK OVERFLOW
             if current_vertical_cost + para_cost > MAX_LINES_PER_SLIDE:
