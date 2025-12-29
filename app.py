@@ -7423,9 +7423,11 @@ def render_user_image_gallery():
         st.subheader(f"📸 Page {current_page + 1} Images")
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
+            
+            # 1. ⚡ LAZY LOAD: Fetch image data if missing
             if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
                 try:
-                    # Fetch ONLY this single image's data
+                    # Download JUST this one image
                     response = supabase_client.table('gallery_images')\
                         .select('bytes_b64')\
                         .eq('id', img_data['id'])\
@@ -7435,8 +7437,26 @@ def render_user_image_gallery():
                         img_data['bytes_b64'] = response.data['bytes_b64']
                 except Exception:
                     pass
-                    
-            col = cols[idx % 3]
+
+            # 2. 🎨 DISPLAY LOGIC (This was missing!)
+            col = cols[idx % 3] # Distribute across 3 columns
+            
+            with col:
+                st.markdown(f"##### {img_data.get('name', 'Untitled')}")
+                
+                # Check if we have the data now
+                if img_data.get('bytes_b64'):
+                    try:
+                        # Convert code back to image
+                        decoded_image = base64.b64decode(img_data['bytes_b64'])
+                        st.image(decoded_image, use_column_width=True)
+                    except Exception:
+                        st.error("Image Error")
+                else:
+                    st.warning("Loading...")
+                
+                # Show details
+                st.caption(f"❤️ {img_data.get('likes', 0)} | 👤 {img_data.get('uploaded_by', 'Unknown')}")
 
         st.markdown("---")
 
