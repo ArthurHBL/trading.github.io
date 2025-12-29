@@ -7424,7 +7424,7 @@ def render_user_image_gallery():
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
             
-            # 1. ⚡ LAZY LOAD (Keep this, it makes the app fast)
+            # 1. ⚡ LAZY LOAD (Essential for speed)
             if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
                 try:
                     response = supabase_client.table('gallery_images')\
@@ -7437,32 +7437,23 @@ def render_user_image_gallery():
                 except Exception:
                     pass
 
-            # 2. 🎨 DISPLAY LOGIC (Updated)
+            # 2. 🎨 DISPLAY LOGIC (Pure Visuals)
             col = cols[idx % 3]
             
             with col:
-                # ❌ REMOVED: st.markdown(f"##### {img_data.get('name', 'Untitled')}")
-                # Removing the name ensures every box starts at the exact same height.
-                
                 # Check if we have the data
                 if img_data.get('bytes_b64'):
                     try:
                         decoded_image = base64.b64decode(img_data['bytes_b64'])
-                        # Show Image (Top of the card)
+                        # The Image is the star. Users can click the arrows to expand.
                         st.image(decoded_image, use_column_width=True)
                     except Exception:
-                        st.error("Image Error")
+                        st.empty() # Show nothing if broken
                 else:
-                    # Placeholder if loading fails
-                    st.warning("Loading...")
+                    st.empty()
                 
-                # Metadata (kept small and consistent)
+                # Minimal Metadata (Optional: Remove this line too if you want 100% clean)
                 st.caption(f"❤️ {img_data.get('likes', 0)} | 👤 {img_data.get('uploaded_by', 'Unknown')}")
-                
-                # Action Buttons
-                if st.button(f"🔍 View", key=f"view_{img_data.get('id', idx)}"):
-                    st.session_state.selected_image = img_data
-                    st.rerun()
 
         st.markdown("---")
 
