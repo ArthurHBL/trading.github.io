@@ -3801,7 +3801,7 @@ def init_session():
 
     # --- Image gallery state ---
     if 'uploaded_images' not in st.session_state:
-        st.session_state.uploaded_images = load_gallery_images()
+        st.session_state.uploaded_images = load_gallery_images_metadata_only()
     if 'current_gallery_view' not in st.session_state:
         st.session_state.current_gallery_view = 'gallery'
     if 'selected_image' not in st.session_state:
@@ -7423,13 +7423,20 @@ def render_user_image_gallery():
         st.subheader(f"📸 Page {current_page + 1} Images")
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
+            if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
+                try:
+                    # Fetch ONLY this single image's data
+                    response = supabase_client.table('gallery_images')\
+                        .select('bytes_b64')\
+                        .eq('id', img_data['id'])\
+                        .single().execute()
+                    
+                    if response.data:
+                        img_data['bytes_b64'] = response.data['bytes_b64']
+                except Exception:
+                    pass
+                    
             col = cols[idx % 3]
-            with col:
-                # Use user card if you have one; otherwise reuse the generic card
-                if 'render_user_image_card_paginated' in globals():
-                    render_user_image_card_paginated(img_data, current_page, idx)
-                else:
-                    render_image_card_paginated(img_data, current_page, idx)
 
         st.markdown("---")
 
