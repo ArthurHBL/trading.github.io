@@ -7458,7 +7458,7 @@ def render_user_image_gallery():
                     raw_date = str(img_data.get('timestamp', ''))[:10]
                     st.caption(f"📅 {raw_date}")
                 with c_view:
-                    if st.button("🔍", key=f"v_{img_data.get('id', idx)}", help="Expand & Use Arrow Keys"):
+                    if st.button("⛶", key=f"v_{img_data.get('id', idx)}", help="Expand & Use Arrow Keys"):
                         st.session_state.focus_index = idx 
                         st.rerun()
                 
