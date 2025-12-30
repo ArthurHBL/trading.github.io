@@ -7424,7 +7424,7 @@ def render_user_image_gallery():
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
             
-            # 1. ⚡ LAZY LOAD (Essential for speed)
+            # 1. ⚡ LAZY LOAD (Keep this speed boost)
             if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
                 try:
                     response = supabase_client.table('gallery_images')\
@@ -7437,20 +7437,28 @@ def render_user_image_gallery():
                 except Exception:
                     pass
 
-            # 2. 🎨 DISPLAY LOGIC (Pure Visuals)
+            # 2. 🎨 DISPLAY LOGIC (Image + Date)
             col = cols[idx % 3]
             
             with col:
-                # Check if we have the data
+                # A. The Image
                 if img_data.get('bytes_b64'):
                     try:
                         decoded_image = base64.b64decode(img_data['bytes_b64'])
-                        # The Image is the star. Users can click the arrows to expand.
                         st.image(decoded_image, use_column_width=True)
                     except Exception:
-                        st.empty() # Show nothing if broken
+                        st.empty()
                 else:
                     st.empty()
+                
+                # B. The Date (Formatted nicely)
+                raw_date = img_data.get('timestamp', '')
+                if raw_date:
+                    # If it's a long ISO string (2024-12-30T...), take just the first 10 chars (YYYY-MM-DD)
+                    clean_date = str(raw_date)[:10]
+                    st.caption(f"📅 {clean_date}")
+                else:
+                    st.caption("📅 Unknown Date")
 
         st.markdown("---")
 
