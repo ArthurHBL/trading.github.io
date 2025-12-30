@@ -9,8 +9,33 @@ import re
 import time
 from supabase import create_client, Client
 import plotly.graph_objects as go
+import streamlit.components.v1 as components
 
-
+def inject_keyboard_listener():
+    """Invisible script to map Arrow Keys and ESC to buttons"""
+    components.html(
+        """
+        <script>
+        const doc = window.parent.document;
+        doc.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowRight') {
+                const buttons = doc.querySelectorAll('button');
+                buttons.forEach(btn => { if (btn.innerText.includes('Next ➤')) btn.click(); });
+            }
+            if (e.key === 'ArrowLeft') {
+                const buttons = doc.querySelectorAll('button');
+                buttons.forEach(btn => { if (btn.innerText.includes('⬅ Prev')) btn.click(); });
+            }
+            if (e.key === 'Escape') {
+                const buttons = doc.querySelectorAll('button');
+                buttons.forEach(btn => { if (btn.innerText.includes('Back to Grid')) btn.click(); });
+            }
+        });
+        </script>
+        """,
+        height=0, width=0
+    )
+    
 def get_image_format_safe(img_data):
     """Safely get image format with fallbacks"""
     # Try direct format field first
@@ -7232,33 +7257,95 @@ def get_gallery_images_count():
 # USER IMAGE GALLERY - VIEW ONLY VERSION
 # -------------------------
 def render_user_image_gallery():
-    """User image gallery with full database-backed pagination (FINAL)"""
+    """User image gallery with Focus Mode + Full Pagination (FINAL VERSION)"""
     import streamlit as st
+    import base64
 
-    # ---------- SAFETY: ensure needed session keys exist ----------
-    if 'gallery_page' not in st.session_state:
-        st.session_state.gallery_page = 0
-    if 'gallery_per_page' not in st.session_state:
-        st.session_state.gallery_per_page = 15
-    if 'gallery_filter_author' not in st.session_state:
-        st.session_state.gallery_filter_author = "All Authors"
-    if 'gallery_filter_strategy' not in st.session_state:
-        st.session_state.gallery_filter_strategy = "All Strategies"
+    # ---------------------------------------------------------
+    # 1. FOCUS MODE LOGIC (The "Overlay" Viewer)
+    # ---------------------------------------------------------
+    if 'focus_index' not in st.session_state:
+        st.session_state.focus_index = None
+
+    if st.session_state.focus_index is not None:
+        # Activate Keyboard Support (Arrow Keys)
+        inject_keyboard_listener()
+        
+        # Get Current Page Data (Reuse your existing cache)
+        images = st.session_state.get('current_page_images', [])
+        
+        # Safety Check: If no images, exit focus mode
+        if not images or st.session_state.focus_index >= len(images):
+            st.session_state.focus_index = None
+            st.rerun()
+            
+        current_idx = st.session_state.focus_index
+        img_data = images[current_idx]
+        
+        # --- A. Render Focus View ---
+        st.title("🔍 Detail View")
+        
+        # Top Back Button (Mapped to ESC key via script)
+        if st.button("⬅ Back to Grid (ESC)", key="focus_back_top"):
+            st.session_state.focus_index = None
+            st.rerun()
+
+        # Lazy Load High-Res Data
+        if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
+             try:
+                 resp = supabase_client.table('gallery_images').select('bytes_b64').eq('id', img_data['id']).single().execute()
+                 if resp.data: img_data['bytes_b64'] = resp.data['bytes_b64']
+             except: pass
+
+        # Display The Big Image
+        if img_data.get('bytes_b64'):
+            try:
+                decoded = base64.b64decode(img_data['bytes_b64'])
+                st.image(decoded, use_column_width=True)
+                
+                # Caption
+                raw_date = str(img_data.get('timestamp', ''))[:10]
+                st.caption(f"📅 {raw_date} | Image {current_idx + 1} of {len(images)}")
+            except:
+                st.error("Error displaying image")
+        
+        # --- B. Navigation Buttons (Hidden targets for JS) ---
+        c1, c2, c3 = st.columns([1, 4, 1])
+        with c1:
+            if st.button("⬅ Prev", key="nav_prev", use_container_width=True):
+                st.session_state.focus_index = (current_idx - 1) % len(images)
+                st.rerun()
+        with c3:
+            if st.button("Next ➤", key="nav_next", use_container_width=True):
+                st.session_state.focus_index = (current_idx + 1) % len(images)
+                st.rerun()
+        
+        # STOP HERE. Do not render the grid underneath.
+        return 
+
+    # ---------------------------------------------------------
+    # 2. GRID MODE (Your Standard Gallery)
+    # ---------------------------------------------------------
+    
+    # ---------- SAFETY ----------
+    if 'gallery_page' not in st.session_state: st.session_state.gallery_page = 0
+    if 'gallery_per_page' not in st.session_state: st.session_state.gallery_per_page = 15
+    if 'gallery_filter_author' not in st.session_state: st.session_state.gallery_filter_author = "All Authors"
+    if 'gallery_filter_strategy' not in st.session_state: st.session_state.gallery_filter_strategy = "All Strategies"
 
     # ---------- HEADER ----------
     st.title("📸 Trading Analysis Image Gallery")
     st.markdown("View trading charts, analysis screenshots, and market insights shared by the community.")
     st.markdown("---")
 
-    # Optional top tabs (Gallery / Statistics)
+    # Tabs
     tab1, tab2 = st.tabs(["🖼️ Image Gallery", "📊 Statistics"])
+    
     with tab2:
         try:
-            # Reuse your existing stats block
             if 'render_gallery_statistics_paginated' in globals():
                 render_gallery_statistics_paginated()
             else:
-                # Minimal stats fallback if function is not present
                 total_images = get_gallery_images_count_filtered()
                 st.metric("Total Images", total_images)
         except Exception as e:
@@ -7270,50 +7357,21 @@ def render_user_image_gallery():
         c1, c2, c3, c4, c5 = st.columns(5)
 
         with c1:
-            sort_by = st.selectbox(
-                "Sort by:",
-                ["newest", "oldest", "most_liked"],
-                key="user_gallery_sort"
-            )
-
+            sort_by = st.selectbox("Sort by:", ["newest", "oldest", "most_liked"], key="user_gallery_sort")
         with c2:
-            # Best-effort author list from any cached/known images in session
-            authors_set = set(
-                img.get('uploaded_by', 'Unknown')
-                for img in (st.session_state.get('uploaded_images', []))
-            )
-            author_choice = st.selectbox(
-                "Filter by Author:",
-                ["All Authors"] + sorted(list(authors_set)),
-                key="user_gallery_filter_author"
-            )
-
+            authors_set = set(img.get('uploaded_by', 'Unknown') for img in (st.session_state.get('uploaded_images', [])))
+            author_choice = st.selectbox("Filter by Author:", ["All Authors"] + sorted(list(authors_set)), key="user_gallery_filter_author")
         with c3:
-            # If you keep strategies in st.session_state.STRATEGIES (dict), reuse it
             STRATEGIES = st.session_state.get('STRATEGIES', {})
             strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
-            strategy_choice = st.selectbox(
-                "Filter by Strategy:",
-                ["All Strategies"] + strategies_list,
-                key="user_gallery_filter_strategy"
-            )
-
+            strategy_choice = st.selectbox("Filter by Strategy:", ["All Strategies"] + strategies_list, key="user_gallery_filter_strategy")
         with c4:
-            per_page = st.selectbox(
-                "Per Page:",
-                [10, 15, 20, 30],
-                index=[10, 15, 20, 30].index(st.session_state.get("gallery_per_page", 15)) if st.session_state.get("gallery_per_page", 15) in [10, 15, 20, 30] else 1,
-                key="user_gallery_per_page"
-            )
-            # Persist per-page
+            per_page = st.selectbox("Per Page:", [10, 15, 20, 30], index=[10, 15, 20, 30].index(st.session_state.get("gallery_per_page", 15)) if st.session_state.get("gallery_per_page", 15) in [10, 15, 20, 30] else 1, key="user_gallery_per_page")
             st.session_state.gallery_per_page = per_page
-
         with c5:
-            if st.button("🔄 Refresh", use_container_width=True, key="user_gallery_refresh"):
-                st.rerun()
+            if st.button("🔄 Refresh", use_container_width=True, key="user_gallery_refresh"): st.rerun()
 
-        # ---------- HANDLE FILTER CHANGES: reset to page 1 ----------
-        # (We only reset if user changed the selection in this render cycle)
+        # Handle Filter Changes (Reset Page)
         if author_choice != st.session_state.get("_last_user_author_choice"):
             st.session_state.gallery_page = 0
             st.session_state._last_user_author_choice = author_choice
@@ -7325,144 +7383,88 @@ def render_user_image_gallery():
 
         st.markdown("---")
 
-        # ---------- TOTAL COUNT ----------
+        # ---------- DATA FETCH ----------
         filter_author = None if author_choice == "All Authors" else author_choice
         filter_strategy = None if strategy_choice == "All Strategies" else strategy_choice
 
         with st.spinner("📊 Counting images..."):
-            total_images = get_gallery_images_count_filtered(
-                filter_author=filter_author,
-                filter_strategy=filter_strategy
-            )
+            total_images = get_gallery_images_count_filtered(filter_author=filter_author, filter_strategy=filter_strategy)
 
         if total_images == 0:
-            st.warning("🖼️ **No images found** for the selected filters.")
+            st.warning("🖼️ No images found for the selected filters.")
             return
 
         total_pages = (total_images + per_page - 1) // per_page
         current_page = min(st.session_state.gallery_page, max(0, total_pages - 1))
 
-        # ---------- STATS ----------
-        st.subheader("📈 Gallery Statistics")
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        with sc1: st.metric("Total Images", total_images)
-        with sc2: st.metric("Total Pages", total_pages)
-        with sc3: st.metric("Current Page", current_page + 1)
-        with sc4:
-            start_num = current_page * per_page + 1
-            end_num = min((current_page + 1) * per_page, total_images)
-            st.metric("Showing", f"{start_num}-{end_num}")
-
-        st.markdown("---")
-
-        # ---------- TOP NAV ----------
+        # Top Nav
         st.subheader("📄 Page Navigation")
         n1, n2, n3, n4, n5 = st.columns(5)
-
-        with n1:
-            if st.button("⏮️ First Page", use_container_width=True, key="user_gallery_first_top"):
-                st.session_state.gallery_page = 0
-                st.rerun()
-
+        with n1: 
+            if st.button("⏮️ First Page", use_container_width=True): st.session_state.gallery_page = 0; st.rerun()
         with n2:
             if current_page > 0:
-                if st.button("◀️ Previous", use_container_width=True, key="user_gallery_prev_top"):
-                    st.session_state.gallery_page = current_page - 1
-                    st.rerun()
-            else:
-                st.button("◀️ Previous", use_container_width=True, disabled=True, key="user_gallery_prev_top_disabled")
-
-        with n3:
-            jump_page = st.number_input(
-                "Go to Page:",
-                min_value=1,
-                max_value=max(1, total_pages),
-                value=current_page + 1,
-                key="user_gallery_jump"
-            ) - 1
-            if jump_page != current_page:
-                st.session_state.gallery_page = max(0, min(jump_page, total_pages - 1))
-                st.rerun()
-
+                if st.button("◀️ Previous", use_container_width=True): st.session_state.gallery_page = current_page - 1; st.rerun()
+            else: st.button("◀️ Previous", disabled=True, use_container_width=True)
         with n4:
             if current_page < total_pages - 1:
-                if st.button("Next ▶️", use_container_width=True, key="user_gallery_next_top"):
-                    st.session_state.gallery_page = current_page + 1
-                    st.rerun()
-            else:
-                st.button("Next ▶️", use_container_width=True, disabled=True, key="user_gallery_next_top_disabled")
-
+                if st.button("Next ▶️", use_container_width=True): st.session_state.gallery_page = current_page + 1; st.rerun()
+            else: st.button("Next ▶️", disabled=True, use_container_width=True)
         with n5:
-            if st.button("⏭️ Last Page", use_container_width=True, key="user_gallery_last_top"):
-                st.session_state.gallery_page = total_pages - 1
-                st.rerun()
+            if st.button("⏭️ Last Page", use_container_width=True): st.session_state.gallery_page = total_pages - 1; st.rerun()
 
         st.markdown("---")
 
-        # ---------- PAGE DATA ----------
+        # Load Images
         with st.spinner("📥 Loading images..."):
             page_images = get_gallery_images_paginated(
-                page=current_page,
-                per_page=per_page,
-                sort_by=sort_by,
-                filter_author=filter_author,
-                filter_strategy=filter_strategy
+                page=current_page, per_page=per_page, sort_by=sort_by,
+                filter_author=filter_author, filter_strategy=filter_strategy
             )
 
         if not page_images:
-            st.warning("⚠️ Failed to load images for this page.")
-            if current_page > 0:
-                st.session_state.gallery_page = 0
-                st.rerun()
+            st.warning("⚠️ Failed to load images.")
             return
 
-        # Save current page images (if your viewer uses this)
+        # ✅ SAVE FOR FOCUS MODE
         st.session_state.current_page_images = page_images
 
-        # ---------- GRID ----------
+        # ---------- GRID LOOP ----------
         st.subheader(f"📸 Page {current_page + 1} Images")
         cols = st.columns(3)
         for idx, img_data in enumerate(page_images):
             
-            # 1. ⚡ LAZY LOAD (Keep this speed boost)
+            # 1. Lazy Load
             if 'bytes_b64' not in img_data or not img_data['bytes_b64']:
                 try:
-                    response = supabase_client.table('gallery_images')\
-                        .select('bytes_b64')\
-                        .eq('id', img_data['id'])\
-                        .single().execute()
-                    
-                    if response.data:
-                        img_data['bytes_b64'] = response.data['bytes_b64']
-                except Exception:
-                    pass
+                    resp = supabase_client.table('gallery_images').select('bytes_b64').eq('id', img_data['id']).single().execute()
+                    if resp.data: img_data['bytes_b64'] = resp.data['bytes_b64']
+                except: pass
 
-            # 2. 🎨 DISPLAY LOGIC (Image + Date)
+            # 2. Display
             col = cols[idx % 3]
-            
             with col:
-                # A. The Image
+                # Image
                 if img_data.get('bytes_b64'):
                     try:
-                        decoded_image = base64.b64decode(img_data['bytes_b64'])
-                        st.image(decoded_image, use_column_width=True)
-                    except Exception:
-                        st.empty()
-                else:
-                    st.empty()
+                        decoded = base64.b64decode(img_data['bytes_b64'])
+                        st.image(decoded, use_column_width=True)
+                    except: st.empty()
+                else: st.empty()
                 
-                # B. The Date (Formatted nicely)
-                raw_date = img_data.get('timestamp', '')
-                if raw_date:
-                    # If it's a long ISO string (2024-12-30T...), take just the first 10 chars (YYYY-MM-DD)
-                    clean_date = str(raw_date)[:10]
-                    st.caption(f"📅 {clean_date}")
-                else:
-                    st.caption("📅 Unknown Date")
+                # Caption + Trigger
+                c_date, c_view = st.columns([3, 1])
+                with c_date:
+                    raw_date = str(img_data.get('timestamp', ''))[:10]
+                    st.caption(f"📅 {raw_date}")
+                with c_view:
+                    if st.button("🔍", key=f"v_{img_data.get('id', idx)}", help="Expand & Use Arrow Keys"):
+                        st.session_state.focus_index = idx 
+                        st.rerun()
+                
+                st.markdown("---")
 
-        st.markdown("---")
-
-        # ---------- BOTTOM NAV ----------
+        # ---------- BOTTOM NAV (COMPLETE) ----------
         st.subheader("📄 Bottom Navigation")
         b1, b2, b3, b4, b5 = st.columns(5)
 
@@ -7480,7 +7482,7 @@ def render_user_image_gallery():
                 st.button("◀️ Prev", use_container_width=True, disabled=True, key="user_gallery_prev_bottom_disabled")
 
         with b3:
-            st.write(f"**Page {current_page + 1}/{total_pages}**")
+            st.markdown(f"<div style='text-align: center; padding-top: 5px;'><b>Page {current_page + 1}/{total_pages}</b></div>", unsafe_allow_html=True)
 
         with b4:
             if current_page < total_pages - 1:
@@ -7496,8 +7498,10 @@ def render_user_image_gallery():
                 st.rerun()
 
         st.markdown("---")
+        start_num = current_page * per_page + 1
+        end_num = min((current_page + 1) * per_page, total_images)
         st.caption(f"✅ Displaying images {start_num}-{end_num} of {total_images} total")
-
+        
 def render_user_image_card_paginated(img_data, page_num, index):
     """Render individual image card - CLEAN IMAGE WITH DATE AND SMALL INFO"""
     try:
