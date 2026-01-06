@@ -38,22 +38,34 @@ def inject_keyboard_listener():
     )
 
 def render_pdf_embedded(file_path):
-    """Reads a PDF and embeds it directly into the app using HTML/Base64"""
+    """Reads a PDF and embeds it using <embed> tag with a fallback download button"""
     try:
         with open(file_path, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+            pdf_data = f.read()
+            base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
         
-        # HTML logic to embed PDF (Works on Chrome, Edge, Firefox, Mobile)
+        # 1. FAILSAFE: Add a Download Button 
+        # (If the browser still blocks the view, the user can just download it)
+        st.download_button(
+            label="⬇️ Download Manifesto PDF",
+            data=pdf_data,
+            file_name="The_Sacred_Trader_Manifesto.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
+
+        # 2. THE FIX: Use <embed> or <object> instead of <iframe>
+        # Modern browsers (Edge/Chrome) block Data URIs in iframes, but allow them in embed tags.
         pdf_display = f"""
-            <iframe 
-                src="data:application/pdf;base64,{base64_pdf}" 
-                width="100%" 
+            <embed
+                src="data:application/pdf;base64,{base64_pdf}"
+                width="100%"
                 height="900px" 
                 type="application/pdf"
-                style="border: none;">
-            </iframe>
+            >
         """
         st.markdown(pdf_display, unsafe_allow_html=True)
+
     except FileNotFoundError:
         st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
         st.info("💡 **Fix for Streamlit Cloud:** Ensure you have uploaded/committed 'Manifesto_Sacred_Trader.pdf' to your GitHub repository root folder.")
