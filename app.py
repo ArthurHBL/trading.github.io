@@ -38,13 +38,13 @@ def inject_keyboard_listener():
     )
 
 def render_pdf_embedded(file_path):
-    """Reads a PDF and embeds it using a sandboxed HTML component."""
+    """Reads a PDF and displays it using the <object> tag, which is more robust for Edge."""
     try:
         with open(file_path, "rb") as f:
             pdf_data = f.read()
             base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-        # 1. FAILSAFE: Download Button (Always keep this)
+        # 1. FAILSAFE: Download Button (Always render this first)
         st.download_button(
             label="⬇️ Download Manifesto PDF",
             data=pdf_data,
@@ -53,24 +53,14 @@ def render_pdf_embedded(file_path):
             use_container_width=True
         )
 
-        # 2. THE FIX: Use Streamlit Components (Sandboxed Iframe)
-        # This creates a separate 'window' that Edge is less likely to block.
-        pdf_display = f"""
-            <embed
-                src="data:application/pdf;base64,{base64_pdf}"
-                width="100%"
-                height="1000px"
-                type="application/pdf"
-                style="min-height:100vh; width:100%"
-            >
-        """
+        # 2. THE FIX: Use <object> tag via st.markdown (Not components.html)
+        # We explicitly set width/height in CSS style to ensure it appears.
+        pdf_display = f'<object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" style="width:100%; height:100vh; min-height:800px;"> <p>Your browser is blocking the PDF preview. Please use the download button above.</p> </object>'
         
-        # We use components.html instead of st.markdown
-        components.html(pdf_display, height=1000, scrolling=True)
+        st.markdown(pdf_display, unsafe_allow_html=True)
 
     except FileNotFoundError:
-        st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
-        st.info("💡 **Fix:** Ensure 'Manifesto_Sacred_Trader.pdf' is in your folder.")
+        st.error(f"⚠️ **File Missing:** Could not find '{file_path}'.")
     except Exception as e:
         st.error(f"Error loading PDF: {e}")
 
