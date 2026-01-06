@@ -44,7 +44,7 @@ def render_pdf_embedded(file_path):
             pdf_data = f.read()
             base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
         
-        # 1. FAILSAFE: Add a Download Button (This is working!)
+        # 1. Always show the Download Button (Best reliability)
         st.download_button(
             label="⬇️ Download Manifesto PDF",
             data=pdf_data,
@@ -53,15 +53,15 @@ def render_pdf_embedded(file_path):
             use_container_width=True
         )
 
-        # 2. THE FIX: Single-line string to prevent Markdown "Code Block" errors
-        # We use <object> here as it is often more robust than <embed> for PDFs on Edge
-        pdf_html = f'<object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="900px"><p>Your browser does not support PDF embedding. Please use the download button above.</p></object>'
+        # 2. The Fix: Single-line string with <embed> tag
+        # We use <embed> as it works better with Edge's security settings than iframe
+        pdf_html = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900px" type="application/pdf">'
         
         st.markdown(pdf_html, unsafe_allow_html=True)
 
     except FileNotFoundError:
         st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
-        st.info("💡 **Fix for Streamlit Cloud:** Ensure you have uploaded/committed 'Manifesto_Sacred_Trader.pdf' to your GitHub repository root folder.")
+        st.info("💡 **Fix:** Ensure 'Manifesto_Sacred_Trader.pdf' is in your folder.")
     except Exception as e:
         st.error(f"Error loading PDF: {e}")
 
