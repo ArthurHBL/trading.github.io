@@ -38,13 +38,13 @@ def inject_keyboard_listener():
     )
 
 def render_pdf_embedded(file_path):
-    """Reads a PDF and embeds it using <embed> tag with a fallback download button"""
+    """Reads a PDF and embeds it using <embed> tag with a fallback download button."""
     try:
         with open(file_path, "rb") as f:
             pdf_data = f.read()
             base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
-        
-        # 1. Always show the Download Button (Best reliability)
+
+        # 1. FAILSAFE: Add a Download Button (Always reliable)
         st.download_button(
             label="⬇️ Download Manifesto PDF",
             data=pdf_data,
@@ -53,11 +53,13 @@ def render_pdf_embedded(file_path):
             use_container_width=True
         )
 
-        # 2. The Fix: Single-line string with <embed> tag
-        # We use <embed> as it works better with Edge's security settings than iframe
-        pdf_html = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900px" type="application/pdf">'
+        # 2. THE FIX: Use a clean HTML string for the PDF viewer
+        # We use <embed> as it is widely supported for PDFs.
+        # The style ensures it takes up available width and has a good height.
+        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900" type="application/pdf">'
         
-        st.markdown(pdf_html, unsafe_allow_html=True)
+        # Render the HTML
+        st.markdown(pdf_display, unsafe_allow_html=True)
 
     except FileNotFoundError:
         st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
