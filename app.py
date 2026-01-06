@@ -38,13 +38,13 @@ def inject_keyboard_listener():
     )
 
 def render_pdf_embedded(file_path):
-    """Reads a PDF and embeds it using <embed> tag with a fallback download button."""
+    """Reads a PDF and embeds it using a sandboxed HTML component."""
     try:
         with open(file_path, "rb") as f:
             pdf_data = f.read()
             base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-        # 1. FAILSAFE: Add a Download Button (Always reliable)
+        # 1. FAILSAFE: Download Button (Always keep this)
         st.download_button(
             label="⬇️ Download Manifesto PDF",
             data=pdf_data,
@@ -53,13 +53,20 @@ def render_pdf_embedded(file_path):
             use_container_width=True
         )
 
-        # 2. THE FIX: Use a clean HTML string for the PDF viewer
-        # We use <embed> as it is widely supported for PDFs.
-        # The style ensures it takes up available width and has a good height.
-        pdf_display = f'<embed src="data:application/pdf;base64,{base64_pdf}" width="100%" height="900" type="application/pdf">'
+        # 2. THE FIX: Use Streamlit Components (Sandboxed Iframe)
+        # This creates a separate 'window' that Edge is less likely to block.
+        pdf_display = f"""
+            <embed
+                src="data:application/pdf;base64,{base64_pdf}"
+                width="100%"
+                height="1000px"
+                type="application/pdf"
+                style="min-height:100vh; width:100%"
+            >
+        """
         
-        # Render the HTML
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        # We use components.html instead of st.markdown
+        components.html(pdf_display, height=1000, scrolling=True)
 
     except FileNotFoundError:
         st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
