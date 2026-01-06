@@ -53,7 +53,7 @@ def render_pdf_embedded(file_path):
         with col2:
             st.image("https://img.icons8.com/clouds/200/pdf.png", width=150)
             st.markdown("### 📖 The Sacred Trader Manifesto")
-            st.info("🔒 **Secure Document**\n\nYour browser's security settings prevent inline previewing of this document. Please download it to read.")
+            st.info("🔒 **Secure Document**\n\nYour browser's security settings prevent online previewing of this document. Please download it to read.")
             
             # The Primary Action
             st.download_button(
