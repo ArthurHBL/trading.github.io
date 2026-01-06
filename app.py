@@ -44,8 +44,7 @@ def render_pdf_embedded(file_path):
             pdf_data = f.read()
             base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
         
-        # 1. FAILSAFE: Add a Download Button 
-        # (If the browser still blocks the view, the user can just download it)
+        # 1. FAILSAFE: Add a Download Button (This is working!)
         st.download_button(
             label="⬇️ Download Manifesto PDF",
             data=pdf_data,
@@ -54,17 +53,11 @@ def render_pdf_embedded(file_path):
             use_container_width=True
         )
 
-        # 2. THE FIX: Use <embed> or <object> instead of <iframe>
-        # Modern browsers (Edge/Chrome) block Data URIs in iframes, but allow them in embed tags.
-        pdf_display = f"""
-            <embed
-                src="data:application/pdf;base64,{base64_pdf}"
-                width="100%"
-                height="900px" 
-                type="application/pdf"
-            >
-        """
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        # 2. THE FIX: Single-line string to prevent Markdown "Code Block" errors
+        # We use <object> here as it is often more robust than <embed> for PDFs on Edge
+        pdf_html = f'<object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" width="100%" height="900px"><p>Your browser does not support PDF embedding. Please use the download button above.</p></object>'
+        
+        st.markdown(pdf_html, unsafe_allow_html=True)
 
     except FileNotFoundError:
         st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
