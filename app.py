@@ -7147,7 +7147,7 @@ def render_login():
     st.title(f"🔐 Welcome to {Config.APP_NAME}")
     st.markdown("---")
 
-    tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Register", "📖 The Manifesto"])
+    tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Register", "📖 Read The Manifesto"])
 
     with tab1:
         with st.form("login_form"):
