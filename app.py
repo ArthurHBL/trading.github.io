@@ -38,31 +38,38 @@ def inject_keyboard_listener():
     )
 
 def render_pdf_embedded(file_path):
-    """Reads a PDF and displays it using the <object> tag, which is more robust for Edge."""
+    """
+    Professional PDF handler that respects browser security.
+    Modern browsers (Edge/Chrome) block embedded Base64 PDFs for security.
+    This function provides a clean Download/Open interface instead of a broken frame.
+    """
     try:
         with open(file_path, "rb") as f:
             pdf_data = f.read()
-            base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
-
-        # 1. FAILSAFE: Download Button (Always render this first)
-        st.download_button(
-            label="⬇️ Download Manifesto PDF",
-            data=pdf_data,
-            file_name="The_Sacred_Trader_Manifesto.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
-
-        # 2. THE FIX: Use <object> tag via st.markdown (Not components.html)
-        # We explicitly set width/height in CSS style to ensure it appears.
-        pdf_display = f'<object data="data:application/pdf;base64,{base64_pdf}" type="application/pdf" style="width:100%; height:100vh; min-height:800px;"> <p>Your browser is blocking the PDF preview. Please use the download button above.</p> </object>'
         
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        # Create a clean, centered layout for the document
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            st.image("https://img.icons8.com/clouds/200/pdf.png", width=150)
+            st.markdown("### 📖 The Sacred Trader Manifesto")
+            st.info("🔒 **Secure Document**\n\nYour browser's security settings prevent inline previewing of this document. Please download it to read.")
+            
+            # The Primary Action
+            st.download_button(
+                label="⬇️ Download & Read Manifesto",
+                data=pdf_data,
+                file_name="The_Sacred_Trader_Manifesto.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary"
+            )
 
     except FileNotFoundError:
-        st.error(f"⚠️ **File Missing:** Could not find '{file_path}'.")
+        st.error(f"⚠️ **System Error:** The file '{file_path}' was not found on the server.")
+        st.caption("Please ensure 'Manifesto_Sacred_Trader.pdf' is uploaded to your repository.")
     except Exception as e:
-        st.error(f"Error loading PDF: {e}")
+        st.error(f"Error accessing document: {e}")
 
 def get_image_format_safe(img_data):
     """Safely get image format with fallbacks"""
