@@ -10,6 +10,7 @@ import time
 from supabase import create_client, Client
 import plotly.graph_objects as go
 import streamlit.components.v1 as components
+import base64
 
 def inject_keyboard_listener():
     """Invisible script to map Arrow Keys and ESC to buttons"""
@@ -42,7 +43,7 @@ def render_pdf_embedded(file_path):
         with open(file_path, "rb") as f:
             base64_pdf = base64.b64encode(f.read()).decode('utf-8')
         
-        # HTML logic to embed PDF
+        # HTML logic to embed PDF (Works on Chrome, Edge, Firefox, Mobile)
         pdf_display = f"""
             <iframe 
                 src="data:application/pdf;base64,{base64_pdf}" 
@@ -54,7 +55,8 @@ def render_pdf_embedded(file_path):
         """
         st.markdown(pdf_display, unsafe_allow_html=True)
     except FileNotFoundError:
-        st.error(f"⚠️ Could not find the file: {file_path}. Please ensure it is in the main folder.")
+        st.error(f"⚠️ **Deployment Error:** The file '{file_path}' was not found.")
+        st.info("💡 **Fix for Streamlit Cloud:** Ensure you have uploaded/committed 'Manifesto_Sacred_Trader.pdf' to your GitHub repository root folder.")
     except Exception as e:
         st.error(f"Error loading PDF: {e}")
 
