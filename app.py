@@ -35,7 +35,29 @@ def inject_keyboard_listener():
         """,
         height=0, width=0
     )
-    
+
+def render_pdf_embedded(file_path):
+    """Reads a PDF and embeds it directly into the app using HTML/Base64"""
+    try:
+        with open(file_path, "rb") as f:
+            base64_pdf = base64.b64encode(f.read()).decode('utf-8')
+        
+        # HTML logic to embed PDF
+        pdf_display = f"""
+            <iframe 
+                src="data:application/pdf;base64,{base64_pdf}" 
+                width="100%" 
+                height="900px" 
+                type="application/pdf"
+                style="border: none;">
+            </iframe>
+        """
+        st.markdown(pdf_display, unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.error(f"⚠️ Could not find the file: {file_path}. Please ensure it is in the main folder.")
+    except Exception as e:
+        st.error(f"Error loading PDF: {e}")
+
 def get_image_format_safe(img_data):
     """Safely get image format with fallbacks"""
     # Try direct format field first
@@ -7118,7 +7140,7 @@ def render_login():
     st.title(f"🔐 Welcome to {Config.APP_NAME}")
     st.markdown("---")
 
-    tab1, tab2 = st.tabs(["🚀 Login", "📝 Register"])
+    tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Register", "📖 The Manifesto"])
 
     with tab1:
         with st.form("login_form"):
@@ -7213,6 +7235,15 @@ def render_login():
                             st.success("🎉 Congratulations! Your account has been created. You can now login!")
                         else:
                             st.error(f"❌ {message}")
+
+
+    with tab3:
+        st.subheader("The Sacred Trader Manifesto")
+        st.caption("Read the philosophy before you sign up. Discipline is the only currency.")
+        
+        # RENDER THE BOOK
+        # Make sure the filename matches EXACTLY what is on your computer
+        render_pdf_embedded("Manifesto_Sacred_Trader.pdf")
 
 # -------------------------
 # ENHANCED IMAGE GALLERY FORUM WITH FIXED THUMBNAIL DISPLAY AND PERSISTENCE
