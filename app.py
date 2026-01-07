@@ -4712,6 +4712,7 @@ def render_latest_kai_analysis(is_admin):
     st.markdown("---")
 
     if is_admin:
+        # Admins see ALL controls
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -4744,28 +4745,10 @@ def render_latest_kai_analysis(is_admin):
                 else:
                     st.error("❌ Failed to delete analysis")
     else:
-        # Regular users only get view and export options
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("📋 View in Archive", use_container_width=True,
-                        key=f"user_view_latest_in_archive_{latest_analysis['id']}"):
-                st.session_state.kai_analysis_view = 'archive'
-                st.session_state.selected_kai_analysis_id = latest_analysis['id']
-                st.rerun()
-
-        with col2:
-            # Export analysis as JSON
-            analysis_json = json.dumps(analysis_data, indent=2)
-            st.download_button(
-                label="💾 Export JSON",
-                data=analysis_json,
-                file_name=f"kai_analysis_{latest_analysis['created_at'][:10]}.json",
-                mime="application/json",
-                use_container_width=True,
-                key=f"user_export_latest_json_{latest_analysis['id']}"
-            )
-
+        # 🟢 THE FIX: Regular users see NOTHING here (no buttons)
+        # This effectively hides the "View in Archive" and "Export JSON" buttons for them.
+        pass
+        
 def render_kai_analysis_card(analysis, index, is_admin):
     """Render a card for a KAI analysis in the archive - FIXED FOR USERS"""
     analysis_data = analysis['analysis_data']
@@ -9097,6 +9080,17 @@ def render_user_dashboard():
 
         st.markdown("---")
 
+        # User navigation header
+        st.sidebar.title("👤 User Navigation")
+
+        # User mode selection
+        # 🟢 ADDED: "📢 KAI Wall" to the list below
+        user_mode = st.sidebar.radio(
+            "Select View:",
+            ["📊 Trading Dashboard", "📢 KAI Wall", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI", "💎 PREMIUM USER"],
+            key="user_navigation_mode"
+        )
+
         # Navigation - SIMPLIFIED FOR USERS - MOVED TO THIRD SECTION (after strategy selection)
         st.subheader("📊 Navigation")
         if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
@@ -9136,7 +9130,26 @@ def render_user_dashboard():
 
     if current_view == 'settings':
         render_user_account_settings()
+        return
+
+    # Display appropriate view based on user selection
+    # 🟢 ADDED: Logic to show the KAI Wall when selected
+    if user_mode == "📢 KAI Wall":
+        render_user_kai_wall()
+    elif user_mode == "🖼️ Image Gallery":
+        # For gallery, ensure user can only view (not upload)
+        render_user_image_gallery()
+    elif user_mode == "⚡ Trading Signals":
+        # Show the trading signals room in VIEW MODE
+        render_trading_signals_room()
+    elif user_mode == "🧠 KAI":
+        # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
+        render_kai_agent()
+    elif user_mode == "💎 PREMIUM USER":
+        # Show the premium user section
+        render_premium_user_section()
     else:
+        # Show the premium trading dashboard in VIEW MODE
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
