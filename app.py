@@ -3766,6 +3766,48 @@ def supabase_clear_all_kai_analyses():
         return False
 
 # -------------------------
+# KAI WALL (INSIDER FEED) FUNCTIONS
+# -------------------------
+def supabase_get_wall_posts():
+    """Get all posts for the KAI Wall"""
+    if not supabase_client: return []
+    try:
+        # Fetch posts, newest first
+        response = supabase_client.table('kai_wall_posts').select('*').order('created_at', desc=True).execute()
+        return response.data if hasattr(response, 'data') else []
+    except Exception as e:
+        logging.error(f"Error fetching wall posts: {e}")
+        return []
+
+def supabase_create_wall_post_structured(title, summary, conversation_data, posted_by):
+    """Create a new text-based post on the wall"""
+    if not supabase_client: return False
+    try:
+        post_data = {
+            "title": title,
+            "summary": summary,
+            "conversation_data": conversation_data,
+            "posted_by": posted_by,
+            "created_at": datetime.now().isoformat()
+        }
+        response = supabase_client.table('kai_wall_posts').insert(post_data).execute()
+        # Return True if no error
+        return not (hasattr(response, 'error') and response.error)
+    except Exception as e:
+        logging.error(f"Error creating wall post: {e}")
+        return False
+
+def supabase_delete_wall_post(post_id):
+    """Delete a wall post"""
+    if not supabase_client: return False
+    try:
+        response = supabase_client.table('kai_wall_posts').delete().eq('id', post_id).execute()
+        return not (hasattr(response, 'error') and response.error)
+    except Exception as e:
+        logging.error(f"Error deleting wall post: {e}")
+        return False
+
+# -------------------------
 # SESSION MANAGEMENT - UPDATED WITH ENHANCED KAI
 # -------------------------
 # =====================================================================
@@ -8818,6 +8860,121 @@ def render_admin_account_settings():
             user_manager.load_data()
             st.rerun()
 
+
+def render_user_kai_wall():
+    """The High-Fidelity Wall Feed for Users with Custom Colors"""
+    st.markdown("### 🧠 KAI Insider Wall")
+    st.caption("Direct strategic intelligence from the Admin desk.")
+    
+    posts = supabase_get_wall_posts()
+    
+    if not posts:
+        st.info("📭 No active intelligence reports. Check back later.")
+        return
+
+    # --- CSS STYLING (The Magic Part) ---
+    # This defines the look: Black BG, White Text, Blue Highlights
+    kai_chat_style = """
+    <style>
+    .kai-terminal-container {
+        background-color: #0E1117; /* Dark background to match Streamlit dark mode */
+        border: 1px solid #262730;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        overflow: hidden;
+    }
+    .kai-terminal-output {
+        background-color: #1E1E1E; /* Slightly lighter dark for the message box */
+        color: #FFFFFF;            /* PURE WHITE TEXT */
+        padding: 20px;
+        font-family: 'Source Code Pro', monospace;
+        white-space: pre-wrap;     /* Keeps formatting/newlines */
+        line-height: 1.6;
+        font-size: 14px;
+    }
+    /* This class turns numbers/prices BLUE */
+    .kai-terminal-output span.highlight {
+        color: #4da6ff !important; /* ELECTRIC BLUE */
+        font-weight: bold;
+    }
+    .admin-note-box {
+        background-color: #262730;
+        border-left: 4px solid #FF4B4B;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+    </style>
+    """
+    st.markdown(kai_chat_style, unsafe_allow_html=True)
+
+    for post in posts:
+        with st.container():
+            # 1. Header (Date & Title)
+            date_str = "Unknown"
+            if post.get('created_at'):
+                try: 
+                    dt = datetime.fromisoformat(post['created_at'])
+                    date_str = dt.strftime("%b %d • %I:%M %p")
+                except: pass
+
+            st.subheader(f"🔔 {post.get('title', 'Market Update')}")
+            st.caption(f"📅 {date_str} | 📡 Incoming Transmission")
+
+            # 2. Admin Context Note (If available)
+            if post.get('summary'):
+                st.markdown(f"""
+                <div class="admin-note-box">
+                    <strong>👤 Admin Note:</strong><br>{post.get('summary')}
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 3. KAI Analysis Content
+            content_to_show = ""
+            # Extract from new structure
+            if post.get('conversation_data'):
+                for msg in post['conversation_data']:
+                    if msg.get('role') == 'kai':
+                        content_to_show = msg.get('content')
+                        break
+            # Fallback for older posts
+            elif post.get('summary'): 
+                # If we only have summary and no convo data, maybe summary was the content
+                pass 
+
+            if content_to_show:
+                with st.expander("🧠 Open Analysis Feed", expanded=True):
+                    # --- REGEX MAGIC ---
+                    # Finds prices like "$3,400", "3400 USD", "50%" and wraps them in blue
+                    import re
+                    # Pattern matches: $1,234 | 1,234 USD | 50%
+                    pattern = r'(\$[\d,.]+|[\d,.]+\s*USD|\d{1,3}%)'
+                    
+                    # Wrap matches in the span with the 'highlight' class (Blue)
+                    processed_content = re.sub(
+                        pattern, 
+                        r'<span class="highlight">\1</span>', 
+                        content_to_show
+                    )
+
+                    # Render the HTML
+                    st.markdown(f"""
+                    <div class="kai-terminal-output">
+                    {processed_content}
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Copy/Download Button
+                    st.download_button(
+                        label="📋 Save to Text File",
+                        data=content_to_show,
+                        file_name=f"KAI_Analysis_{date_str}.txt",
+                        mime="text/plain",
+                        key=f"dl_{post['id']}"
+                    )
+
+            st.markdown("---")
+
 # -------------------------
 # ENHANCED USER DASHBOARD WITH STRATEGY INDICATOR IMAGES - FIXED VERSION
 # -------------------------
@@ -9965,6 +10122,60 @@ def render_gallery_statistics_paginated():
     except Exception as e:
         st.error(f"⚠️ Stats Error: {e}")
 
+
+def render_admin_wall_manager():
+    """Admin Interface: Publish KAI Insights (Text-Based)"""
+    st.subheader("📢 KAI Insider Wall Manager")
+    st.info("Paste KAI's analysis below. The system will automatically colorize prices in Blue.")
+    
+    tab1, tab2 = st.tabs(["✍️ New Update", "🗑️ Manage Posts"])
+    
+    with tab1:
+        with st.form("new_text_wall_post"):
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                title = st.text_input("Post Headline", placeholder="e.g., ETH Critical Pivot Reached")
+                summary = st.text_area("Admin Summary (Context)", placeholder="Brief note from you to the users...", height=100)
+            
+            with col2:
+                # This ensures the text is searchable and selectable
+                kai_text = st.text_area("🧠 KAI's Analysis Text", height=300, 
+                                      placeholder="Paste the full text response from KAI here.\n\nExample:\nCRITICAL SUPPORT: 3,000 USD\nTARGET: 3,450 USD...")
+
+            submitted = st.form_submit_button("🚀 Publish Insight", use_container_width=True)
+
+            if submitted:
+                if not title or not kai_text:
+                    st.error("Title and Analysis text are required.")
+                else:
+                    # Store as structured data
+                    conversation_payload = [
+                        {"role": "admin", "content": summary},
+                        {"role": "kai", "content": kai_text}
+                    ]
+                    
+                    if supabase_create_wall_post_structured(title, summary, conversation_payload, st.session_state.user['username']):
+                        st.success("✅ Insight Published Successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Failed to publish.")
+
+    with tab2:
+        posts = supabase_get_wall_posts()
+        if not posts:
+            st.info("No posts found.")
+        for post in posts:
+            with st.container():
+                c1, c2, c3 = st.columns([4, 2, 1])
+                c1.write(f"**{post.get('title')}**")
+                c2.caption(post.get('created_at', '')[:10])
+                if c3.button("🗑️", key=f"del_wall_{post['id']}"):
+                    supabase_delete_wall_post(post['id'])
+                    st.rerun()
+                st.divider()
+
 def render_admin_dashboard():
     """Professional admin dashboard with dual mode selection"""
 
@@ -9991,6 +10202,10 @@ def render_admin_dashboard():
             st.success("⚡ Trading Signals Room")
         elif current_mode == "kai_agent":
             st.success("🧠 KAI AI Agent Mode")
+        elif current_mode == "kai_wall_manager":  # NEW
+            st.success("📢 KAI Wall Manager")
+        elif current_mode == "purchase_verification":
+            st.success("💳 Ko-Fi Verification")
         else:
             st.success("🛠️ Admin Management Mode")
 
@@ -9998,7 +10213,8 @@ def render_admin_dashboard():
         st.subheader("Dashboard Mode")
         st.markdown("---")
         
-        col1, col2, col3, col4, col5 = st.columns(5)  # 5 columns for the sidebar buttons
+        # ROW 1: Core Management
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("🛠️ Admin", use_container_width=True,
                         type="primary" if current_mode == "admin" else "secondary",
@@ -10006,10 +10222,10 @@ def render_admin_dashboard():
                 st.session_state.admin_dashboard_mode = "admin"
                 st.rerun()
         with col2:
-            if st.button("📊 Premium", use_container_width=True,
-                        type="primary" if current_mode == "premium" else "secondary",
-                        key="sidebar_premium_btn"):
-                st.session_state.admin_dashboard_mode = "premium"
+            if st.button("💳 Ko-Fi", use_container_width=True,
+                        type="primary" if current_mode == "purchase_verification" else "secondary",
+                        key="sidebar_kofi_verification_btn"):
+                st.session_state.admin_dashboard_mode = "purchase_verification"
                 st.rerun()
         with col3:
             if st.button("🖼️ Gallery", use_container_width=True,
@@ -10017,16 +10233,34 @@ def render_admin_dashboard():
                         key="sidebar_gallery_btn"):
                 st.session_state.admin_dashboard_mode = "gallery"
                 st.rerun()
+
+        # ROW 2: Trading Tools
+        col4, col5, col6 = st.columns(3)
         with col4:
             if st.button("⚡ Signals", use_container_width=True,
                         type="primary" if current_mode == "signals_room" else "secondary",
                         key="sidebar_signals_btn"):
                 st.session_state.admin_dashboard_mode = "signals_room"
                 st.rerun()
-        with col5:  # Ko-Fi Verification button
-            if st.button("💳 Ko-Fi", use_container_width=True, key="sidebar_kofi_verification_btn"):
-                st.session_state.admin_dashboard_mode = "purchase_verification"
+        with col5:
+            if st.button("📊 Premium", use_container_width=True,
+                        type="primary" if current_mode == "premium" else "secondary",
+                        key="sidebar_premium_btn"):
+                st.session_state.admin_dashboard_mode = "premium"
                 st.rerun()
+        with col6:
+            if st.button("🧠 KAI Agent", use_container_width=True,
+                        type="primary" if current_mode == "kai_agent" else "secondary",
+                        key="sidebar_kai_agent_btn"):
+                st.session_state.admin_dashboard_mode = "kai_agent"
+                st.rerun()
+
+        # ROW 3: KAI Wall (The New Feature)
+        if st.button("📢 KAI Wall Manager", use_container_width=True,
+                    type="primary" if current_mode == "kai_wall_manager" else "secondary",
+                    key="sidebar_kai_wall_btn"):
+            st.session_state.admin_dashboard_mode = "kai_wall_manager"
+            st.rerun()
 
         st.markdown("---")
 
@@ -10041,10 +10275,8 @@ def render_admin_dashboard():
         if current_mode == "admin":
             render_admin_sidebar_options()
         elif current_mode == "premium":
-            # Premium mode uses its own sidebar built in render_premium_signal_dashboard
-            pass
+            pass # Premium mode uses its own sidebar
         elif current_mode == "signals_room":
-            # Signals Room mode - show signal-specific options
             st.subheader("Signal Actions")
             if st.button("🚀 Launch Signal", use_container_width=True, key="sidebar_launch_signal"):
                 st.session_state.signals_room_view = 'launch_signal'
@@ -10058,14 +10290,13 @@ def render_admin_dashboard():
             if st.button("📱 Active Signals", use_container_width=True, key="sidebar_active_signals"):
                 st.session_state.signals_room_view = 'active_signals'
                 st.rerun()
-        elif current_mode == "kai_agent":  # KAI Agent sidebar options
+        elif current_mode == "kai_agent":
             st.subheader("KAI Agent Actions")
             if st.button("📊 Upload CSV Analysis", use_container_width=True, key="sidebar_kai_upload"):
                 st.rerun()
             if st.button("📜 View Analysis History", use_container_width=True, key="sidebar_kai_history"):
                 st.rerun()
-        else:
-            # Gallery mode
+        elif current_mode == "gallery":
             st.subheader("Gallery Actions")
             if st.button("🖼️ Full Gallery", use_container_width=True, key="sidebar_gallery_full"):
                 st.session_state.current_gallery_view = "gallery"
@@ -10076,7 +10307,7 @@ def render_admin_dashboard():
                 st.session_state.image_viewer_mode = False
                 st.rerun()
             if st.session_state.uploaded_images:
-                if st.button("👁️ Image Viewer", use_container_width=True, key="sidebar_gallery_viewer", help="Open the first image in full viewer"):
+                if st.button("👁️ Image Viewer", use_container_width=True, key="sidebar_gallery_viewer"):
                     st.session_state.current_image_index = 0
                     st.session_state.image_viewer_mode = True
                     st.rerun()
@@ -10094,10 +10325,13 @@ def render_admin_dashboard():
     elif st.session_state.get('admin_dashboard_mode') == "kai_agent":
         render_kai_agent()
     
-    elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":  # New section for Ko-Fi Verification
+    elif st.session_state.get('admin_dashboard_mode') == "purchase_verification":
         st.markdown("## 💳 Ko-Fi")
-        render_admin_purchase_verification_panel()  # This renders the Ko-Fi verification section
-    
+        render_admin_purchase_verification_panel()
+        
+    elif st.session_state.get('admin_dashboard_mode') == "kai_wall_manager": # NEW BLOCK
+        render_admin_wall_manager()
+
     else:
         render_image_gallery_paginated()
 
