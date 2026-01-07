@@ -9035,7 +9035,7 @@ def render_user_dashboard():
                     st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                     st.rerun()
                 else:
-                    st.warning("Cannot go before start date")
+                    st.warning("Start Date")
         with col2:
             if st.button("Next Day ▶️", use_container_width=True, key="user_next_day_btn"):
                 new_date = analysis_date + timedelta(days=1)
@@ -9049,43 +9049,38 @@ def render_user_dashboard():
         st.info(f"**Day {cycle_day} of 5-day cycle**")
         st.markdown("---")
 
-        # Strategy selection
-        st.subheader("🎯 Choose Strategy to View:")
+        # Strategy Selection
+        st.subheader("🎯 Strategies:")
         for strategy in daily_strategies:
-            if st.button(
-                f"📊 {strategy}",
-                use_container_width=True,
-                type="primary" if strategy == selected_strategy else "secondary",
-                key=f"user_strategy_{strategy}"
-            ):
+            # Highlight selected strategy
+            btn_type = "primary" if strategy == selected_strategy else "secondary"
+            if st.button(f"📊 {strategy}", use_container_width=True, type=btn_type, key=f"user_strategy_{strategy}"):
                 st.session_state.selected_strategy = strategy
                 st.rerun()
 
         st.markdown("---")
 
         # User Navigation
-        st.sidebar.title("👤 User Navigation")
+        st.subheader("👤 User Navigation")
 
-        # 🟢 RESTORED: Radio Button Menu with KAI Wall inserted
-        user_mode = st.sidebar.radio(
+        # 🟢 RESTORED RADIO MENU (With KAI Wall Added)
+        # Using a UNIQUE KEY to prevent the 'Duplicate Element' error
+        user_mode = st.radio(
             "Select View:",
             [
                 "📊 Trading Dashboard", 
                 "🖼️ Image Gallery", 
                 "⚡ Trading Signals", 
                 "🧠 KAI", 
-                "📢 KAI Wall",  # <--- Inserted here as requested
+                "📢 KAI Wall",  # <--- Added exactly here as requested
                 "💎 PREMIUM USER"
             ],
-            key="user_nav_radio_final" # <--- Unique Key to fix Duplicate Error
+            key="user_nav_radio_final_v3"
         )
 
-        # Extra Navigation Buttons
-        st.subheader("📊 Navigation")
-        if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
-            st.session_state.dashboard_view = 'main'
-            st.rerun()
+        st.markdown("---")
 
+        # Nav Buttons (Settings/Logout)
         if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
             st.session_state.dashboard_view = 'settings'
             st.rerun()
@@ -9096,12 +9091,9 @@ def render_user_dashboard():
         st.markdown("""
         <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
             <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
-            <small style="color: #3e2723;">This is not financial advice. Trading carries high risk of loss. 
-            Only risk capital you can afford to lose. Past performance ≠ future results.</small>
+            <small style="color: #3e2723;">Trading carries high risk. Past performance ≠ future results.</small>
         </div>
         """, unsafe_allow_html=True)
-
-        st.markdown("---")
 
         # Logout
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
@@ -9109,7 +9101,7 @@ def render_user_dashboard():
             st.session_state.user = None
             st.rerun()
 
-    # --- MAIN CONTENT ---
+    # --- MAIN CONTENT LOGIC ---
     current_view = st.session_state.get('dashboard_view', 'main')
 
     if st.session_state.get('show_purchase_verification'):
@@ -9120,7 +9112,7 @@ def render_user_dashboard():
         render_user_account_settings()
         return
 
-    # 🟢 RENDER LOGIC for the Radio Selection
+    # 🟢 RENDER THE SELECTED VIEW
     if user_mode == "📢 KAI Wall":
         render_user_kai_wall()
     elif user_mode == "🖼️ Image Gallery":
@@ -9133,7 +9125,7 @@ def render_user_dashboard():
         render_premium_user_section()
     else:
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
-
+        
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
     """User trading dashboard - CLEANED VERSION WITHOUT KAI BUTTONS"""
     st.title("📊 Trading Signal Dashboard")
