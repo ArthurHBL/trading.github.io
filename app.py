@@ -8977,7 +8977,7 @@ def render_user_dashboard():
 
     data = st.session_state.user_data[user_data_key]
 
-    # Use session state strategy analyses data - FIXED: Now using session state
+    # Use session state strategy analyses data
     strategy_data = st.session_state.strategy_analyses_data
 
     # Date navigation
@@ -9004,7 +9004,7 @@ def render_user_dashboard():
     # Get daily strategies and cycle day
     daily_strategies, cycle_day = get_daily_strategies(analysis_date)
 
-    # FIXED: Auto-select first strategy when date changes or no strategy selected
+    # Auto-select first strategy when date changes or no strategy selected
     if (st.session_state.get('last_analysis_date') != analysis_date or
         st.session_state.selected_strategy is None or
         st.session_state.selected_strategy not in daily_strategies):
@@ -9013,7 +9013,7 @@ def render_user_dashboard():
 
     selected_strategy = st.session_state.selected_strategy
 
-    # FIXED: Clean sidebar with proper layout - 5-DAY CYCLE FIRST, then STRATEGY SELECTION, then NAVIGATION
+    # Sidebar Navigation
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
 
@@ -9031,13 +9031,13 @@ def render_user_dashboard():
 
         render_user_purchase_button()
 
-        # 5-Day Cycle System - MOVED TO TOP (FIRST SECTION)
+        # 5-Day Cycle System
         st.subheader("📅 5-Day Cycle")
 
         # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-        # Date navigation - READ ONLY FOR USERS
+        # Date navigation
         col1, col2 = st.columns(2)
         with col1:
             if st.button("◀️ Prev Day", use_container_width=True, key="user_prev_day_btn"):
@@ -9063,11 +9063,9 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # Strategy selection - READ ONLY - MOVED TO SECOND SECTION (right after 5-day cycle)
-        # CHANGED: Replace dropdown with clickable buttons
+        # Strategy selection
         st.subheader("🎯 Choose Strategy to View:")
 
-        # Create clickable buttons for each strategy
         for strategy in daily_strategies:
             if st.button(
                 f"📊 {strategy}",
@@ -9083,15 +9081,21 @@ def render_user_dashboard():
         # User navigation header
         st.sidebar.title("👤 User Navigation")
 
-        # User mode selection
-        # 🟢 ADDED: "📢 KAI Wall" to the list below
+        # 🟢 CHANGED KEY TO FIX CRASH & ADDED KAI WALL OPTION
         user_mode = st.sidebar.radio(
             "Select View:",
-            ["📊 Trading Dashboard", "📢 KAI Wall", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI", "💎 PREMIUM USER"],
-            key="user_navigation_mode"
+            [
+                "📊 Trading Dashboard", 
+                "📢 KAI Wall",  # <--- Added KAI Wall here
+                "🖼️ Image Gallery", 
+                "⚡ Trading Signals", 
+                "🧠 KAI", 
+                "💎 PREMIUM USER"
+            ],
+            key="user_navigation_mode_v2" # <--- Unique key fixes the duplicate error
         )
 
-        # Navigation - SIMPLIFIED FOR USERS - MOVED TO THIRD SECTION (after strategy selection)
+        # Navigation
         st.subheader("📊 Navigation")
         if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
             st.session_state.dashboard_view = 'main'
@@ -9103,7 +9107,7 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # DISCLAIMER BEFORE LOGOUT BUTTON - FOR LEGAL REASONS
+        # DISCLAIMER
         st.markdown("""
         <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
             <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
@@ -9114,42 +9118,36 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # LOGOUT BUTTON AFTER DISCLAIMER
+        # LOGOUT
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
 
-    # Main dashboard content - READ ONLY for users but same layout as admin
+    # Main dashboard content
     current_view = st.session_state.get('dashboard_view', 'main')
 
-    # ADD THIS: Check if purchase verification modal should be shown
+    # Modals
     if st.session_state.get('show_purchase_verification'):
         render_purchase_verification_modal()
-        return  # Return early to prevent showing other content when modal is open
+        return
 
     if current_view == 'settings':
         render_user_account_settings()
         return
 
-    # Display appropriate view based on user selection
-    # 🟢 ADDED: Logic to show the KAI Wall when selected
+    # 🟢 RENDER LOGIC FOR NEW KAI WALL
     if user_mode == "📢 KAI Wall":
         render_user_kai_wall()
     elif user_mode == "🖼️ Image Gallery":
-        # For gallery, ensure user can only view (not upload)
         render_user_image_gallery()
     elif user_mode == "⚡ Trading Signals":
-        # Show the trading signals room in VIEW MODE
         render_trading_signals_room()
     elif user_mode == "🧠 KAI":
-        # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
         render_kai_agent()
     elif user_mode == "💎 PREMIUM USER":
-        # Show the premium user section
         render_premium_user_section()
     else:
-        # Show the premium trading dashboard in VIEW MODE
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
