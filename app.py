@@ -8978,7 +8978,7 @@ def render_user_dashboard():
     data = st.session_state.user_data[user_data_key]
     strategy_data = st.session_state.strategy_analyses_data
 
-    # Date navigation
+    # Date navigation logic
     start_date = date(2025, 8, 9)
     query_params = st.query_params
     current_date_str = query_params.get("date", "")
@@ -9006,113 +9006,104 @@ def render_user_dashboard():
 
     selected_strategy = st.session_state.selected_strategy
 
-    # --- SIDEBAR ---
+    # --- SIDEBAR START ---
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
-
-        # User profile section
-        st.markdown("---")
-        st.write(f"👤 {user['name']}")
-        plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
-        st.caption(f"🚀 {plan_display}")
-
-        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
-        st.progress(min(1.0, days_left / 30), text=f"📅 {days_left} days remaining")
-
-        st.markdown("---")
-
-        render_user_purchase_button()
-
-        # 5-Day Cycle System
-        st.subheader("📅 5-Day Cycle")
-        st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("◀️ Prev Day", use_container_width=True, key="user_prev_day_btn"):
-                new_date = analysis_date - timedelta(days=1)
-                if new_date >= start_date:
-                    st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-                    st.rerun()
-                else:
-                    st.warning("Start Date")
-        with col2:
-            if st.button("Next Day ▶️", use_container_width=True, key="user_next_day_btn"):
-                new_date = analysis_date + timedelta(days=1)
-                st.query_params["date"] = new_date.strftime("%Y-%m-%d")
-                st.rerun()
-
-        if st.button("🔄 Today", use_container_width=True, key="user_today_btn"):
-            st.query_params["date"] = date.today().strftime("%Y-%m-%d")
-            st.rerun()
-
-        st.info(f"**Day {cycle_day} of 5-day cycle**")
-        st.markdown("---")
-
-        # Strategy Selection
-        st.subheader("🎯 Strategies:")
-        for strategy in daily_strategies:
-            # Highlight selected strategy
-            btn_type = "primary" if strategy == selected_strategy else "secondary"
-            if st.button(f"📊 {strategy}", use_container_width=True, type=btn_type, key=f"user_strategy_{strategy}"):
-                st.session_state.selected_strategy = strategy
-                st.rerun()
-
-        st.markdown("---")
-
-        # User Navigation
-        st.subheader("👤 User Navigation")
-
-        # 🟢 RESTORED RADIO MENU (With KAI Wall Added)
-        # Using a UNIQUE KEY to prevent the 'Duplicate Element' error
+        
+        # 🟢 MOVED TO TOP: Navigation Menu
+        # This is now the first thing the user sees after the title
+        st.subheader("📍 Menu")
         user_mode = st.radio(
-            "Select View:",
+            "Go to:",
             [
                 "📊 Trading Dashboard", 
                 "🖼️ Image Gallery", 
                 "⚡ Trading Signals", 
                 "🧠 KAI", 
-                "📢 KAI Wall",  # <--- Added exactly here as requested
+                "📢 KAI Wall", 
                 "💎 PREMIUM USER"
             ],
-            key="user_nav_radio_final_v3"
+            key="user_nav_radio_top_v1" # Unique key
         )
-
         st.markdown("---")
 
-        # Nav Buttons (Settings/Logout)
-        if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
+        # User Profile Info
+        st.write(f"👤 **{user['name']}**")
+        plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
+        st.caption(f"🚀 {plan_display}")
+
+        days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
+        st.progress(min(1.0, days_left / 30), text=f"📅 {days_left} days remaining")
+        
+        render_user_purchase_button()
+        st.markdown("---")
+
+        # 🟢 CONDITIONAL CONTROLS (Only show if on Dashboard)
+        if user_mode == "📊 Trading Dashboard":
+            # 5-Day Cycle System
+            st.subheader("📅 5-Day Cycle")
+            st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("◀️ Prev", use_container_width=True, key="user_prev_day_btn"):
+                    new_date = analysis_date - timedelta(days=1)
+                    if new_date >= start_date:
+                        st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+                        st.rerun()
+                    else:
+                        st.warning("Start Date")
+            with col2:
+                if st.button("Next ▶️", use_container_width=True, key="user_next_day_btn"):
+                    new_date = analysis_date + timedelta(days=1)
+                    st.query_params["date"] = new_date.strftime("%Y-%m-%d")
+                    st.rerun()
+
+            if st.button("🔄 Today", use_container_width=True, key="user_today_btn"):
+                st.query_params["date"] = date.today().strftime("%Y-%m-%d")
+                st.rerun()
+
+            st.info(f"**Day {cycle_day} of 5-day cycle**")
+            st.markdown("---")
+
+            # Strategy Selection
+            st.subheader("🎯 Strategies")
+            for strategy in daily_strategies:
+                btn_type = "primary" if strategy == selected_strategy else "secondary"
+                if st.button(f"📊 {strategy}", use_container_width=True, type=btn_type, key=f"user_strat_{strategy}"):
+                    st.session_state.selected_strategy = strategy
+                    st.rerun()
+            st.markdown("---")
+
+        # Bottom Actions (Settings & Logout)
+        if st.button("⚙️ Settings", use_container_width=True, key="user_nav_settings"):
             st.session_state.dashboard_view = 'settings'
             st.rerun()
 
-        st.markdown("---")
-
-        # Disclaimer
         st.markdown("""
-        <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
-            <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
-            <small style="color: #3e2723;">Trading carries high risk. Past performance ≠ future results.</small>
+        <div style="background-color: #fbe9e7; padding: 10px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
+            <small style="color: #3e2723; font-size: 0.75rem;">⚠️ Trading carries high risk.</small>
         </div>
         """, unsafe_allow_html=True)
 
-        # Logout
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
 
-    # --- MAIN CONTENT LOGIC ---
-    current_view = st.session_state.get('dashboard_view', 'main')
-
+    # --- MAIN CONTENT RENDERING ---
+    
+    # 1. Check Modals
     if st.session_state.get('show_purchase_verification'):
         render_purchase_verification_modal()
         return
 
-    if current_view == 'settings':
+    # 2. Check Settings View
+    if st.session_state.get('dashboard_view') == 'settings':
         render_user_account_settings()
         return
 
-    # 🟢 RENDER THE SELECTED VIEW
+    # 3. Render Main View based on Top Menu
     if user_mode == "📢 KAI Wall":
         render_user_kai_wall()
     elif user_mode == "🖼️ Image Gallery":
@@ -9124,6 +9115,7 @@ def render_user_dashboard():
     elif user_mode == "💎 PREMIUM USER":
         render_premium_user_section()
     else:
+        # Default: Trading Dashboard
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
         
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
