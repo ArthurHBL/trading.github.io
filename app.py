@@ -8976,14 +8976,10 @@ def render_user_dashboard():
         }
 
     data = st.session_state.user_data[user_data_key]
-
-    # Use session state strategy analyses data
     strategy_data = st.session_state.strategy_analyses_data
 
     # Date navigation
     start_date = date(2025, 8, 9)
-
-    # Get date from URL parameters or session state
     query_params = st.query_params
     current_date_str = query_params.get("date", "")
 
@@ -8996,15 +8992,12 @@ def render_user_dashboard():
     else:
         analysis_date = st.session_state.get('analysis_date', date.today())
 
-    # Ensure analysis_date is not before start_date
     if analysis_date < start_date:
         analysis_date = start_date
         st.session_state.analysis_date = start_date
 
-    # Get daily strategies and cycle day
     daily_strategies, cycle_day = get_daily_strategies(analysis_date)
 
-    # Auto-select first strategy when date changes or no strategy selected
     if (st.session_state.get('last_analysis_date') != analysis_date or
         st.session_state.selected_strategy is None or
         st.session_state.selected_strategy not in daily_strategies):
@@ -9013,7 +9006,7 @@ def render_user_dashboard():
 
     selected_strategy = st.session_state.selected_strategy
 
-    # Sidebar Navigation
+    # --- SIDEBAR START ---
     with st.sidebar:
         st.title("🎛️ Signal Dashboard")
 
@@ -9023,7 +9016,6 @@ def render_user_dashboard():
         plan_display = Config.PLANS.get(user['plan'], {}).get('name', user['plan'].title())
         st.caption(f"🚀 {plan_display}")
 
-        # Account status with progress
         days_left = (datetime.strptime(user['expires'], "%Y-%m-%d").date() - date.today()).days
         st.progress(min(1.0, days_left / 30), text=f"📅 {days_left} days remaining")
 
@@ -9033,11 +9025,8 @@ def render_user_dashboard():
 
         # 5-Day Cycle System
         st.subheader("📅 5-Day Cycle")
-
-        # Display current date
         st.markdown(f"**Current Date:** {analysis_date.strftime('%m/%d/%Y')}")
 
-        # Date navigation
         col1, col2 = st.columns(2)
         with col1:
             if st.button("◀️ Prev Day", use_container_width=True, key="user_prev_day_btn"):
@@ -9046,26 +9035,22 @@ def render_user_dashboard():
                     st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                     st.rerun()
                 else:
-                    st.warning("Cannot go before start date")
+                    st.warning("Start Date")
         with col2:
             if st.button("Next Day ▶️", use_container_width=True, key="user_next_day_btn"):
                 new_date = analysis_date + timedelta(days=1)
                 st.query_params["date"] = new_date.strftime("%Y-%m-%d")
                 st.rerun()
 
-        # Quick date reset button
         if st.button("🔄 Today", use_container_width=True, key="user_today_btn"):
             st.query_params["date"] = date.today().strftime("%Y-%m-%d")
             st.rerun()
 
-        # Cycle information
         st.info(f"**Day {cycle_day} of 5-day cycle**")
-
         st.markdown("---")
 
-        # Strategy selection
-        st.subheader("🎯 Choose Strategy to View:")
-
+        # Strategy Selection
+        st.subheader("🎯 Strategies:")
         for strategy in daily_strategies:
             if st.button(
                 f"📊 {strategy}",
@@ -9078,27 +9063,16 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # User navigation header
-        st.sidebar.title("👤 User Navigation")
-
-        # 🟢 CHANGED KEY TO FIX CRASH & ADDED KAI WALL OPTION
-        user_mode = st.sidebar.radio(
-            "Select View:",
-            [
-                "📊 Trading Dashboard", 
-                "📢 KAI Wall",  # <--- Added KAI Wall here
-                "🖼️ Image Gallery", 
-                "⚡ Trading Signals", 
-                "🧠 KAI", 
-                "💎 PREMIUM USER"
-            ],
-            key="user_navigation_mode_v2" # <--- Unique key fixes the duplicate error
-        )
-
-        # Navigation
+        # Navigation Buttons (Restored to Original Style)
         st.subheader("📊 Navigation")
-        if st.button("📈 View Signals", use_container_width=True, key="user_nav_main"):
+        
+        if st.button("📈 Signal Dashboard", use_container_width=True, key="user_nav_main"):
             st.session_state.dashboard_view = 'main'
+            st.rerun()
+
+        # 🟢 NEW: KAI Wall Button added here
+        if st.button("📢 KAI Insider Wall", use_container_width=True, key="user_nav_kai_wall"):
+            st.session_state.dashboard_view = 'kai_wall'
             st.rerun()
 
         if st.button("⚙️ Account Settings", use_container_width=True, key="user_nav_settings"):
@@ -9107,47 +9081,37 @@ def render_user_dashboard():
 
         st.markdown("---")
 
-        # DISCLAIMER
+        # Disclaimer & Logout
         st.markdown("""
         <div style="background-color: #fbe9e7; padding: 12px; border-radius: 6px; border-left: 4px solid #d84315; margin: 10px 0;">
             <small><strong style="color: #bf360c;">⚠️ RISK WARNING</strong></small><br>
-            <small style="color: #3e2723;">This is not financial advice. Trading carries high risk of loss. 
-            Only risk capital you can afford to lose. Past performance ≠ future results.</small>
+            <small style="color: #3e2723;">This is not financial advice. Trading carries high risk.</small>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("---")
-
-        # LOGOUT
         if st.button("🚪 Logout", use_container_width=True, key="user_logout_btn"):
             user_manager.logout(user['username'])
             st.session_state.user = None
             st.rerun()
 
-    # Main dashboard content
+    # --- MAIN CONTENT RENDERING ---
+    
     current_view = st.session_state.get('dashboard_view', 'main')
 
-    # Modals
+    # 1. Modals
     if st.session_state.get('show_purchase_verification'):
         render_purchase_verification_modal()
         return
 
+    # 2. View Logic
     if current_view == 'settings':
         render_user_account_settings()
-        return
-
-    # 🟢 RENDER LOGIC FOR NEW KAI WALL
-    if user_mode == "📢 KAI Wall":
+        
+    elif current_view == 'kai_wall':  # 🟢 NEW VIEW
         render_user_kai_wall()
-    elif user_mode == "🖼️ Image Gallery":
-        render_user_image_gallery()
-    elif user_mode == "⚡ Trading Signals":
-        render_trading_signals_room()
-    elif user_mode == "🧠 KAI":
-        render_kai_agent()
-    elif user_mode == "💎 PREMIUM USER":
-        render_premium_user_section()
+        
     else:
+        # Default Dashboard View
         render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy)
 
 def render_user_trading_dashboard(data, user, daily_strategies, cycle_day, analysis_date, selected_strategy):
