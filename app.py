@@ -11127,193 +11127,35 @@ def main():
     # Enhanced CSS for premium appearance
     st.markdown("""
     <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-    .premium-feature {
-        border: 2px solid #00D4AA;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #f8fffe 0%, #e6f7f5 100%);
-    }
-    .admin-feature {
-        border: 2px solid #8B5CF6;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
-    }
-    .gallery-feature {
-        border: 2px solid #F59E0B;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-    }
-    .signals-feature {
-        border: 2px solid #EF4444;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
-    }
-    .kai-feature {
-        border: 2px solid #8B5CF6;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 0.5rem 0;
-        background: linear-gradient(135deg, #F0F4FF 0%, #E0E7FF 100%);
-    }
-    .verification-badge {
-        font-size: 0.7rem !important;
-        padding: 2px
-    .verified-badge {
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        color: white;
-        border-color: #047857 !important;
-    }
-    .unverified-badge {
-        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-        color: white;
-        border-color: #B91C1C !important;
-    }
-    .image-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        justify-content: center;
-        margin-top: 20px;
-    }
-    .image-card {
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 10px;
-        width: 250px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: transform 0.2s;
-        background-color: white;
-    }
-    .image-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-    }
-    .upload-section {
-        background-color: #f0f2f6;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 30px;
-    }
-    .stButton button {
-        width: 100%;
-    }
-    .security-warning {
-        background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
-        border: 2px solid #EF4444;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-    }
-    .image-viewer-nav {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        margin: 20px 0;
-    }
-    .signal-card {
-        border: 2px solid #E5E7EB;
-        border-radius: 10px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        background: white;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        transition: all 0.3s ease;
-    }
-    .signal-card:hover {
-        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-    }
-    .signal-buy {
-        border-left: 5px solid #10B981;
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-    }
-    .signal-sell {
-        border-left: 5px solid #EF4444;
-        background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%);
-    }
-    .signal-hold {
-        border-left: 5px solid #6B7280;
-        background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%);
-    }
-    .timeframe-short {
-        background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%);
-        color: #DC2626;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .timeframe-medium {
-        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
-        color: #059669;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .timeframe-long {
-        background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
-        color: #2563EB;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.8rem;
-        font-weight: 600;
-    }
-    .deepseek-enhanced {
-        background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        display: inline-block;
-        margin-left: 10px;
-    }
-    .quantitative-score {
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-    .risk-high {
-        background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-    .risk-medium {
-        background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-    .risk-low {
-        background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-        color: white;
-        padding: 4px 8px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
+    .main-header { font-size: 2.5rem; color: #1f77b4; text-align: center; margin-bottom: 2rem; }
+    .premium-feature { border: 2px solid #00D4AA; border-radius: 10px; padding: 1.5rem; margin: 0.5rem 0; background: linear-gradient(135deg, #f8fffe 0%, #e6f7f5 100%); }
+    .admin-feature { border: 2px solid #8B5CF6; border-radius: 10px; padding: 1.5rem; margin: 0.5rem 0; background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%); }
+    .gallery-feature { border: 2px solid #F59E0B; border-radius: 10px; padding: 1.5rem; margin: 0.5rem 0; background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%); }
+    .signals-feature { border: 2px solid #EF4444; border-radius: 10px; padding: 1.5rem; margin: 0.5rem 0; background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%); }
+    .kai-feature { border: 2px solid #8B5CF6; border-radius: 10px; padding: 1.5rem; margin: 0.5rem 0; background: linear-gradient(135deg, #F0F4FF 0%, #E0E7FF 100%); }
+    .verification-badge { font-size: 0.7rem !important; padding: 2px; }
+    .verified-badge { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; border-color: #047857 !important; }
+    .unverified-badge { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; border-color: #B91C1C !important; }
+    .image-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 20px; }
+    .image-card { border: 1px solid #ddd; border-radius: 10px; padding: 10px; width: 250px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); transition: transform 0.2s; background-color: white; }
+    .image-card:hover { transform: translateY(-5px); box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); }
+    .upload-section { background-color: #f0f2f6; padding: 20px; border-radius: 10px; margin-bottom: 30px; }
+    .stButton button { width: 100%; }
+    .security-warning { background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%); border: 2px solid #EF4444; border-radius: 10px; padding: 1.5rem; margin: 1rem 0; }
+    .image-viewer-nav { display: flex; justify-content: center; gap: 10px; margin: 20px 0; }
+    .signal-card { border: 2px solid #E5E7EB; border-radius: 10px; padding: 1.5rem; margin: 1rem 0; background: white; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); transition: all 0.3s ease; }
+    .signal-card:hover { box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1); transform: translateY(-2px); }
+    .signal-buy { border-left: 5px solid #10B981; background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%); }
+    .signal-sell { border-left: 5px solid #EF4444; background: linear-gradient(135deg, #FEF2F2 0%, #FECACA 100%); }
+    .signal-hold { border-left: 5px solid #6B7280; background: linear-gradient(135deg, #F9FAFB 0%, #F3F4F6 100%); }
+    .timeframe-short { background: linear-gradient(135deg, #FFE4E6 0%, #FECACA 100%); color: #DC2626; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .timeframe-medium { background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%); color: #059669; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .timeframe-long { background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); color: #2563EB; padding: 4px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .deepseek-enhanced { background: linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%); color: white; padding: 8px 16px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: inline-block; margin-left: 10px; }
+    .quantitative-score { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+    .risk-high { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+    .risk-medium { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+    .risk-low { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 4px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -11325,38 +11167,14 @@ def main():
             render_strategy_indicator_image_viewer()
             return
 
+        # 🟢 HERE IS THE FIX:
         if st.session_state.user['plan'] == 'admin':
             render_admin_dashboard()
         else:
-            # FIXED: Users should have access to BOTH premium dashboard (view mode) AND image gallery AND signals room AND KAI Agent
-            # Add navigation for users to switch between dashboard and gallery
-
-            # User navigation header
-            st.sidebar.title("👤 User Navigation")
-
-            # User mode selection
-            user_mode = st.sidebar.radio(
-                "Select View:",
-                ["📊 Trading Dashboard", "🖼️ Image Gallery", "⚡ Trading Signals", "🧠 KAI", "💎 PREMIUM USER"],
-                key="user_navigation_mode"
-            )
-
-            # Display appropriate view based on user selection
-            if user_mode == "🖼️ Image Gallery":
-                # For gallery, ensure user can only view (not upload)
-                render_user_image_gallery()
-            elif user_mode == "⚡ Trading Signals":
-                # Show the trading signals room in VIEW MODE
-                render_trading_signals_room()
-            elif user_mode == "🧠 KAI":
-                # Show the KAI AI Agent in VIEW MODE (users can view but not upload)
-                render_kai_agent()
-            elif user_mode == "💎 PREMIUM USER":
-                # Show the premium user section
-                render_premium_user_section()
-            else:
-                # Show the premium trading dashboard in VIEW MODE
-                render_user_dashboard()
+            # We simply call the dashboard function.
+            # The dashboard function (which we updated in the previous step) now handles 
+            # ALL navigation (Gallery, Signals, KAI, Wall, etc.) internally.
+            render_user_dashboard()
 
 if __name__ == "__main__":
     main()
