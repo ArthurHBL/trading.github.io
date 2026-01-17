@@ -7433,7 +7433,11 @@ def render_user_image_gallery():
         with c3:
             STRATEGIES = st.session_state.get('STRATEGIES', {})
             strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
-            strategy_choice = st.selectbox("Filter by Strategy:", ["All Strategies"] + strategies_list, key="user_gallery_filter_strategy")
+            
+            # KAI-BUILDER: Added "Special"
+            full_list = strategies_list + ["Special"]
+            
+            strategy_choice = st.selectbox("Filter by Strategy:", ["All Strategies"] + full_list, key="user_gallery_filter_strategy")
         with c4:
             per_page = st.selectbox("Per Page:", [10, 15, 20, 30], index=[10, 15, 20, 30].index(st.session_state.get("gallery_per_page", 15)) if st.session_state.get("gallery_per_page", 15) in [10, 15, 20, 30] else 1, key="user_gallery_per_page")
             st.session_state.gallery_per_page = per_page
@@ -9532,9 +9536,10 @@ def render_image_uploader():
     # Get available strategies for tagging
     STRATEGIES = st.session_state.get('STRATEGIES', {})
     if isinstance(STRATEGIES, dict):
-        available_strategies = list(STRATEGIES.keys())
+        # KAI-BUILDER: Added "Special" tag here
+        available_strategies = list(STRATEGIES.keys()) + ["Special"]
     else:
-        available_strategies = []
+        available_strategies = ["Special"]
     
     # File uploader
     uploaded_files = st.file_uploader(
@@ -9850,9 +9855,13 @@ def render_image_gallery_paginated():
     with filter_col3:
         STRATEGIES = st.session_state.get('STRATEGIES', {})
         strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
+        
+        # KAI-BUILDER: Added "Special" to filter list
+        full_list = strategies_list + ["Special"]
+        
         filter_strategy = st.selectbox(
             "Filter by Strategy:",
-            ["All Strategies"] + strategies_list,
+            ["All Strategies"] + full_list,
             key="gallery_filter_strategy_paginated"
         )
     
