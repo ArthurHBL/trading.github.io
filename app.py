@@ -10368,7 +10368,7 @@ def render_admin_sidebar_options():
         st.rerun()
 
     # NEW: KAI AI Agent access
-    if st.button("🧠 KAI AI Agent", use_container_width=True, key="sidebar_kai_agent_btn"):
+    if st.button("🧠 KAI AI Agent", use_container_width=True, key="sidebar_kai_agent_action_btn"):
         st.session_state.admin_view = "kai_agent"
         st.rerun()
 
