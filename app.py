@@ -7535,32 +7535,34 @@ def render_user_image_gallery():
 
                 # KAI-BUILDER: Blue Download Button Logic
                 with c_dl:
-                    try:
-                        # Prepare High-Speed HTML Download Button (No App Reload)
-                        if img_data.get('bytes_b64'):
-                            b64_data = img_data['bytes_b64']
-                            file_ext = img_data.get('format', 'PNG').lower()
-                            file_name = img_data.get('name', f'image_{idx}')
+                try:
+                    # Prepare High-Speed HTML Download Button
+                    if img_data.get('bytes_b64'):
+                        b64_data = img_data['bytes_b64']
+                        file_ext = img_data.get('format', 'PNG').lower()
+                        file_name = img_data.get('name', f'image_{idx}')
                         
-                            # HTML for Blue Button (#2563EB is standard bright blue)
-                            dl_html = f"""
-                                <a href="data:image/{file_ext};base64,{b64_data}" download="{file_name}.{file_ext}" style="text-decoration: none;">
-                                    <div style="
-                                        background-color: #2563EB; 
-                                        color: white; 
-                                        padding: 4px 0px; 
-                                        text-align: center; 
-                                        border-radius: 4px; 
-                                        font-size: 14px; 
-                                        cursor: pointer;
-                                        line-height: 1.2;">
-                                        ⬇️
-                                    </div>
-                                </a>
-                            ""
-                            st.markdown(dl_html, unsafe_allow_html=True)
-                    except Exception:
-                        st.empty()
+                        # ⚠️ CRITICAL: Must start with f""" and end with """ (3 quotes)
+                        dl_html = f"""
+                            <a href="data:image/{file_ext};base64,{b64_data}" download="{file_name}.{file_ext}" style="text-decoration: none;">
+                                <div style="
+                                    background-color: #2563EB; 
+                                    color: white; 
+                                    padding: 4px 0px; 
+                                    text-align: center; 
+                                    border-radius: 4px; 
+                                    font-size: 14px; 
+                                    cursor: pointer;
+                                    line-height: 1.2;">
+                                    ⬇️
+                                </div>
+                            </a>
+                        """ 
+                        # ^^^ THIS MUST BE 3 QUOTES """ NOT ""
+                        
+                        st.markdown(dl_html, unsafe_allow_html=True)
+                except Exception:
+                    st.empty()
 
                 with c_view:
                     if st.button("⛶", key=f"v_{img_data.get('id', idx)}", help="Expand & Use Arrow Keys"):
