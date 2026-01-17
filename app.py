@@ -8250,6 +8250,7 @@ def render_premium_user_section():
 
     benefits_col1, benefits_col2, benefits_col3 = st.columns(3)
 
+    # KAI-BUILDER: Fixed Syntax Error - Wrapped text in st.markdown
     with benefits_col1:
         st.markdown("""
         **📈 Enhanced Signals**
