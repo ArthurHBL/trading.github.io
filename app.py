@@ -7434,8 +7434,9 @@ def render_user_image_gallery():
             STRATEGIES = st.session_state.get('STRATEGIES', {})
             strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
             
-            # KAI-BUILDER: Added "Special"
-            full_list = strategies_list + ["Special"]
+            # KAI-BUILDER: Added extra tags to filter
+            extra_tags = ["Special", "BTC", "Alts", "CryptoPairs"]
+            full_list = strategies_list + extra_tags
             
             strategy_choice = st.selectbox("Filter by Strategy:", ["All Strategies"] + full_list, key="user_gallery_filter_strategy")
         with c4:
@@ -9535,11 +9536,14 @@ def render_image_uploader():
     
     # Get available strategies for tagging
     STRATEGIES = st.session_state.get('STRATEGIES', {})
+    
+    # KAI-BUILDER: Non-strategy tags
+    extra_tags = ["Special", "BTC", "Alts", "CryptoPairs"]
+    
     if isinstance(STRATEGIES, dict):
-        # KAI-BUILDER: Added "Special" tag here
-        available_strategies = list(STRATEGIES.keys()) + ["Special"]
+        available_strategies = list(STRATEGIES.keys()) + extra_tags
     else:
-        available_strategies = ["Special"]
+        available_strategies = extra_tags
     
     # File uploader
     uploaded_files = st.file_uploader(
@@ -9856,8 +9860,9 @@ def render_image_gallery_paginated():
         STRATEGIES = st.session_state.get('STRATEGIES', {})
         strategies_list = list(STRATEGIES.keys()) if isinstance(STRATEGIES, dict) else []
         
-        # KAI-BUILDER: Added "Special" to filter list
-        full_list = strategies_list + ["Special"]
+        # KAI-BUILDER: Added extra tags to filter
+        extra_tags = ["Special", "BTC", "Alts", "CryptoPairs"]
+        full_list = strategies_list + extra_tags
         
         filter_strategy = st.selectbox(
             "Filter by Strategy:",
